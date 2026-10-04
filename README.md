@@ -25,4 +25,5 @@ Without the game (Java 21):
 ```
 java -jar packdoctor-cli.jar scan <pack folder> [--server]    # what's broken in the mods folder
 java -jar packdoctor-cli.jar crash <pack folder or crash-*.txt> # explain the newest crash in plain English
+java -jar packdoctor-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]  # server copy without client-only mods
 ```

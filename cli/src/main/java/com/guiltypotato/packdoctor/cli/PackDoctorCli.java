@@ -7,6 +7,7 @@ import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
 import com.guiltypotato.packdoctor.core.scan.Report;
 import com.guiltypotato.packdoctor.core.scan.ScanOptions;
+import com.guiltypotato.packdoctor.core.scan.ServerPack;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,11 +16,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
-/** CLI entry point: pack scan and crash translator. Next: server pack builder. */
+/** CLI entry point: pack scan, crash translator and server pack builder. */
 public final class PackDoctorCli {
     private static final String USAGE = """
             Usage: java -jar packdoctor-cli.jar scan <pack or mods folder> [options]
                    java -jar packdoctor-cli.jar crash <crash report, or a pack folder for its newest crash>
+                   java -jar packdoctor-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -40,6 +42,7 @@ public final class PackDoctorCli {
             return args.length == 0 ? 2 : 0;
         }
         if (args[0].equals("crash")) return crash(args);
+        if (args[0].equals("serverpack")) return serverPack(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -152,6 +155,71 @@ public final class PackDoctorCli {
             return 0;
         } catch (IOException e) {
             System.err.println(PackDoctorCore.NAME + " couldn't read " + args[1] + ": " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Copies a pack minus its client-only mods into a new folder (and optionally a zip) for a server host. */
+    static int serverPack(String[] args) {
+        Path pack = null;
+        Path out = null;
+        boolean zip = false;
+        boolean dryRun = false;
+        try {
+            for (int i = 1; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--out" -> out = Path.of(args[++i]);
+                    case "--zip" -> zip = true;
+                    case "--dry-run" -> dryRun = true;
+                    default -> {
+                        if (args[i].startsWith("--") || pack != null) {
+                            System.err.println("Unknown option: " + args[i] + "\n");
+                            System.err.print(USAGE);
+                            return 2;
+                        }
+                        pack = Path.of(args[i]);
+                    }
+                }
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            System.err.println("--out needs a folder.\n");
+            return 2;
+        }
+        if (pack == null) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            ServerPack.Plan plan = ServerPack.plan(pack);
+            if (out == null) out = Path.of(plan.root().getFileName() + " server");
+            out = out.toAbsolutePath();
+            if (dryRun) {
+                System.out.print(ServerPack.readme(plan));
+                System.out.println("\nDry run: nothing was copied. Without --dry-run it would go to " + out);
+                return 0;
+            }
+            System.out.println("Copying to " + out + " ...");
+            System.out.print(ServerPack.write(plan, out));
+            if (zip) {
+                Path zipFile = out.resolveSibling(out.getFileName() + ".zip");
+                ServerPack.zip(out, zipFile);
+                System.out.println("\nZipped to " + zipFile);
+            }
+            // Check the result as a server, so problems carried over from the pack show up now, not on the host.
+            Report check = PackScanner.scan(out.resolve("mods"), plan.options().withSide(Side.SERVER));
+            if (check.findings().isEmpty()) {
+                System.out.println("\nChecked the server pack: no problems found.");
+            } else {
+                System.out.println("\nChecked the server pack: " + Report.summary(check.findings())
+                        + " (these were already in the pack):\n");
+                StringBuilder sb = new StringBuilder();
+                Report.appendFindings(sb, check.findings());
+                System.out.print(sb.substring(sb.indexOf("\n\n") + 2));
+            }
+            System.out.println("\nDone: " + out);
+            return 0;
+        } catch (IOException e) {
+            System.err.println(PackDoctorCore.NAME + " couldn't build the server pack: " + e.getMessage());
             return 2;
         }
     }
