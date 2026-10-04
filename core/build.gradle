@@ -13,3 +13,6 @@ dependencies {
 }
 
 test { useJUnitPlatform() }
+
+// The Forge 1.20.1 mod runs on Java 17, so the shared core must too.
+tasks.withType(JavaCompile).configureEach { options.release = 17 }

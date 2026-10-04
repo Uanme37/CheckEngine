@@ -13,6 +13,9 @@ application {
     mainClass = 'com.guiltypotato.packdoctor.cli.PackDoctorCli'
 }
 
+// Runs on Java 17 too, so the launcher Java from 1.20.1 packs is enough.
+tasks.withType(JavaCompile).configureEach { options.release = 17 }
+
 evaluationDependsOn(':core')
 
 // Single runnable jar: bundles core's classes so "java -jar packdoctor-cli-x.jar" just works.

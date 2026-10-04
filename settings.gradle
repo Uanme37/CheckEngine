@@ -10,4 +10,4 @@ plugins {
 }
 
 rootProject.name = 'PackDoctor'
-include 'core', 'cli', 'mod'
+include 'core', 'cli', 'mod', 'forge-mod'

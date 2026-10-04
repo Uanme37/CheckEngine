@@ -1,6 +1,6 @@
 @echo off
 rem Pack Doctor: drag a modpack folder (e.g. a CurseForge instance) onto this file to check it before launching.
-rem Works on any PC that has played modern modded Minecraft: it borrows the Java 21 that the launchers install.
+rem Works on any PC that has played modern modded Minecraft: it borrows the Java 17/21 that the launchers install.
 setlocal EnableExtensions
 
 rem --- Find the Pack Doctor program: next to this file (download), or in the project's build folder (dev).
@@ -13,12 +13,14 @@ if not defined JAR (
     exit /b 2
 )
 
-rem --- Find a Java that can run it (21 or newer). The first one that works wins.
+rem --- Find a Java that can run it (17 or newer). The first one that works wins.
 set "JAVA="
 for %%J in (
     "%USERPROFILE%\curseforge\minecraft\Install\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe"
     "%USERPROFILE%\curseforge\minecraft\Install\runtime\java-runtime-epsilon\windows-x64\java-runtime-epsilon\bin\java.exe"
+    "%USERPROFILE%\curseforge\minecraft\Install\runtime\java-runtime-gamma\windows-x64\java-runtime-gamma\bin\java.exe"
     "%APPDATA%\.minecraft\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe"
+    "%APPDATA%\.minecraft\runtime\java-runtime-gamma\windows-x64\java-runtime-gamma\bin\java.exe"
     "%LOCALAPPDATA%\Packages\Microsoft.4297127D64EC6_8wekyb3d8bbwe\LocalCache\Local\runtime\java-runtime-delta\windows-x64\java-runtime-delta\bin\java.exe"
     "%JAVA_HOME%\bin\java.exe"
     "java"
@@ -27,7 +29,7 @@ if not defined JAVA (
     for /d %%D in ("%USERPROFILE%\.gradle\jdks\*21*") do call :try "%%D\bin\java.exe"
 )
 if not defined JAVA (
-    echo Couldn't find Java 21. Launch any Minecraft 1.21 modpack once in CurseForge so it installs it, then try again.
+    echo Couldn't find Java 17 or newer. Launch any Minecraft 1.20 or 1.21 modpack once in CurseForge so it installs it, then try again.
     pause
     exit /b 2
 )
