@@ -1,6 +1,7 @@
 package com.guiltypotato.packdoctor.cli;
 
 import com.guiltypotato.packdoctor.core.PackDoctorCore;
+import com.guiltypotato.packdoctor.core.crash.CrashTranslator;
 import com.guiltypotato.packdoctor.core.model.Side;
 import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
@@ -10,11 +11,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
-/** CLI entry point. Phase 3+: crash translator, server pack builder. */
+/** CLI entry point: pack scan and crash translator. Next: server pack builder. */
 public final class PackDoctorCli {
     private static final String USAGE = """
             Usage: java -jar packdoctor-cli.jar scan <pack or mods folder> [options]
+                   java -jar packdoctor-cli.jar crash <crash report, or a pack folder for its newest crash>
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -34,6 +39,7 @@ public final class PackDoctorCli {
             System.out.print(USAGE);
             return args.length == 0 ? 2 : 0;
         }
+        if (args[0].equals("crash")) return crash(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -89,6 +95,63 @@ public final class PackDoctorCli {
             return report.hasErrors() ? 1 : 0;
         } catch (IOException e) {
             System.err.println(PackDoctorCore.NAME + " couldn't scan " + folder + ": " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Explains a crash report. Given a folder, picks the newest report in it (or in its crash-reports folder). */
+    static int crash(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path target = Path.of(args[1]).toAbsolutePath();
+            Path file = target;
+            List<Path> others = List.of();
+            if (Files.isDirectory(target)) {
+                Path dir = Files.isDirectory(target.resolve("crash-reports")) ? target.resolve("crash-reports") : target;
+                List<Path> reports;
+                try (Stream<Path> s = Files.list(dir)) {
+                    reports = s.filter(p -> p.getFileName().toString().startsWith("crash-")
+                                    && p.getFileName().toString().endsWith(".txt"))
+                            .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
+                            .toList();
+                }
+                if (reports.isEmpty()) {
+                    System.out.println("No crash reports in " + dir + ". Nice.");
+                    return 0;
+                }
+                file = reports.get(0);
+                others = reports.subList(1, reports.size());
+            }
+            String text = Files.readString(file, StandardCharsets.UTF_8);
+            CrashTranslator.Explanation e = CrashTranslator.translate(text);
+            System.out.println("Crash report: " + file);
+            System.out.print(e.toText());
+            // A knock-on crash right after another crash: the earlier one is usually the real problem.
+            boolean knockOn = e.findings().stream().anyMatch(f -> f.code().equals("knock-on-crash"));
+            if (knockOn && !others.isEmpty()) {
+                Path before = others.get(0);
+                long gap = file.toFile().lastModified() - before.toFile().lastModified();
+                if (gap >= 0 && gap < 10 * 60 * 1000) {
+                    System.out.println("The crash just before it (" + before.getFileName()
+                            + ") is probably the real cause:\n");
+                    System.out.print(CrashTranslator.translate(Files.readString(before, StandardCharsets.UTF_8)).toText());
+                }
+            }
+            if (!others.isEmpty() && e.exception() != null) {
+                int same = 0;
+                for (Path p : others) {
+                    if (e.exception().equals(CrashTranslator.translate(Files.readString(p, StandardCharsets.UTF_8))
+                            .exception())) same++;
+                }
+                System.out.println("This is the newest of " + (others.size() + 1) + " crash reports"
+                        + (same > 0 ? "; " + same + " older ones are the same crash." : "."));
+            }
+            return 0;
+        } catch (IOException e) {
+            System.err.println(PackDoctorCore.NAME + " couldn't read " + args[1] + ": " + e.getMessage());
             return 2;
         }
     }

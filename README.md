@@ -16,3 +16,13 @@ gradlew :core:test         # core tests
 gradlew :mod:runClient     # launch the game with the mod
 gradlew :cli:jar           # cli/build/libs/packdoctor-cli-*.jar
 ```
+
+## Use
+In game: problems show on a screen before the title screen (saved to `packdoctor/boot-report.txt`).
+Ops can run `/packdoctor scan` to check recipes, loot tables and FTB Quests (saved to `packdoctor/scan-report.txt`).
+
+Without the game (Java 21):
+```
+java -jar packdoctor-cli.jar scan <pack folder> [--server]    # what's broken in the mods folder
+java -jar packdoctor-cli.jar crash <pack folder or crash-*.txt> # explain the newest crash in plain English
+```
