@@ -6,6 +6,7 @@ import com.guiltypotato.packdoctor.core.scan.Finding;
 import com.guiltypotato.packdoctor.core.model.Side;
 import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
+import com.guiltypotato.packdoctor.core.scan.RamAdvisor;
 import com.guiltypotato.packdoctor.core.scan.Report;
 import com.guiltypotato.packdoctor.core.scan.ScanOptions;
 import com.guiltypotato.packdoctor.core.scan.ServerCompare;
@@ -90,7 +91,14 @@ public final class PackDoctorCli {
                     neo != null ? neo : o.neoforgeVersion(),
                     o.clientOnlyFiles());
             Report report = PackScanner.scan(pack.modsFolder(), options);
-            String text = report.toText();
+            Path root = pack.modsFolder().getFileName().toString().equalsIgnoreCase("mods")
+                    ? pack.modsFolder().getParent() : pack.modsFolder();
+            StringBuilder memory = new StringBuilder("\nMemory (RAM)\n");
+            for (Finding f : RamAdvisor.advise(RamAdvisor.facts(root, pack.modsFolder()))) {
+                memory.append(f.title()).append("\n  ").append(f.detail().replace("\n", "\n  ")).append('\n');
+                if (f.fix() != null) memory.append("  Fix: ").append(f.fix()).append('\n');
+            }
+            String text = report.toText() + memory;
             System.out.print(text);
             if (options.minecraftVersion() == null || options.neoforgeVersion() == null) {
                 System.out.println("Tip: pass --mc and --neoforge to also check Minecraft and NeoForge versions.");

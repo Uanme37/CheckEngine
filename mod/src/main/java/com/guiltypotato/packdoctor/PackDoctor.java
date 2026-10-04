@@ -7,6 +7,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 
 @Mod(PackDoctor.MOD_ID)
@@ -17,6 +18,10 @@ public final class PackDoctor {
     public PackDoctor(IEventBus modEventBus, ModContainer modContainer) {
         BootCheck.start();
         NeoForge.EVENT_BUS.addListener(PackDoctor::registerCommands);
+        // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
+        NeoForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {
+            if (e.getServer().isDedicatedServer()) BootCheck.recordMemory();
+        });
     }
 
     private static void registerCommands(RegisterCommandsEvent event) {

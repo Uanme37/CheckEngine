@@ -4,6 +4,7 @@ import com.guiltypotato.packdoctor.core.model.Side;
 import com.guiltypotato.packdoctor.core.scan.Finding;
 import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
+import com.guiltypotato.packdoctor.core.scan.RamAdvisor;
 import com.guiltypotato.packdoctor.core.scan.Report;
 import com.guiltypotato.packdoctor.core.scan.ScanOptions;
 import java.io.IOException;
@@ -51,6 +52,31 @@ public final class BootCheck {
     /** Problems and warnings (not notes): what's worth interrupting the player for. */
     public static List<Finding> worthShowing(Report report) {
         return report.findings().stream().filter(f -> f.severity() != Finding.Severity.INFO).toList();
+    }
+
+    /**
+     * Saves how much memory the game really uses once loading is done (packdoctor/ram.properties), so the
+     * checker can recommend a real number next time. Called once, when the title screen or server is ready.
+     */
+    public static void recordMemory() {
+        try {
+            Runtime rt = Runtime.getRuntime();
+            System.gc(); // count what's really kept, not garbage waiting to be cleaned
+            long used = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+            long max = rt.maxMemory() / (1024 * 1024);
+            java.util.Properties p = new java.util.Properties();
+            p.setProperty("used_after_load_mb", Long.toString(used));
+            p.setProperty("max_mb", Long.toString(max));
+            p.setProperty("measured", java.time.LocalDateTime.now().withNano(0).toString());
+            Files.createDirectories(outputFolder());
+            try (var out = Files.newBufferedWriter(outputFolder().resolve(RamAdvisor.MEASURED_FILE),
+                    StandardCharsets.UTF_8)) {
+                p.store(out, "Pack Doctor: memory used right after loading");
+            }
+            PackDoctor.LOGGER.info("Pack Doctor: using {} MB of {} MB after loading", used, max);
+        } catch (IOException | RuntimeException e) {
+            PackDoctor.LOGGER.warn("Pack Doctor: couldn't save memory use", e);
+        }
     }
 
     private static Report run() {

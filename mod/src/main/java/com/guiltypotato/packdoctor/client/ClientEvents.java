@@ -22,6 +22,7 @@ public final class ClientEvents {
     public static void onScreenOpening(ScreenEvent.Opening event) {
         if (checked || !(event.getNewScreen() instanceof TitleScreen title)) return;
         checked = true;
+        BootCheck.recordMemory();
         Report report = BootCheck.get();
         if (report == null) return;
         List<Finding> findings = BootCheck.worthShowing(report);
