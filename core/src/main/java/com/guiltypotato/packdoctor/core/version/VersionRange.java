@@ -101,6 +101,8 @@ public final class VersionRange {
             } else if (b.lower != null && b.upper != null) {
                 parts.add(b.lower + (b.lowerInclusive ? "" : " (exclusive)") + " to " + b.upper
                         + (b.upperInclusive ? "" : " (not including " + b.upper + ")"));
+            } else if (b.lower != null && b.lowerInclusive && b.lower.toString().matches("0(\\.0)*")) {
+                parts.add("any version"); // "[0,)" is how many mods write "anything"
             } else if (b.lower != null) {
                 parts.add(b.lower + (b.lowerInclusive ? " or newer" : " or newer (not " + b.lower + " itself)"));
             } else if (b.upper != null) {
