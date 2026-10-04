@@ -137,6 +137,9 @@ public final class PackScanner {
             if (!topLevel.containsKey(id)) dependents.add(p);
         });
         checkDependencies(dependents, topLevel, nested, options, findings);
+        java.util.Set<String> installed = new java.util.HashSet<>(topLevel.keySet());
+        installed.addAll(nested.keySet());
+        findings.addAll(HiddenDependencies.check(loaded, installed));
         if (options.side() == Side.SERVER) checkClientOnly(topLevel, options, findings);
 
         // Two copies of one mod would report its dependency problems twice.

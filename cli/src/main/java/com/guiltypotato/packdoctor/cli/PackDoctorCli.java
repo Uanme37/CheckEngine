@@ -2,6 +2,7 @@ package com.guiltypotato.packdoctor.cli;
 
 import com.guiltypotato.packdoctor.core.PackDoctorCore;
 import com.guiltypotato.packdoctor.core.crash.CrashTranslator;
+import com.guiltypotato.packdoctor.core.scan.Finding;
 import com.guiltypotato.packdoctor.core.model.Side;
 import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
@@ -146,8 +147,10 @@ public final class PackDoctorCli {
             if (!others.isEmpty() && e.exception() != null) {
                 int same = 0;
                 for (Path p : others) {
-                    if (e.exception().equals(CrashTranslator.translate(Files.readString(p, StandardCharsets.UTF_8))
-                            .exception())) same++;
+                    // Same problems, not just the same error line (every mod loading failure has the same one).
+                    List<String> titles = e.findings().stream().map(Finding::title).toList();
+                    if (titles.equals(CrashTranslator.translate(Files.readString(p, StandardCharsets.UTF_8))
+                            .findings().stream().map(Finding::title).toList())) same++;
                 }
                 System.out.println("This is the newest of " + (others.size() + 1) + " crash reports"
                         + (same > 0 ? "; " + same + " older ones are the same crash." : "."));

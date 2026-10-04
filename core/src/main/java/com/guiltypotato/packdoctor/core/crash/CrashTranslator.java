@@ -1,6 +1,7 @@
 package com.guiltypotato.packdoctor.core.crash;
 
 import com.guiltypotato.packdoctor.core.scan.Finding;
+import com.guiltypotato.packdoctor.core.scan.HiddenDependencies;
 import com.guiltypotato.packdoctor.core.scan.Finding.Severity;
 import com.guiltypotato.packdoctor.core.scan.Report;
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public final class CrashTranslator {
     private static final Pattern FABRIC_FILE = Pattern.compile("File (.+?) is a Fabric mod");
     /** Mixin errors name the mod whose patch failed: "...MixinLevelRenderer from mod epicfight->@Inject..." */
     private static final Pattern FROM_MOD = Pattern.compile("from mod ([a-z][a-z0-9_]*)");
+    /** "Bobber Detector (bobberdetector) has failed to load correctly java.lang.NoClassDefFoundError: com/simibubi/create/..." */
+    private static final Pattern CLASS_MISSING = Pattern.compile(
+            "^(.+?) \\((\\S+)\\) has failed to load correctly.*?NoClassDefFoundError: (\\S+)");
     private static final Pattern NOT_AVAILABLE = Pattern.compile("Mod '([^']+)' is not available");
 
     private CrashTranslator() {}
@@ -174,6 +178,20 @@ public final class CrashTranslator {
                     m.group(1) + " doesn't work with " + m.group(2),
                     m.group(1) + " refuses to load while " + m.group(2) + " " + m.group(3) + " is installed." + why,
                     "Remove one of them.", files);
+        }
+        if ((m = CLASS_MISSING.matcher(msg)).find()) {
+            String needs = HiddenDependencies.modForClass(m.group(3));
+            if (needs != null) {
+                return new Finding(Severity.ERROR, Finding.MISSING_DEPENDENCY,
+                        "Hidden missing mod: " + m.group(1) + " uses " + needs,
+                        m.group(1) + " uses " + needs + "'s code, but " + needs + " isn't installed. The mod doesn't "
+                                + "list " + needs + " as something it needs, so NeoForge couldn't warn you.",
+                        "Install " + needs + ", or remove " + m.group(1) + ".", files);
+            }
+            return new Finding(Severity.ERROR, "loading-issue", m.group(1) + " is missing code it needs",
+                    m.group(1) + " tried to use " + m.group(3) + ", which isn't in the pack. It probably needs another "
+                            + "mod that isn't installed, or a different version of one.",
+                    "Check " + m.group(1) + "'s CurseForge page for the mods it needs, or remove it.", files);
         }
         if ((m = FORGE_FILE.matcher(msg)).find()) {
             String f = fileName(m.group(1));

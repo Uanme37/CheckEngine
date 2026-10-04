@@ -127,6 +127,34 @@ class PackScannerTest {
         assertEquals(List.of("create-aeronautics-bundled.jar"), missing.get(0).files());
     }
 
+    /** Just enough of a class file: the @Mod annotation plus string entries (tag 1, 2-byte length, text). */
+    private static String fakeModClass(String... strings) {
+        StringBuilder sb = new StringBuilder("Êþº¾");
+        for (String s : List.of(strings)) sb.append('\u0001').append((char) 0).append((char) s.length()).append(s);
+        return sb.append("\u0001\u0000\u001ELnet/neoforged/fml/common/Mod;").toString();
+    }
+
+    @Test
+    void hiddenDependencyInModClass() throws IOException {
+        // Real Bobber Detector: its @Mod constructor uses Create's TooltipModifier without declaring Create.
+        jar().with("META-INF/neoforge.mods.toml", TestJars.modsToml("bobberdetector", "1.0.3", null))
+                .with("net/bobber/BobberDetectorImpl.class",
+                        fakeModClass("com/simibubi/create/foundation/item/TooltipModifier"))
+                .writeTo(mods, "bobberdetector.jar");
+        // Real Create Goggles: checks Mods.MEKANISM.isLoaded() first, and its own compat/mekanism package is not Mekanism.
+        jar().with("META-INF/neoforge.mods.toml", TestJars.modsToml("creategoggles", "6.1.1", null))
+                .with("com/robocraft999/creategoggles/Main.class",
+                        fakeModClass("MEKANISM", "isLoaded", "Lmekanism/api/Thing;",
+                                "com/robocraft999/creategoggles/compat/mekanism/CompatMekanism"))
+                .writeTo(mods, "creategoggles.jar");
+        List<Finding> hidden = scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY);
+        assertEquals(1, hidden.size(), hidden.toString());
+        assertEquals("Hidden missing mod: Bobberdetector uses create", hidden.get(0).title());
+        // With Create installed it's fine.
+        neoMod("create", "6.0.10", null).writeTo(mods, "create.jar");
+        assertEquals(0, scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY).size());
+    }
+
     @Test
     void jarVersionPlaceholderComesFromManifest() throws IOException {
         jar().with("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nImplementation-Version: 0.5.0\n\n")
