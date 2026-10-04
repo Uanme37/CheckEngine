@@ -36,6 +36,13 @@ dependencies {
     implementation project(':core')
     additionalRuntimeClasspath project(':core')
     jarJar(project(':core'))
+    // Dev runs only: load real (obfuscated) mod jars from a folder, e.g. -PtestMods=C:/some/folder
+    if (project.hasProperty('testMods')) {
+        repositories { flatDir { dirs project.property('testMods') } }
+        file(project.property('testMods')).listFiles().findAll { it.name.endsWith('.jar') }.each {
+            modRuntimeOnly "local:${it.name - '.jar'}:"
+        }
+    }
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {

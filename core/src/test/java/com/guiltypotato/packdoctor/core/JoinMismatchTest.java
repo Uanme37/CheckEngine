@@ -62,6 +62,19 @@ class JoinMismatchTest {
     }
 
     @Test
+    void usesNameAndServerVersionWhenTheLoaderGivesThem() {
+        List<Finding> f = JoinMismatch.explain(List.of(
+                new Failure("naturescompass:", Kind.MISSING_ON_PLAYER, null, "Nature's Compass", "1.11.2"),
+                new Failure("create:main", Kind.DIFFERENT, null, "Create", "0.5.1.j")),
+                Map.of("create", new PlayerMod("Create", "0.5.1.f")), "Forge");
+        assertEquals(List.of(
+                "version-mismatch: Different version than the server: Create",
+                "missing-on-player: You don't have: Nature's Compass"), codes(f));
+        assertEquals("You have Create 0.5.1.f, but the server has 0.5.1.j.", f.get(0).detail());
+        assertEquals("Install Nature's Compass 1.11.2, or get the pack version the server runs.", f.get(1).fix());
+    }
+
+    @Test
     void reportText() {
         String text = JoinMismatch.toText("play.example.net", JoinMismatch.explain(
                 List.of(new Failure("odd:thing", Kind.OTHER, "Something strange")), Map.of(), "NeoForge"));

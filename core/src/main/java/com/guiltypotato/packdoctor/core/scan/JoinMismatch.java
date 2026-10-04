@@ -38,8 +38,17 @@ public final class JoinMismatch {
         OTHER
     }
 
-    /** One channel the loader rejected. */
-    public record Failure(String channel, Kind kind, String text) {
+    /**
+     * One channel the loader rejected.
+     *
+     * @param modName       the mod's display name when the loader knows it (Forge does), else null
+     * @param serverVersion the server's version of the mod when known, else null
+     */
+    public record Failure(String channel, Kind kind, String text, String modName, String serverVersion) {
+        public Failure(String channel, Kind kind, String text) {
+            this(channel, kind, text, null, null);
+        }
+
         public String namespace() {
             int colon = channel.indexOf(':');
             return colon < 0 ? channel : channel.substring(0, colon);
@@ -90,13 +99,16 @@ public final class JoinMismatch {
     }
 
     private static Finding explain(String id, Failure f, PlayerMod mine) {
-        String name = mine == null ? id : mine.name();
+        String name = mine != null ? mine.name() : f.modName() != null && !f.modName().isBlank() ? f.modName() : id;
+        String serverHas = f.serverVersion() == null || f.serverVersion().isBlank() ? null : f.serverVersion();
         // The server has a channel we don't, but we do have the mod: it's a newer or older copy.
         Kind kind = f.kind() == Kind.MISSING_ON_PLAYER && mine != null ? Kind.DIFFERENT : f.kind();
         return switch (kind) {
-            case MISSING_ON_PLAYER -> new Finding(Severity.ERROR, MISSING_ON_PLAYER, "You don't have: " + id,
-                    "The server runs a mod called \"" + id + "\", and it isn't in your game.",
-                    "Install " + id + " (the same version the server uses), or get the pack version the server runs.",
+            case MISSING_ON_PLAYER -> new Finding(Severity.ERROR, MISSING_ON_PLAYER, "You don't have: " + name,
+                    "The server runs " + (name.equals(id) ? "a mod called \"" + id + "\"" : name)
+                            + (serverHas == null ? "" : " " + serverHas) + ", and it isn't in your game.",
+                    "Install " + name + (serverHas == null ? " (the same version the server uses)" : " " + serverHas)
+                            + ", or get the pack version the server runs.",
                     List.of());
             case MISSING_ON_SERVER -> new Finding(Severity.ERROR, MISSING_ON_SERVER, "The server doesn't have: " + name,
                     "You have " + describe(name, mine) + ", but the server doesn't have it (or has a version that "
@@ -104,8 +116,10 @@ public final class JoinMismatch {
                     "Remove " + name + " from your mods folder, or ask the server owner to add the same version.",
                     List.of());
             case DIFFERENT -> new Finding(Severity.ERROR, VERSION_MISMATCH, "Different version than the server: " + name,
-                    "You have " + describe(name, mine) + ", but the server has a different version of it.",
-                    "Use the same version of " + name + " as the server.", List.of());
+                    "You have " + describe(name, mine) + ", but the server has "
+                            + (serverHas == null ? "a different version of it." : serverHas + "."),
+                    serverHas == null ? "Use the same version of " + name + " as the server."
+                            : "Install " + name + " " + serverHas + " to match the server.", List.of());
             case OTHER -> new Finding(Severity.ERROR, OTHER, name + " doesn't match the server",
                     f.text() == null || f.text().isBlank() ? "The game didn't say why." : f.text(),
                     "Make sure you and the server have the same version of " + name + ".", List.of());
