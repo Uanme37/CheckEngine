@@ -139,7 +139,7 @@ public final class ServerPack {
         if (plan.options().minecraftVersion() != null) {
             sb.append("Minecraft ").append(plan.options().minecraftVersion());
             if (plan.options().neoforgeVersion() != null) {
-                sb.append(", NeoForge ").append(plan.options().neoforgeVersion());
+                sb.append(", ").append(plan.options().loaderName()).append(" ").append(plan.options().neoforgeVersion());
             }
             sb.append('\n');
         }

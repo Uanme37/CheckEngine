@@ -37,7 +37,7 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
             case UNKNOWN -> "unknown side";
         });
         if (options.minecraftVersion() != null) sb.append(", Minecraft ").append(options.minecraftVersion());
-        if (options.neoforgeVersion() != null) sb.append(", NeoForge ").append(options.neoforgeVersion());
+        if (options.neoforgeVersion() != null) sb.append(", ").append(options.loaderName()).append(" ").append(options.neoforgeVersion());
         sb.append('\n');
         sb.append("Jars: ").append(jars.size()).append('\n');
         sb.append('\n');
