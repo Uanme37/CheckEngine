@@ -116,6 +116,18 @@ class PackScannerTest {
     }
 
     @Test
+    void bundledModsNeedTheirDependenciesToo() throws IOException {
+        // Real create-aeronautics-bundled: the outer jar needs nothing, the mods inside it need Create.
+        jar().with("META-INF/neoforge.mods.toml", TestJars.modsToml("aeronautics_bundle", "1.3.2", null))
+                .nest("META-INF/jarjar/aeronautics.jar",
+                        neoMod("aeronautics", "1.3.2", dep("aeronautics", "create", "required", "[6.0.10,)", "BOTH")))
+                .writeTo(mods, "create-aeronautics-bundled.jar");
+        List<Finding> missing = scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY);
+        assertEquals(1, missing.size());
+        assertEquals(List.of("create-aeronautics-bundled.jar"), missing.get(0).files());
+    }
+
+    @Test
     void jarVersionPlaceholderComesFromManifest() throws IOException {
         jar().with("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nImplementation-Version: 0.5.0\n\n")
                 .with("META-INF/neoforge.mods.toml", TestJars.modsToml("lib", "${file.jarVersion}", null))

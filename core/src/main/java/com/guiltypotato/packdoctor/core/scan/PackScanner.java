@@ -114,6 +114,7 @@ public final class PackScanner {
         // modId -> every top-level jar that declares it
         Map<String, List<Provider>> topLevel = new LinkedHashMap<>();
         Map<String, ModInfo> nested = new LinkedHashMap<>();
+        Map<String, Provider> nestedIn = new LinkedHashMap<>(); // bundled mod id -> the newest copy and its outer jar
         for (ModJar jar : loaded) {
             for (ModInfo mod : jar.mods()) {
                 List<Provider> list = topLevel.computeIfAbsent(mod.modId(), k -> new ArrayList<>());
@@ -123,12 +124,19 @@ public final class PackScanner {
                 ModInfo old = nested.get(mod.modId());
                 if (old == null || ModVersion.parse(mod.version()).compareTo(ModVersion.parse(old.version())) > 0) {
                     nested.put(mod.modId(), mod);
+                    nestedIn.put(mod.modId(), new Provider(mod, jar));
                 }
             }
         }
 
         checkDuplicates(topLevel, findings);
-        checkDependencies(topLevel, nested, options, findings);
+        // NeoForge loads bundled (jar-in-jar) mods too and checks their dependencies, unless a top-level jar wins.
+        List<Provider> dependents = new ArrayList<>();
+        topLevel.values().forEach(dependents::addAll);
+        nestedIn.forEach((id, p) -> {
+            if (!topLevel.containsKey(id)) dependents.add(p);
+        });
+        checkDependencies(dependents, topLevel, nested, options, findings);
         if (options.side() == Side.SERVER) checkClientOnly(topLevel, options, findings);
 
         // Two copies of one mod would report its dependency problems twice.
@@ -161,35 +169,33 @@ public final class PackScanner {
     /** Someone who needs a mod that's missing, grouped so one missing mod is one finding. */
     private record Need(Provider who, Dependency dep) {}
 
-    private static void checkDependencies(Map<String, List<Provider>> topLevel, Map<String, ModInfo> nested,
-                                          ScanOptions options, List<Finding> findings) {
+    private static void checkDependencies(List<Provider> dependents, Map<String, List<Provider>> topLevel,
+                                          Map<String, ModInfo> nested, ScanOptions options, List<Finding> findings) {
         Map<String, List<Need>> missing = new LinkedHashMap<>();
-        for (List<Provider> providers : topLevel.values()) {
-            for (Provider who : providers) {
-                for (Dependency dep : who.mod.dependencies()) {
-                    if (dep.modId().equals(who.mod.modId()) || !dep.side().appliesTo(options.side())) continue;
-                    Installed have = installed(dep.modId(), topLevel, nested, options);
-                    if (have == Installed.UNKNOWN) continue;
-                    if (have == null) {
-                        if (dep.type() == Dependency.Type.REQUIRED) {
-                            missing.computeIfAbsent(dep.modId(), k -> new ArrayList<>()).add(new Need(who, dep));
-                        }
-                        continue;
+        for (Provider who : dependents) {
+            for (Dependency dep : who.mod.dependencies()) {
+                if (dep.modId().equals(who.mod.modId()) || !dep.side().appliesTo(options.side())) continue;
+                Installed have = installed(dep.modId(), topLevel, nested, options);
+                if (have == Installed.UNKNOWN) continue;
+                if (have == null) {
+                    if (dep.type() == Dependency.Type.REQUIRED) {
+                        missing.computeIfAbsent(dep.modId(), k -> new ArrayList<>()).add(new Need(who, dep));
                     }
-                    boolean inRange = have.version.equals("unknown") || dep.versionRange().contains(have.version);
-                    switch (dep.type()) {
-                        case REQUIRED, OPTIONAL -> {
-                            // Lots of 1.21.1 mods say "[1.21,1.21.1)" by mistake. NeoForge loads them anyway.
-                            boolean sloppyMinecraftRange = dep.modId().equals("minecraft")
-                                    && sameMinecraftLine(dep, have.version);
-                            if (!inRange && !sloppyMinecraftRange) findings.add(wrongVersion(who, dep, have));
-                        }
-                        case INCOMPATIBLE -> {
-                            if (inRange) findings.add(incompatible(who, dep, have, Severity.ERROR));
-                        }
-                        case DISCOURAGED -> {
-                            if (inRange) findings.add(incompatible(who, dep, have, Severity.WARNING));
-                        }
+                    continue;
+                }
+                boolean inRange = have.version.equals("unknown") || dep.versionRange().contains(have.version);
+                switch (dep.type()) {
+                    case REQUIRED, OPTIONAL -> {
+                        // Lots of 1.21.1 mods say "[1.21,1.21.1)" by mistake. NeoForge loads them anyway.
+                        boolean sloppyMinecraftRange = dep.modId().equals("minecraft")
+                                && sameMinecraftLine(dep, have.version);
+                        if (!inRange && !sloppyMinecraftRange) findings.add(wrongVersion(who, dep, have));
+                    }
+                    case INCOMPATIBLE -> {
+                        if (inRange) findings.add(incompatible(who, dep, have, Severity.ERROR));
+                    }
+                    case DISCOURAGED -> {
+                        if (inRange) findings.add(incompatible(who, dep, have, Severity.WARNING));
                     }
                 }
             }
