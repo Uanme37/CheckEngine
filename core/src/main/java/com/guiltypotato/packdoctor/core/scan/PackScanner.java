@@ -45,6 +45,12 @@ public final class PackScanner {
     /** Runs the checks on jars that were already read. The in-game side can call this with its own list. */
     public static Report check(Path modsFolder, List<ModJar> jars, List<String> strayZips, ScanOptions options) {
         List<Finding> findings = new ArrayList<>();
+        if (jars.isEmpty()) {
+            findings.add(new Finding(Severity.WARNING, Finding.NO_MODS, "No mods found",
+                    "There are no .jar files in " + modsFolder + ", so there was nothing to check.",
+                    "Make sure you pointed Pack Doctor at the right pack, and that its mods finished downloading.",
+                    List.of()));
+        }
 
         long neoJars = jars.stream().filter(j -> j.kind() == ModJar.Kind.NEOFORGE).count();
         long forgeJars = jars.stream().filter(j -> j.kind() == ModJar.Kind.FORGE).count();

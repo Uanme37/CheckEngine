@@ -21,11 +21,15 @@ final class ClientOnlyMods {
             // animations and visuals
             "notenoughanimations", "eatinganimation", "skinlayers3d", "visuality", "particlerain", "fallingleaves");
 
+    /** Mods whose mods.toml says client-side but that servers commonly run on purpose (e.g. to sync data to players). */
+    static final Set<String> FINE_ON_SERVER = Set.of("appleskin");
+
     private ClientOnlyMods() {}
 
     /** Returns why we think it's client-only, or null if we don't. */
     static String reason(ModInfo mod, String fileName, Set<String> launcherClientOnly) {
         if (KNOWN.contains(mod.modId())) return "it's a known client-side mod";
+        if (FINE_ON_SERVER.contains(mod.modId())) return null;
         if (launcherClientOnly.contains(fileName.toLowerCase(java.util.Locale.ROOT))) {
             return "CurseForge lists it as client-only";
         }

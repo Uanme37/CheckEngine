@@ -10,9 +10,9 @@ Notes only. Never copy whole packs in here (jars/zips are gitignored anyway).
 | FTB Skies 2 | quest-heavy, custom loot tables |
 
 ## Break a copy on purpose
-- [ ] two versions of one mod (Alex's Caves 2.0.2 + 2.0.10)
-- [ ] mod missing its dependency (Continuity without Connector)
-- [ ] client-only mod on the server
+- [x] two versions of one mod (real catch: ATM10 has CC: Tweaked 1.113.1 + 1.120.2)
+- [x] mod missing its dependency (Sophisticated Backpacks without Sophisticated Core)
+- [x] client-only mod on the server (ATM10 scanned with --server: 39 flagged, AppleSkin allowed)
 - [ ] quest item from a removed mod (`ftbquests:missing_item`)
 - [ ] loot table / recipe pointing at a removed mod
 - [ ] client and server on different mod versions

@@ -25,7 +25,8 @@ public record Finding(Severity severity, String code, String title, String detai
 
     public static final String DUPLICATE_MOD = "duplicate-mod";
     public static final String MISSING_DEPENDENCY = "missing-dependency";
-    public static final String WRONG_VERSION = "wrong-version";    public static final String INCOMPATIBLE_MOD = "incompatible-mod";
+    public static final String WRONG_VERSION = "wrong-version";
+    public static final String INCOMPATIBLE_MOD = "incompatible-mod";
     public static final String DISCOURAGED_MOD = "discouraged-mod";
     public static final String CLIENT_ONLY_ON_SERVER = "client-only-on-server";
     public static final String WRONG_LOADER = "wrong-loader";
@@ -33,4 +34,5 @@ public record Finding(Severity severity, String code, String title, String detai
     public static final String NOT_A_MOD = "not-a-mod";
     public static final String UNREADABLE_METADATA = "unreadable-metadata";
     public static final String STRAY_FILE = "stray-file";
+    public static final String NO_MODS = "no-mods";
 }

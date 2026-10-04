@@ -141,6 +141,20 @@ class PackScannerTest {
     }
 
     @Test
+    void appleSkinIsFineOnServer() throws IOException {
+        // Real AppleSkin marks its neoforge dependency CLIENT, but servers run it to sync hunger data.
+        neoMod("appleskin", "3.0.9", dep("appleskin", "neoforge", "required", "*", "CLIENT"))
+                .writeTo(mods, "appleskin.jar");
+        ScanOptions server = new ScanOptions(Side.SERVER, "1.21.1", "21.1.251", Set.of());
+        assertEquals(0, scan(server).byCode(Finding.CLIENT_ONLY_ON_SERVER).size());
+    }
+
+    @Test
+    void emptyModsFolderIsNotClean() throws IOException {
+        assertEquals(1, scan(CLIENT_1211).byCode(Finding.NO_MODS).size());
+    }
+
+    @Test
     void wrongLoaderJars() throws IOException {
         jar().with("fabric.mod.json", "{\"id\": \"fabricthing\", \"version\": \"1.0\", \"name\": \"Fabric Thing\",}")
                 .writeTo(mods, "fabricthing.jar");
