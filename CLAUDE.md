@@ -20,7 +20,7 @@ PackDoctor/
 ## Roadmap
 | Phase | Weeks | Work |
 | --- | --- | --- |
-| Setup | 1 | NeoForge MDK, GitHub repo (Guiltypotato), test packs ready |
+| Setup | 1 | NeoForge MDK, GitHub repo (Uanme37/PackDoctor), test packs ready |
 | Core scanner | 2 to 3 | read mod jars, dupes and deps, client-only check |
 | In-game mod | 4 to 5 | boot warning, /packdoctor scan, report file |
 | **v0.1 release** | | when every test catches its problem |
