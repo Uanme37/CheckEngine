@@ -268,7 +268,7 @@ public final class CrashTranslator {
 
     /** "1.1.3 or above" stays, "any" becomes "any version". */
     private static String versionText(String range) {
-        return range.equals("any") ? "any version" : range;
+        return range.equals("any") || range.matches("0(\\.0)* or above") ? "any version" : range;
     }
 
     /** id -> "Name" from the "Suspected Mods:" line, without Minecraft/NeoForge/crash-helper mods. */
