@@ -21,8 +21,9 @@ import java.util.zip.ZipFile;
  * Only the {@code @Mod} classes are checked: code there runs while loading, so a missing mod really crashes it.
  */
 public final class HiddenDependencies {
-    /** What a class file contains when it's annotated with NeoForge's @Mod. */
-    private static final String MOD_ANNOTATION = "Lnet/neoforged/fml/common/Mod;";
+    /** What a class file contains when it's annotated with @Mod (NeoForge, or Forge for 1.20.1 and older). */
+    private static final List<String> MOD_ANNOTATIONS = List.of("Lnet/neoforged/fml/common/Mod;",
+            "Lnet/minecraftforge/fml/common/Mod;");
 
     /** Popular mods people build on, by the package their code lives in. */
     static final Map<String, String> PACKAGES = new LinkedHashMap<>();
@@ -74,7 +75,7 @@ public final class HiddenDependencies {
         List<Finding> out = new ArrayList<>();
         if (missing.isEmpty()) return out;
         for (ModJar jar : jars) {
-            if (jar.kind() != ModJar.Kind.NEOFORGE || jar.mods().isEmpty()) continue;
+            if ((jar.kind() != ModJar.Kind.NEOFORGE && jar.kind() != ModJar.Kind.FORGE) || jar.mods().isEmpty()) continue;
             Set<String> uses = usesFromModClasses(jar, missing);
             // Declared dependencies are already reported as plain missing mods.
             jar.mods().forEach(m -> m.dependencies().forEach(d -> uses.remove(d.modId())));
@@ -103,7 +104,7 @@ public final class HiddenDependencies {
                 try (InputStream in = zip.getInputStream(e)) {
                     text = new String(in.readAllBytes(), StandardCharsets.ISO_8859_1);
                 }
-                if (!text.contains(MOD_ANNOTATION)) continue;
+                if (MOD_ANNOTATIONS.stream().noneMatch(text::contains)) continue;
                 missing.forEach((pkg, id) -> {
                     if (refersTo(text, pkg) && !ownPackage(e.getName(), pkg) && !checksFor(text, id)) uses.add(id);
                 });

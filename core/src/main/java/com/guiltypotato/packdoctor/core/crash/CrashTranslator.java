@@ -40,6 +40,14 @@ public final class CrashTranslator {
     /** "Bobber Detector (bobberdetector) has failed to load correctly java.lang.NoClassDefFoundError: com/simibubi/create/..." */
     private static final Pattern CLASS_MISSING = Pattern.compile(
             "^(.+?) \\((\\S+)\\) has failed to load correctly.*?NoClassDefFoundError: (\\S+)");
+    /**
+     * Forge 1.20.1 and older don't write a crash report for missing mods; latest.log gets:
+     * {@code Mod ID: 'architectury', Requested by: 'appleskin', Expected range: '[9.1.12,)', Actual version: '[MISSING]'}
+     */
+    private static final Pattern FORGE_MISSING = Pattern.compile(
+            "Mod ID: '([^']+)', Requested by: '([^']+)', Expected range: '([^']*)', Actual version: '([^']*)'");
+    /** Marks a log where Forge stopped because of dependencies. */
+    public static final String FORGE_DEPS_MARKER = "Missing or unsupported mandatory dependencies";
     private static final Pattern NOT_AVAILABLE = Pattern.compile("Mod '([^']+)' is not available");
 
     private CrashTranslator() {}
@@ -60,6 +68,33 @@ public final class CrashTranslator {
             Report.appendFindings(sb, findings);
             return sb.toString();
         }
+    }
+
+    /** Explains a Forge latest.log that stopped on missing or wrong-version mods, or returns null if it didn't. */
+    public static Explanation translateLog(String log) {
+        if (!log.contains(FORGE_DEPS_MARKER)) return null;
+        List<Finding> issues = new ArrayList<>();
+        Matcher m = FORGE_MISSING.matcher(log);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (m.find()) {
+            if (!seen.add(m.group(1) + "/" + m.group(2))) continue; // Forge repeats the list
+            String mod = m.group(1), by = m.group(2), range = m.group(3), actual = m.group(4);
+            String wants = range.isEmpty() || range.equals("*") ? "any version"
+                    : com.guiltypotato.packdoctor.core.version.VersionRange.parseLenient(range).describe();
+            if (actual.equals("[MISSING]")) {
+                issues.add(new Finding(Severity.ERROR, Finding.MISSING_DEPENDENCY, "Missing mod: " + mod,
+                        by + " needs " + mod + " (" + wants + "), but it isn't installed.",
+                        "Install " + mod + " (" + wants + "), or remove " + by + ".", List.of()));
+            } else {
+                issues.add(new Finding(Severity.ERROR, Finding.WRONG_VERSION, "Wrong version of " + mod + " for " + by,
+                        by + " needs " + mod + " " + wants + ", but you have " + actual + ".",
+                        "Get a version of " + mod + " in that range, or a version of " + by + " that matches "
+                                + actual + ".", List.of()));
+            }
+        }
+        if (issues.isEmpty()) return null;
+        return new Explanation("Forge stopped loading: missing or wrong-version mods (from logs/latest.log)", null,
+                mergeMissing(issues));
     }
 
     public static Explanation translate(String report) {
@@ -118,19 +153,20 @@ public final class CrashTranslator {
     private static List<Finding> loadingIssues(String[] lines) {
         List<Finding> out = new ArrayList<>();
         for (int i = 0; i < lines.length; i++) {
-            if (!lines[i].startsWith("-- Mod loading issue")) continue;
+            // NeoForge: "-- Mod loading issue for: x --". Forge 1.20.1: "-- MOD x --".
+            if (!lines[i].startsWith("-- Mod loading issue") && !lines[i].startsWith("-- MOD ")) continue;
             String modFile = null;
             StringBuilder message = new StringBuilder();
             boolean inMessage = false;
             for (int j = i + 1; j < lines.length && !lines[j].startsWith("-- "); j++) {
                 String l = lines[j].strip();
-                if (l.startsWith("Mod file:")) {
+                if (l.startsWith("Mod file:") || l.startsWith("Mod File:")) {
                     modFile = fileName(l.substring("Mod file:".length()).strip());
                 } else if (l.startsWith("Failure message:")) {
                     message.append(l.substring("Failure message:".length()).strip());
                     inMessage = true;
-                } else if (l.startsWith("Mod version:") || l.startsWith("Mod issues URL:")
-                        || l.startsWith("Exception message:")) {
+                } else if (l.startsWith("Mod version:") || l.startsWith("Mod Version:") || l.startsWith("Mod issues URL:")
+                        || l.startsWith("Mod Issue URL:") || l.startsWith("Exception message:")) {
                     inMessage = false;
                 } else if (inMessage && !l.isEmpty()) {
                     message.append(' ').append(l);

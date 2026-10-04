@@ -89,7 +89,7 @@ public final class PackDoctorCli {
             ScanOptions options = new ScanOptions(side,
                     mc != null ? mc : o.minecraftVersion(),
                     neo != null ? neo : o.neoforgeVersion(),
-                    o.clientOnlyFiles());
+                    o.clientOnlyFiles(), o.loader());
             Report report = PackScanner.scan(pack.modsFolder(), options);
             Path root = pack.modsFolder().getFileName().toString().equalsIgnoreCase("mods")
                     ? pack.modsFolder().getParent() : pack.modsFolder();
@@ -132,6 +132,18 @@ public final class PackDoctorCli {
                                     && p.getFileName().toString().endsWith(".txt"))
                             .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
                             .toList();
+                }
+                // Forge 1.20.1 and older stop on missing mods without a crash report; only latest.log says why.
+                Path log = target.resolve("logs").resolve("latest.log");
+                if (Files.isRegularFile(log) && (reports.isEmpty()
+                        || log.toFile().lastModified() > reports.get(0).toFile().lastModified())) {
+                    CrashTranslator.Explanation fromLog = CrashTranslator.translateLog(
+                            new String(Files.readAllBytes(log), StandardCharsets.UTF_8));
+                    if (fromLog != null) {
+                        System.out.println("Log: " + log);
+                        System.out.print(fromLog.toText());
+                        return 0;
+                    }
                 }
                 if (reports.isEmpty()) {
                     System.out.println("No crash reports in " + dir + ". Nice.");

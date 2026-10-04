@@ -85,7 +85,7 @@ public final class BootCheck {
             // Picks up CurseForge's client-only tags when the game runs from a CurseForge instance.
             ScanOptions found = PackFolder.locate(FMLPaths.GAMEDIR.get(), side).options();
             ScanOptions options = new ScanOptions(side, FMLLoader.versionInfo().mcVersion(),
-                    FMLLoader.versionInfo().neoForgeVersion(), found.clientOnlyFiles());
+                    FMLLoader.versionInfo().neoForgeVersion(), found.clientOnlyFiles(), ScanOptions.Loader.NEOFORGE);
             Report report = PackScanner.scan(FMLPaths.MODSDIR.get(), options);
             Files.createDirectories(outputFolder());
             Files.writeString(reportFile(), report.toText(), StandardCharsets.UTF_8);

@@ -38,13 +38,27 @@ public final class PackScanner {
                 else if (name.endsWith(".zip")) strayZips.add(p.getFileName().toString());
             }
         }
-        List<ModJar> jars = jarFiles.stream().map(JarReader::read).toList();
+        boolean legacy = options.legacy();
+        List<ModJar> jars = jarFiles.stream().map(p -> JarReader.read(p, legacy)).toList();
         return check(modsFolder, jars, strayZips, options);
     }
 
     /** Runs the checks on jars that were already read. The in-game side can call this with its own list. */
     public static Report check(Path modsFolder, List<ModJar> jars, List<String> strayZips, ScanOptions options) {
         List<Finding> findings = new ArrayList<>();
+        String loader = options.loaderName();
+        if (options.loader() == ScanOptions.Loader.FABRIC) {
+            findings.add(new Finding(Severity.INFO, "unsupported-loader", "Fabric packs aren't supported yet",
+                    "Pack Doctor checks NeoForge and Forge packs. This one uses Fabric, so it wasn't checked.",
+                    null, List.of()));
+            return new Report(modsFolder, options, jars, findings);
+        }
+        if (olderThan(options, "1.20")) {
+            findings.add(new Finding(Severity.INFO, "older-minecraft", "Lighter check for Minecraft "
+                    + options.minecraftVersion(), "Pack Doctor is built for 1.20.1 and 1.21.1. On older packs it "
+                    + "checks missing mods, duplicates and broken files, but skips " + loader + " version rules.",
+                    null, List.of()));
+        }
         if (jars.isEmpty()) {
             findings.add(new Finding(Severity.WARNING, Finding.NO_MODS, "No mods found",
                     "There are no .jar files in " + modsFolder + ", so there was nothing to check.",
@@ -54,10 +68,9 @@ public final class PackScanner {
 
         long neoJars = jars.stream().filter(j -> j.kind() == ModJar.Kind.NEOFORGE).count();
         long forgeJars = jars.stream().filter(j -> j.kind() == ModJar.Kind.FORGE).count();
-        boolean forgeTomlIsFine = options.minecraftVersion() != null
-                ? ModVersion.parse(options.minecraftVersion()).compareTo(ModVersion.parse("1.20.5")) < 0
-                : forgeJars > neoJars;
-        boolean hasConnector = jars.stream().anyMatch(j -> hasMod(j, CONNECTOR));
+        boolean forgeTomlIsFine = options.minecraftVersion() != null || options.loader() != ScanOptions.Loader.UNKNOWN
+                ? options.legacy() : forgeJars > neoJars;
+        boolean hasConnector = jars.stream().anyMatch(j -> hasMod(j, CONNECTOR) || hasMod(j, "connectormod"));
 
         // Which jars actually get loaded, and the mods they bring.
         List<ModJar> loaded = new ArrayList<>();
@@ -69,16 +82,16 @@ public final class PackScanner {
                         "Delete it and download the mod again.", List.of(jar.fileName())));
                 case UNKNOWN -> findings.add(new Finding(Severity.WARNING, Finding.NOT_A_MOD,
                         "Not a mod: " + jar.fileName(),
-                        "This jar has no mod info in it, so NeoForge will ignore it or refuse to start.",
+                        "This jar has no mod info in it, so " + loader + " will ignore it or refuse to start.",
                         "Remove it unless you know a mod needs it there.", List.of(jar.fileName())));
                 case FABRIC -> {
                     if (hasConnector) {
                         loaded.add(jar);
                     } else {
                         findings.add(new Finding(Severity.ERROR, Finding.WRONG_LOADER,
-                                "Fabric mod in a NeoForge pack: " + displayName(jar),
-                                "This is a Fabric mod. NeoForge can't load it on its own.",
-                                "Swap it for the NeoForge version, or remove it.", List.of(jar.fileName())));
+                                "Fabric mod in a " + loader + " pack: " + displayName(jar),
+                                "This is a Fabric mod. " + loader + " can't load it on its own.",
+                                "Swap it for the " + loader + " version, or remove it.", List.of(jar.fileName())));
                     }
                 }
                 case FORGE -> {
@@ -93,14 +106,27 @@ public final class PackScanner {
                                 List.of(jar.fileName())));
                     }
                 }
-                case NEOFORGE -> loaded.add(jar);
+                case NEOFORGE -> {
+                    if (!options.legacy()) {
+                        loaded.add(jar);
+                    } else {
+                        findings.add(new Finding(Severity.ERROR, Finding.WRONG_LOADER,
+                                "Mod for a newer Minecraft: " + displayName(jar),
+                                "This is a NeoForge mod for Minecraft 1.20.5 or newer. This pack is "
+                                        + (options.minecraftVersion() != null ? "Minecraft " + options.minecraftVersion()
+                                        : "older") + " " + loader + ", which can't load it.",
+                                "Swap it for the " + loader + " " + (options.minecraftVersion() != null
+                                        ? options.minecraftVersion() + " " : "") + "version, or remove it.",
+                                List.of(jar.fileName())));
+                    }
+                }
                 case LIBRARY -> loaded.add(jar); // declares no mods itself, but may bundle some
             }
             if (jar.error() != null && jar.kind() != ModJar.Kind.BROKEN) {
                 findings.add(new Finding(Severity.WARNING, Finding.UNREADABLE_METADATA,
                         "Can't read mod info: " + jar.fileName(),
                         "Pack Doctor couldn't read this mod's info file (" + jar.error() + "), so it wasn't checked. "
-                                + "NeoForge may refuse to load it too.",
+                                + loader + " may refuse to load it too.",
                         "Check for an updated version of the mod.", List.of(jar.fileName())));
             }
         }
@@ -129,7 +155,7 @@ public final class PackScanner {
             }
         }
 
-        checkDuplicates(topLevel, findings);
+        checkDuplicates(topLevel, loader, findings);
         // NeoForge loads bundled (jar-in-jar) mods too and checks their dependencies, unless a top-level jar wins.
         List<Provider> dependents = new ArrayList<>();
         topLevel.values().forEach(dependents::addAll);
@@ -150,7 +176,7 @@ public final class PackScanner {
 
     private record Provider(ModInfo mod, ModJar jar) {}
 
-    private static void checkDuplicates(Map<String, List<Provider>> topLevel, List<Finding> findings) {
+    private static void checkDuplicates(Map<String, List<Provider>> topLevel, String loader, List<Finding> findings) {
         for (Map.Entry<String, List<Provider>> e : topLevel.entrySet()) {
             List<Provider> providers = e.getValue();
             if (providers.size() < 2) continue;
@@ -160,7 +186,7 @@ public final class PackScanner {
                     + " are installed:");
             for (Provider p : sorted) detail.append("\n- ").append(p.jar.fileName()).append(" (version ")
                     .append(p.mod.version()).append(')');
-            detail.append("\nNeoForge only loads the newest copy and ignores the rest, so the old ones are just clutter. "
+            detail.append("\n" + loader + " only loads one copy (the newest) and ignores the rest, or refuses to start. "
                     + "If you meant to downgrade, it didn't work.");
             findings.add(new Finding(Severity.WARNING, Finding.DUPLICATE_MOD,
                     "Duplicate mod: " + sorted.get(0).mod.name(), detail.toString(),
@@ -239,10 +265,17 @@ public final class PackScanner {
                         : new Installed(options.minecraftVersion(), "Minecraft", null);
             }
             case "neoforge" -> {
+                if (options.loader() == ScanOptions.Loader.FORGE) return null; // really not there on Forge
                 return options.neoforgeVersion() == null ? Installed.UNKNOWN
                         : new Installed(options.neoforgeVersion(), "NeoForge", null);
             }
-            case "forge", "javafml", "fml" -> {
+            case "forge" -> {
+                // Before 1.20, Forge packs routinely ship mods with out-of-date Forge ranges that still load.
+                return options.loader() != ScanOptions.Loader.FORGE || options.neoforgeVersion() == null
+                        || olderThan(options, "1.20") ? Installed.UNKNOWN
+                        : new Installed(options.neoforgeVersion(), "Forge", null);
+            }
+            case "javafml", "fml" -> {
                 return Installed.UNKNOWN;
             }
             default -> { }
@@ -256,6 +289,11 @@ public final class PackScanner {
         ModInfo inner = nested.get(id);
         if (inner != null) return new Installed(inner.version(), inner.name(), null);
         return null;
+    }
+
+    private static boolean olderThan(ScanOptions options, String mc) {
+        return options.minecraftVersion() != null
+                && ModVersion.parse(options.minecraftVersion()).compareTo(ModVersion.parse(mc)) < 0;
     }
 
     /** "1.21.1" -> "1.21" */
@@ -280,7 +318,8 @@ public final class PackScanner {
     }
 
     private static Finding wrongVersion(Provider who, Dependency dep, Installed have) {
-        boolean platform = have.fileName == null && (dep.modId().equals("minecraft") || dep.modId().equals("neoforge"));
+        boolean platform = have.fileName == null && (dep.modId().equals("minecraft") || dep.modId().equals("neoforge")
+                || dep.modId().equals("forge"));
         StringBuilder detail = new StringBuilder(who.mod.name() + " needs " + have.name + " "
                 + dep.versionRange().describe() + ", but this pack has " + have.version + ".");
         if (dep.type() == Dependency.Type.OPTIONAL) {

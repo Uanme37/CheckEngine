@@ -191,7 +191,8 @@ public final class Toml {
             if (pos >= src.length()) throw error("unterminated string");
             char c = src.charAt(pos++);
             if (c == '"') return sb.toString();
-            if (c == '\n') throw error("newline in string");
+            // Strict TOML forbids this, but Forge/NeoForge's reader accepts it and real mods rely on it
+            // (Dynamic Surroundings puts its credits list in one "..." string), so keep the newline.
             if (c == '\\') escape(sb);
             else sb.append(c);
         }

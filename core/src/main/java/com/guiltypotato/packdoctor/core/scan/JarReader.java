@@ -39,16 +39,32 @@ public final class JarReader {
         byte[] get(String name) throws IOException;
     }
 
+    /** Loader plug-ins (ModLauncher services): not mods, but they load fine and often matter (e.g. Connector). */
+    static final List<String> SERVICES = List.of(
+            "META-INF/services/cpw.mods.modlauncher.api.ITransformationService",
+            "META-INF/services/net.minecraftforge.forgespi.locating.IModLocator",
+            "META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator");
+
     /** Reads a jar that's already in memory (e.g. inside a server pack zip). {@code file} is only for display. */
     public static ModJar read(Path file, byte[] jarBytes) {
+        return read(file, jarBytes, false);
+    }
+
+    /** @param legacy true for Minecraft 1.20.4 and older (Forge, or NeoForge 1.20.1): prefer META-INF/mods.toml */
+    public static ModJar read(Path file, byte[] jarBytes, boolean legacy) {
         try {
-            return read(file, inMemory(jarBytes), 0);
+            return read(file, inMemory(jarBytes), 0, legacy);
         } catch (IOException | RuntimeException e) {
             return new ModJar(file, ModJar.Kind.BROKEN, List.of(), List.of(), describe(e));
         }
     }
 
     public static ModJar read(Path file) {
+        return read(file, false);
+    }
+
+    /** @param legacy true for Minecraft 1.20.4 and older (Forge, or NeoForge 1.20.1): prefer META-INF/mods.toml */
+    public static ModJar read(Path file, boolean legacy) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             Entries entries = name -> {
                 ZipEntry e = zip.getEntry(name);
@@ -57,27 +73,46 @@ public final class JarReader {
                     return in.readAllBytes();
                 }
             };
-            return read(file, entries, 0);
+            return read(file, entries, 0, legacy);
         } catch (IOException | RuntimeException e) {
             return new ModJar(file, ModJar.Kind.BROKEN, List.of(), List.of(), describe(e));
         }
     }
 
-    private static ModJar read(Path file, Entries entries, int depth) throws IOException {
+    private static ModJar read(Path file, Entries entries, int depth, boolean legacy) throws IOException {
         Manifest manifest = manifest(entries.get(MANIFEST));
         String jarVersion = manifest == null ? null : manifest.getMainAttributes().getValue("Implementation-Version");
         String modType = manifest == null ? null : manifest.getMainAttributes().getValue("FMLModType");
 
-        List<ModInfo> nested = depth < MAX_NESTING ? nestedMods(file, entries, depth) : List.of();
+        List<ModInfo> nested = depth < MAX_NESTING ? nestedMods(file, entries, depth, legacy) : List.of();
+        String moduleName = manifest == null ? null : manifest.getMainAttributes().getValue("Automatic-Module-Name");
+        if ("org.sinytra.connector".equals(moduleName)) {
+            // Sinytra Connector: a loader plug-in that runs Fabric mods. Its own mod jar isn't listed as jar-in-jar.
+            String v = jarVersion != null ? jarVersion : "unknown";
+            nested = new java.util.ArrayList<>(nested);
+            nested.add(new ModInfo("connector", v, "Sinytra Connector", List.of()));
+            nested.add(new ModInfo("connectormod", v, "Sinytra Connector", List.of()));
+            return new ModJar(file, ModJar.Kind.LIBRARY, List.of(), List.copyOf(nested), null);
+        }
 
+        // Some jars carry both: mods.toml for 1.20.1 Forge and neoforge.mods.toml for 1.21 NeoForge.
+        // The loader only reads its own, so read the one this pack's loader would.
         byte[] neo = entries.get(NEO_TOML);
+        byte[] forge = entries.get(FORGE_TOML);
+        if (legacy && forge != null) {
+            return parsedToml(file, ModJar.Kind.FORGE, forge, jarVersion, nested);
+        }
         if (neo != null) {
             return parsedToml(file, ModJar.Kind.NEOFORGE, neo, jarVersion, nested);
         }
-        byte[] forge = entries.get(FORGE_TOML);
         if (forge != null) {
             return parsedToml(file, ModJar.Kind.FORGE, forge, jarVersion, nested);
         }
+        // Loader plug-ins that also carry fabric.mod.json (e.g. Preloading Tricks) load on (Neo)Forge as plug-ins.
+        boolean service = false;
+        for (String s : SERVICES) service |= entries.get(s) != null;
+        if (service) return new ModJar(file, ModJar.Kind.LIBRARY, List.of(), nested, null);
+
         byte[] fabric = entries.get(FABRIC_JSON);
         if (fabric == null) fabric = entries.get(QUILT_JSON);
         if (fabric != null) {
@@ -160,7 +195,7 @@ public final class JarReader {
     }
 
     /** Mods inside jar-in-jar libraries listed in META-INF/jarjar/metadata.json. */
-    private static List<ModInfo> nestedMods(Path outer, Entries entries, int depth) {
+    private static List<ModInfo> nestedMods(Path outer, Entries entries, int depth, boolean legacy) {
         List<ModInfo> found = new ArrayList<>();
         try {
             byte[] meta = entries.get(JARJAR);
@@ -170,7 +205,7 @@ public final class JarReader {
                 if (path == null) continue;
                 byte[] bytes = entries.get(path);
                 if (bytes == null) continue;
-                ModJar inner = read(outer.resolve(path), inMemory(bytes), depth + 1);
+                ModJar inner = read(outer.resolve(path), inMemory(bytes), depth + 1, legacy);
                 if (inner.kind() == ModJar.Kind.NEOFORGE || inner.kind() == ModJar.Kind.FORGE) {
                     found.addAll(inner.mods());
                 }
@@ -189,7 +224,7 @@ public final class JarReader {
             while ((e = in.getNextEntry()) != null) {
                 String n = e.getName();
                 if (n.equals(NEO_TOML) || n.equals(FORGE_TOML) || n.equals(JARJAR) || n.equals(MANIFEST)
-                        || n.equals(FABRIC_JSON) || n.endsWith(".jar")) {
+                        || n.equals(FABRIC_JSON) || n.endsWith(".jar") || SERVICES.contains(n)) {
                     files.put(n, in.readAllBytes());
                 }
             }

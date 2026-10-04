@@ -202,6 +202,38 @@ class PackScannerTest {
     }
 
     @Test
+    void forgePackReadsTheForgeHalfOfDualLoaderJars() throws IOException {
+        // Real bossesrise-1.20.1-forge: mods.toml (1.20.1 Forge) and neoforge.mods.toml (1.21.1) in one jar.
+        jar().with("META-INF/mods.toml", TestJars.modsToml("bosses_rise", "1.0.9", dep("bosses_rise", "minecraft",
+                        "required", "[1.20.1]", "BOTH")))
+                .with("META-INF/neoforge.mods.toml", TestJars.modsToml("bosses_rise", "1.0.9", dep("bosses_rise",
+                        "minecraft", "required", "[1.21.1]", "BOTH")))
+                .writeTo(mods, "bossesrise.jar");
+        ScanOptions forge = new ScanOptions(Side.CLIENT, "1.20.1", "47.4.4", Set.of(), ScanOptions.Loader.FORGE);
+        assertEquals(List.of(), scan(forge).findings());
+        // On 1.21.1 the NeoForge half is read instead (its [1.20.1] Forge half would be an error).
+        assertEquals(List.of(), scan(CLIENT_1211).findings());
+    }
+
+    @Test
+    void loaderPluginsAndConnectorOnForge() throws IOException {
+        // Real Connector 1.20.1: a ModLauncher plug-in, its mod jar not listed as jar-in-jar.
+        jar().with("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nAutomatic-Module-Name: org.sinytra.connector\n"
+                        + "Implementation-Version: 1.0.0-beta.48\n\n")
+                .with("META-INF/services/cpw.mods.modlauncher.api.ITransformationService", "x")
+                .writeTo(mods, "Connector-1.0.0-beta.48+1.20.1.jar");
+        // Real Preloading Tricks: a plug-in that also carries fabric.mod.json.
+        jar().with("fabric.mod.json", "{\"id\": \"preloading_tricks\", \"version\": \"3.3.1\"}")
+                .with("META-INF/services/net.minecraftforge.forgespi.locating.IModLocator", "x")
+                .writeTo(mods, "preloading-tricks-3.3.1.jar");
+        jar().with("fabric.mod.json", "{\"id\": \"cinderscapes\", \"version\": \"4.0\"}").writeTo(mods, "cinderscapes.jar");
+        jar().with("META-INF/mods.toml", TestJars.modsToml("fabricbridge", "1.0", dep("fabricbridge", "connectormod",
+                "required", "*", "BOTH"))).writeTo(mods, "bridge.jar");
+        ScanOptions forge = new ScanOptions(Side.CLIENT, "1.20.1", "47.4.4", Set.of(), ScanOptions.Loader.FORGE);
+        assertEquals(List.of(), scan(forge).findings(), scan(forge).toText());
+    }
+
+    @Test
     void appleSkinIsFineOnServer() throws IOException {
         // Real AppleSkin marks its neoforge dependency CLIENT, but servers run it to sync hunger data.
         neoMod("appleskin", "3.0.9", dep("appleskin", "neoforge", "required", "*", "CLIENT"))
@@ -226,9 +258,11 @@ class PackScannerTest {
         // With Sinytra Connector, Fabric mods are fine.
         neoMod("connector", "2.0", null).writeTo(mods, "connector.jar");
         assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_LOADER).size());
-        // On 1.20.1, mods.toml is the normal format.
+        // On 1.20.1, mods.toml is the normal format, and NeoForge-only (1.20.5+) jars are the wrong ones.
         ScanOptions old = new ScanOptions(Side.CLIENT, "1.20.1", null, Set.of());
-        assertEquals(0, scan(old).byCode(Finding.WRONG_LOADER).size());
+        List<Finding> legacy = scan(old).byCode(Finding.WRONG_LOADER);
+        assertEquals(List.of("Mod for a newer Minecraft: Connector", "Mod for a newer Minecraft: Create"),
+                legacy.stream().map(Finding::title).toList());
     }
 
     @Test

@@ -50,9 +50,17 @@ public record PackFolder(Path modsFolder, ScanOptions options, String source) {
         Map<String, Object> obj = Json.parseObject(json);
         String mc = obj.get("gameVersion") instanceof String s ? s : null;
         String neo = null;
-        if (obj.get("baseModLoader") instanceof Map<?, ?> loader && loader.get("name") instanceof String name
-                && name.startsWith("neoforge-")) {
-            neo = name.substring("neoforge-".length());
+        ScanOptions.Loader kind = ScanOptions.Loader.UNKNOWN;
+        if (obj.get("baseModLoader") instanceof Map<?, ?> loader && loader.get("name") instanceof String name) {
+            if (name.startsWith("neoforge-")) {
+                neo = name.substring("neoforge-".length());
+                kind = ScanOptions.Loader.NEOFORGE;
+            } else if (name.startsWith("forge-")) {
+                neo = name.substring("forge-".length());
+                kind = ScanOptions.Loader.FORGE;
+            } else if (name.startsWith("fabric-")) {
+                kind = ScanOptions.Loader.FABRIC;
+            }
         }
         Set<String> clientOnly = new HashSet<>();
         if (obj.get("installedAddons") instanceof List<?> addons) {
@@ -65,6 +73,6 @@ public record PackFolder(Path modsFolder, ScanOptions options, String source) {
                 }
             }
         }
-        return new ScanOptions(side, mc, neo, clientOnly);
+        return new ScanOptions(side, mc, neo, clientOnly, kind);
     }
 }

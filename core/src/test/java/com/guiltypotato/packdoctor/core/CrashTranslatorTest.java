@@ -175,6 +175,44 @@ class CrashTranslatorTest {
     }
 
     @Test
+    void forgeLogWithMissingAndWrongVersionMods() {
+        // Forge 1.20.1 latest.log format (no crash report is written for these).
+        CrashTranslator.Explanation e = CrashTranslator.translateLog("""
+                [12:00:01] [main/ERROR] [net.minecraftforge.fml.loading.ModSorter/LOADING]: Missing or unsupported mandatory dependencies:
+                	Mod ID: 'architectury', Requested by: 'appleskin', Expected range: '[9.1.12,)', Actual version: '[MISSING]'
+                	Mod ID: 'architectury', Requested by: 'jade', Expected range: '[9.1.12,)', Actual version: '[MISSING]'
+                	Mod ID: 'geckolib', Requested by: 'mowziesmobs', Expected range: '[4.2,)', Actual version: '4.1.0'
+                """);
+        List<String> titles = e.findings().stream().map(Finding::title).toList();
+        assertEquals(List.of("Missing mod: architectury (2 mods need it)", "Wrong version of geckolib for mowziesmobs"),
+                titles);
+        assertEquals(null, CrashTranslator.translateLog("[12:00] all good"));
+    }
+
+    @Test
+    void forgeCrashReportModBlock() {
+        List<Finding> f = translate("""
+                Description: Mod loading error has occurred
+
+                java.lang.Exception: Mod Loading has failed
+
+                A detailed walkthrough of the error, its code path and all known details is as follows:
+                -- MOD mowziesmobs --
+                Details:
+                	Mod File: /C:/x/mods/mowziesmobs-1.6.4.jar
+                	Failure message: Mod mowziesmobs requires geckolib 4.2 or above
+                		Currently, geckolib is not installed
+                	Mod Version: 1.6.4
+                	Mod Issue URL: https://example.org
+                	Exception message: <No associated exception found>
+
+                -- System Details --
+                """);
+        assertEquals("Missing mod: geckolib", f.get(0).title());
+        assertEquals(List.of("mowziesmobs-1.6.4.jar"), f.get(0).files());
+    }
+
+    @Test
     void outOfMemory() {
         List<Finding> f = translate("""
                 Description: Unexpected error
