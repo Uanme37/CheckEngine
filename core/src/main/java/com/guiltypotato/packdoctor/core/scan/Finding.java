@@ -35,4 +35,6 @@ public record Finding(Severity severity, String code, String title, String detai
     public static final String UNREADABLE_METADATA = "unreadable-metadata";
     public static final String STRAY_FILE = "stray-file";
     public static final String NO_MODS = "no-mods";
+    public static final String ITEMS_FROM_MISSING_MOD = "items-from-missing-mod";
+    public static final String BROKEN_QUEST_ITEM = "broken-quest-item";
 }

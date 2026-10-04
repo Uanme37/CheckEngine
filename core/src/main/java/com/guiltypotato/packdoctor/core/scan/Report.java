@@ -40,15 +40,18 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         if (options.neoforgeVersion() != null) sb.append(", NeoForge ").append(options.neoforgeVersion());
         sb.append('\n');
         sb.append("Jars: ").append(jars.size()).append('\n');
-        long errors = count(Finding.Severity.ERROR);
-        long warnings = count(Finding.Severity.WARNING);
         sb.append('\n');
+        appendFindings(sb, findings);
+        return sb.toString();
+    }
+
+    /** The summary line plus every finding. Shared with the in-game data scan report. */
+    public static void appendFindings(StringBuilder sb, List<Finding> findings) {
         if (findings.isEmpty()) {
             sb.append("No problems found.\n");
-            return sb.toString();
+            return;
         }
-        sb.append(errors).append(errors == 1 ? " problem, " : " problems, ")
-                .append(warnings).append(warnings == 1 ? " warning" : " warnings").append("\n\n");
+        sb.append(summary(findings)).append("\n\n");
         for (Finding f : findings) {
             sb.append('[').append(f.severity()).append("] ").append(f.title()).append('\n');
             sb.append("  ").append(f.detail().replace("\n", "\n  ")).append('\n');
@@ -56,6 +59,13 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
             if (!f.files().isEmpty()) sb.append("  Files: ").append(String.join(", ", f.files())).append('\n');
             sb.append('\n');
         }
-        return sb.toString();
+    }
+
+    /** e.g. "2 problems, 1 warning" (notes are left out). */
+    public static String summary(List<Finding> findings) {
+        long errors = findings.stream().filter(f -> f.severity() == Finding.Severity.ERROR).count();
+        long warnings = findings.stream().filter(f -> f.severity() == Finding.Severity.WARNING).count();
+        return errors + (errors == 1 ? " problem, " : " problems, ")
+                + warnings + (warnings == 1 ? " warning" : " warnings");
     }
 }

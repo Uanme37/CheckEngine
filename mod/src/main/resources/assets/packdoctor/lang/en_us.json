@@ -1,1 +1,8 @@
-{}
+{
+  "packdoctor.screen.title": "Pack Doctor found problems in this pack",
+  "packdoctor.screen.summary": "%s. The report has details and how to fix each one.",
+  "packdoctor.screen.more": "...and %s more in the report",
+  "packdoctor.screen.open_report": "Open report",
+  "packdoctor.screen.dismiss": "Don't show these again",
+  "packdoctor.screen.continue": "Continue"
+}
