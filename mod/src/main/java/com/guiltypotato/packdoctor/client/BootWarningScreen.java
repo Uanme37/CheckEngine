@@ -25,7 +25,8 @@ public final class BootWarningScreen extends Screen {
     private final List<Finding> findings;
 
     BootWarningScreen(Screen next, List<Finding> findings) {
-        super(Component.translatable("packdoctor.screen.title"));
+        super(Component.translatable(findings.stream().anyMatch(f -> f.severity() == Finding.Severity.ERROR)
+                ? "packdoctor.screen.title" : "packdoctor.screen.title_warnings"));
         this.next = next;
         this.findings = findings;
     }
