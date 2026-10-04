@@ -17,9 +17,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - run: chmod +x gradlew
       - run: ./gradlew build
+      # One download with everything a player needs: the mod, the standalone checker and its launcher.
+      - name: Collect files
+        run: |
+          mkdir dist
+          cp mod/build/libs/*.jar cli/build/libs/*.jar "Check Pack.bat" dist/
       - uses: actions/upload-artifact@v7
         with:
-          name: packdoctor-jars
-          path: |
-            mod/build/libs/*.jar
-            cli/build/libs/*.jar
+          name: packdoctor
+          path: dist/
