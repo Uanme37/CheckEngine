@@ -1,0 +1,15 @@
+// Plain Java library. NO Minecraft code in here, so it's quick to test.
+plugins {
+    id 'java-library'
+}
+
+base { archivesName = 'packdoctor-core' }
+
+dependencies {
+    // Phase 2: add a TOML parser here for neoforge.mods.toml (night-config ships with NeoForge).
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test { useJUnitPlatform() }

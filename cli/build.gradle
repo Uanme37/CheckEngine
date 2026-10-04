@@ -1,0 +1,24 @@
+// Standalone jar: works when the game won't even start.
+plugins {
+    id 'application'
+}
+
+base { archivesName = 'packdoctor-cli' }
+
+dependencies {
+    implementation project(':core')
+}
+
+application {
+    mainClass = 'com.guiltypotato.packdoctor.cli.PackDoctorCli'
+}
+
+evaluationDependsOn(':core')
+
+// Single runnable jar: bundles core's classes so "java -jar packdoctor-cli-x.jar" just works.
+// When core gets third-party deps, switch to the Shadow plugin.
+tasks.named('jar', Jar) {
+    manifest { attributes 'Main-Class': 'com.guiltypotato.packdoctor.cli.PackDoctorCli' }
+    from(project(':core').sourceSets.main.output)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
