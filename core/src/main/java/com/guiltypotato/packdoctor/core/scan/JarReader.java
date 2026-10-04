@@ -82,15 +82,23 @@ public final class JarReader {
 
     private static ModJar parsedToml(Path file, ModJar.Kind kind, byte[] toml, String jarVersion, List<ModInfo> nested) {
         try {
-            return new ModJar(file, kind, modsFromToml(text(toml), jarVersion), nested, null);
+            return new ModJar(file, kind, modsFromToml(text(toml), jarVersion, kind == ModJar.Kind.NEOFORGE), nested, null);
         } catch (RuntimeException e) {
             return new ModJar(file, kind, List.of(), nested, "its mods.toml can't be read: " + describe(e));
         }
     }
 
     /** Turns neoforge.mods.toml text into mods. Public so the in-game side can reuse it. */
-    @SuppressWarnings("unchecked")
     public static List<ModInfo> modsFromToml(String tomlText, String jarVersion) {
+        return modsFromToml(tomlText, jarVersion, true);
+    }
+
+    /**
+     * @param neoforgeToml true for neoforge.mods.toml, where NeoForge ignores the old "mandatory" key (a dependency
+     *                     with no "type" is required); false for Forge's mods.toml, where "mandatory" still counts
+     */
+    @SuppressWarnings("unchecked")
+    static List<ModInfo> modsFromToml(String tomlText, String jarVersion, boolean neoforgeToml) {
         Map<String, Object> toml = Toml.parse(tomlText);
         Map<String, Object> depsTable = toml.get("dependencies") instanceof Map<?, ?> m
                 ? (Map<String, Object>) m : Map.of();
@@ -110,7 +118,7 @@ public final class JarReader {
                 Dependency.Type type;
                 if (d.containsKey("type")) {
                     type = Dependency.Type.parse(str(d.get("type")));
-                } else if (d.get("mandatory") instanceof Boolean b) { // pre-20.5 format
+                } else if (!neoforgeToml && d.get("mandatory") instanceof Boolean b) { // Forge format
                     type = b ? Dependency.Type.REQUIRED : Dependency.Type.OPTIONAL;
                 } else {
                     type = Dependency.Type.REQUIRED;

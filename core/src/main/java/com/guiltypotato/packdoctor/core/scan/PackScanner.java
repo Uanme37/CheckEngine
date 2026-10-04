@@ -255,13 +255,16 @@ public final class PackScanner {
         return parts.length >= 2 ? parts[0] + "." + parts[1] : mc;
     }
 
-    /** True if the range accepts some release of the pack's Minecraft line, e.g. a "[1.21]" mod on 1.21.1. */
+    /**
+     * True if the range accepts an earlier release of the pack's Minecraft line, e.g. a "[1.21]" mod on 1.21.1.
+     * Never a newer one: a "[1.21.11,)" mod really won't load on 1.21.1.
+     */
     private static boolean sameMinecraftLine(Dependency dep, String mc) {
         String line = lineOf(mc);
         if (dep.versionRange().contains(line)) return true;
         String[] parts = mc.split("\\.");
         int patch = parts.length >= 3 && parts[2].matches("\\d+") ? Integer.parseInt(parts[2]) : 0;
-        for (int i = 0; i <= patch + 10; i++) {
+        for (int i = 0; i <= patch; i++) {
             if (dep.versionRange().contains(line + "." + i)) return true;
         }
         return false;

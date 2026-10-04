@@ -77,7 +77,7 @@ public final class CrashTranslator {
             }
         }
 
-        List<Finding> findings = new ArrayList<>(loadingIssues(lines));
+        List<Finding> findings = mergeMissing(loadingIssues(lines));
         if (findings.isEmpty() && exception != null) {
             findings.add(runtimeCrash(lines, exceptionLine, description, exception));
         }
@@ -87,6 +87,27 @@ public final class CrashTranslator {
                     "Pass a file from the crash-reports folder.", List.of()));
         }
         return new Explanation(description, exception, findings);
+    }
+
+    /** One finding per missing mod, listing every mod that needs it, instead of one per (mod, dependency) pair. */
+    private static List<Finding> mergeMissing(List<Finding> issues) {
+        Map<String, List<Finding>> byTitle = new LinkedHashMap<>();
+        for (Finding f : issues) byTitle.computeIfAbsent(f.title(), k -> new ArrayList<>()).add(f);
+        List<Finding> out = new ArrayList<>();
+        for (List<Finding> group : byTitle.values()) {
+            Finding first = group.get(0);
+            if (group.size() == 1 || !first.code().equals(Finding.MISSING_DEPENDENCY)) {
+                out.addAll(group);
+                continue;
+            }
+            String mod = first.title().substring("Missing mod: ".length());
+            List<String> files = group.stream().flatMap(f -> f.files().stream()).distinct().toList();
+            out.add(new Finding(Severity.ERROR, Finding.MISSING_DEPENDENCY,
+                    "Missing mod: " + mod + " (" + group.size() + " mods need it)",
+                    String.join("\n", group.stream().map(Finding::detail).distinct().toList()),
+                    "Install " + mod + ", or remove the mods that need it.", files));
+        }
+        return out;
     }
 
     /** "-- Mod loading issue for: x --" blocks: NeoForge already knows exactly what's wrong, we just reword it. */
@@ -123,6 +144,15 @@ public final class CrashTranslator {
             return new Finding(Severity.ERROR, Finding.MISSING_DEPENDENCY, "Missing mod: " + m.group(2),
                     m.group(1) + " needs " + m.group(2) + " (" + versionText(m.group(3)) + "), but it isn't installed.",
                     "Install " + m.group(2) + " (" + versionText(m.group(3)) + "), or remove " + m.group(1) + ".", files);
+        }
+        if ((m = REQUIRES_NEWER.matcher(msg)).find()
+                && (m.group(2).equals("minecraft") || m.group(2).equals("neoforge"))) {
+            String platform = m.group(2).equals("minecraft") ? "Minecraft" : "NeoForge";
+            return new Finding(Severity.ERROR, Finding.WRONG_VERSION, "Wrong " + platform + " version for " + m.group(1),
+                    m.group(1) + " is made for " + platform + " " + versionText(m.group(3)) + ", but this pack has "
+                            + m.group(4) + ".",
+                    "Get the version of " + m.group(1) + " made for " + platform + " " + m.group(4)
+                            + " (check its Files tab), or remove it.", files);
         }
         if ((m = REQUIRES_NEWER.matcher(msg)).find()) {
             return new Finding(Severity.ERROR, Finding.WRONG_VERSION, "Outdated mod: " + m.group(2),

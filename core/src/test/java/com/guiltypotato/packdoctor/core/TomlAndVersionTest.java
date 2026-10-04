@@ -55,7 +55,8 @@ class TomlAndVersionTest {
         assertEquals(Dependency.Type.REQUIRED, flywheel.type());
         assertEquals(Dependency.DepSide.CLIENT, flywheel.side());
         Dependency lithium = create.dependencies().get(1);
-        assertEquals(Dependency.Type.OPTIONAL, lithium.type());
+        // NeoForge ignores the old "mandatory" key: no "type" means required (Ars Botania crashed on exactly this).
+        assertEquals(Dependency.Type.REQUIRED, lithium.type());
         assertEquals("Versions before 0.14.7 crash", lithium.reason());
     }
 

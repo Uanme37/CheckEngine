@@ -141,6 +141,27 @@ class PackScannerTest {
     }
 
     @Test
+    void newerMinecraftPatchIsNotForgiven() throws IOException {
+        // Real Oh The Biomes We've Gone 4.4.0 wants 1.21.11; NeoForge refuses it on 1.21.1.
+        neoMod("biomeswevegone", "4.4.0", dep("biomeswevegone", "minecraft", "required", "[1.21.11,)", "BOTH"))
+                .writeTo(mods, "bwg.jar");
+        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+    }
+
+    @Test
+    void oldMandatoryFalseIsStillRequiredInNeoForgeToml() throws IOException {
+        // Real Ars Botania 1.2.0: NeoForge ignores "mandatory" and crashed on the missing mod.
+        neoMod("ars_botania", "1.2.0", """
+                [[dependencies."ars_botania"]]
+                modId="arseng"
+                mandatory=false
+                versionRange="[1.1.0,)"
+                side="BOTH"
+                """).writeTo(mods, "ars_botania.jar");
+        assertEquals(1, scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY).size());
+    }
+
+    @Test
     void appleSkinIsFineOnServer() throws IOException {
         // Real AppleSkin marks its neoforge dependency CLIENT, but servers run it to sync hunger data.
         neoMod("appleskin", "3.0.9", dep("appleskin", "neoforge", "required", "*", "CLIENT"))
