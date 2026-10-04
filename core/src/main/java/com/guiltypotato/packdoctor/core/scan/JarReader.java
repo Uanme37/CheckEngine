@@ -39,6 +39,15 @@ public final class JarReader {
         byte[] get(String name) throws IOException;
     }
 
+    /** Reads a jar that's already in memory (e.g. inside a server pack zip). {@code file} is only for display. */
+    public static ModJar read(Path file, byte[] jarBytes) {
+        try {
+            return read(file, inMemory(jarBytes), 0);
+        } catch (IOException | RuntimeException e) {
+            return new ModJar(file, ModJar.Kind.BROKEN, List.of(), List.of(), describe(e));
+        }
+    }
+
     public static ModJar read(Path file) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             Entries entries = name -> {
@@ -126,7 +135,9 @@ public final class JarReader {
                 deps.add(new Dependency(depId, type, VersionRange.parseLenient(str(d.get("versionRange"))),
                         Dependency.DepSide.parse(str(d.get("side"))), str(d.get("reason"))));
             }
-            mods.add(new ModInfo(id, version, str(mod.get("displayName")), List.copyOf(deps)));
+            String displayTest = str(mod.get("displayTest"));
+            mods.add(new ModInfo(id, version, str(mod.get("displayName")), List.copyOf(deps),
+                    displayTest != null ? displayTest : "MATCH_VERSION"));
         }
         return List.copyOf(mods);
     }

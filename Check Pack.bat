@@ -62,13 +62,30 @@ if errorlevel 2 (
     echo Looks good to launch.
 )
 
+echo.
+echo Want to check it against a server? Drag the server's folder or its server pack .zip into this window,
+set /p "SERVER=then press Enter (or just press Enter to skip): "
+if defined SERVER call :compare
+
 if exist "%PACK%\crash-reports" (
     echo.
     set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
-    call :crash
+    call :compare
+set "SERVER=%SERVER:"=%"
+echo.
+"%JAVA%" -jar "%JAR%" compare "%PACK%" "%SERVER%"
+exit /b
+
+:crash
 )
 echo.
 pause
+exit /b
+
+:compare
+set "SERVER=%SERVER:"=%"
+echo.
+"%JAVA%" -jar "%JAR%" compare "%PACK%" "%SERVER%"
 exit /b
 
 :crash

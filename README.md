@@ -27,4 +27,5 @@ It finds the Java 21 that CurseForge or the Minecraft launcher already installed
 java -jar packdoctor-cli.jar scan <pack folder> [--server]    # what's broken in the mods folder
 java -jar packdoctor-cli.jar crash <pack folder or crash-*.txt> # explain the newest crash in plain English
 java -jar packdoctor-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]  # server copy without client-only mods
+java -jar packdoctor-cli.jar compare <pack folder> <server folder or server pack .zip>  # why players can't join
 ```

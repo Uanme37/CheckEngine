@@ -8,6 +8,7 @@ import com.guiltypotato.packdoctor.core.scan.PackFolder;
 import com.guiltypotato.packdoctor.core.scan.PackScanner;
 import com.guiltypotato.packdoctor.core.scan.Report;
 import com.guiltypotato.packdoctor.core.scan.ScanOptions;
+import com.guiltypotato.packdoctor.core.scan.ServerCompare;
 import com.guiltypotato.packdoctor.core.scan.ServerPack;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ public final class PackDoctorCli {
             Usage: java -jar packdoctor-cli.jar scan <pack or mods folder> [options]
                    java -jar packdoctor-cli.jar crash <crash report, or a pack folder for its newest crash>
                    java -jar packdoctor-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]
+                   java -jar packdoctor-cli.jar compare <pack folder> <server folder or server pack .zip>
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -44,6 +46,7 @@ public final class PackDoctorCli {
         }
         if (args[0].equals("crash")) return crash(args);
         if (args[0].equals("serverpack")) return serverPack(args);
+        if (args[0].equals("compare")) return compare(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -223,6 +226,26 @@ public final class PackDoctorCli {
             return 0;
         } catch (IOException e) {
             System.err.println(PackDoctorCore.NAME + " couldn't build the server pack: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Compares a player's pack with a server (folder or zip) and lists what will stop players joining. */
+    static int compare(String[] args) {
+        if (args.length != 3) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            List<Finding> findings = ServerCompare.compare(Path.of(args[1]), Path.of(args[2]));
+            StringBuilder sb = new StringBuilder("Pack Doctor: pack vs server\nPack:   " + Path.of(args[1]).toAbsolutePath()
+                    + "\nServer: " + Path.of(args[2]).toAbsolutePath() + "\n\n");
+            Report.appendFindings(sb, findings);
+            System.out.print(sb);
+            if (findings.isEmpty()) System.out.println("They match: players should be able to join.");
+            return findings.stream().anyMatch(f -> f.severity() == Finding.Severity.ERROR) ? 1 : 0;
+        } catch (IOException e) {
+            System.err.println(PackDoctorCore.NAME + " couldn't compare: " + e.getMessage());
             return 2;
         }
     }
