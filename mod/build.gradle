@@ -5,7 +5,7 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-base { archivesName = mod_id }
+base { archivesName = "${mod_id}-neoforge-1.21.1" }
 
 sourceSets.main.resources {
     srcDir('src/generated/resources')
