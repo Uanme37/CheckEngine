@@ -3,3 +3,6 @@
 # are changed when only line endings change.
 src/generated/**/.cache/* text eol=lf
 src/generated/**/*.json text eol=lf
+
+# Windows batch files must keep CRLF, or cmd mis-reads labels (CI builds the download on Linux).
+*.bat text eol=crlf
