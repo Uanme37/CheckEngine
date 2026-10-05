@@ -69,17 +69,7 @@ echo Want to check it against a server? Drag the server's folder or its server p
 set /p "SERVER=then press Enter (or just press Enter to skip): "
 if defined SERVER call :compare
 
-if exist "%PACK%\crash-reports" (
-    echo.
-    set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
-    call :compare
-set "SERVER=%SERVER:"=%"
-echo.
-"%JAVA%" -jar "%JAR%" compare "%PACK%" "%SERVER%"
-exit /b
-
-:crash
-)
+if exist "%PACK%\crash-reports\*.txt" call :crash
 echo.
 pause
 exit /b
@@ -91,6 +81,9 @@ echo.
 exit /b
 
 :crash
+echo.
+set "SHOW="
+set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
 if /i "%SHOW%"=="y" "%JAVA%" -jar "%JAR%" crash "%PACK%"
 exit /b
 
