@@ -72,13 +72,7 @@ if defined SERVER call :compare
 if exist "%PACK%\crash-reports" (
     echo.
     set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
-    call :compare
-set "SERVER=%SERVER:"=%"
-echo.
-"%JAVA%" -jar "%JAR%" compare "%PACK%" "%SERVER%"
-exit /b
-
-:crash
+    call :crash
 )
 echo.
 pause
