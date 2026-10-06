@@ -47,13 +47,14 @@ public final class DataScanner {
      *
      * @param kind   recipe, loot table or quest
      * @param file   recipe/loot table id or quest file name
-     * @param source datapack or mod it came from ("mod:create", "file/mypack.zip"), or null for quests
+     * @param source datapack or mod it came from ("mod/create" on 1.21.1, "mod:create" on 1.20.1, "file/mypack.zip"),
+     *               or null for quests
      * @param item   the item id, e.g. "artifacts:crystal_heart"
      */
     public record Ref(Kind kind, String file, String source, String item) {
         /** True when the reference ships inside a mod's own jar (the mod's problem, not the pack maker's). */
         boolean fromMod() {
-            return source != null && source.startsWith("mod:");
+            return source != null && (source.startsWith("mod:") || source.startsWith("mod/"));
         }
     }
 
@@ -103,7 +104,22 @@ public final class DataScanner {
 
     public List<Finding> findings() {
         List<Finding> out = new ArrayList<>();
-        byMissingMod.forEach((mod, refs) -> out.add(missingMod(mod, refs)));
+        // Mods like Farming for Blockheads ship recipes for dozens of optional mods; one note covers them all.
+        List<String> leftovers = new ArrayList<>();
+        byMissingMod.forEach((mod, refs) -> {
+            if (refs.stream().allMatch(Ref::fromMod)) {
+                leftovers.add(mod + " (" + refs.stream().map(Ref::file).distinct().count() + ")");
+            } else {
+                out.add(missingMod(mod, refs));
+            }
+        });
+        if (!leftovers.isEmpty()) {
+            out.add(new Finding(Severity.INFO, Finding.ITEMS_FROM_MISSING_MOD,
+                    "Built-in extras for mods you don't have",
+                    "Some mods ship recipes or loot for optional mods that aren't installed. Minecraft just skips "
+                            + "them, so there's nothing to fix: " + String.join(", ", leftovers) + ".",
+                    null, List.of()));
+        }
         if (!brokenQuestItems.isEmpty()) out.add(brokenQuests());
         if (!unreadable.isEmpty()) {
             out.add(new Finding(Severity.INFO, Finding.UNREADABLE_METADATA,
@@ -123,22 +139,14 @@ public final class DataScanner {
         }
         List<String> parts = new ArrayList<>();
         perKind.forEach((k, n) -> parts.add(n + " " + (n == 1 ? k.one : k.many)));
-        // Only the mod's own leftovers (compat for a mod you don't have) are usually harmless.
-        boolean onlyFromMods = refs.stream().allMatch(Ref::fromMod);
         List<String> lines = refs.stream().map(r -> r.kind().one + " " + r.file()
                         + (r.source() != null ? " (from " + r.source() + ")" : "") + ": " + r.item())
                 .distinct().toList();
         boolean one = perKind.size() == 1 && perKind.values().iterator().next() == 1;
         String detail = String.join(", ", parts) + (one ? " uses" : " use") + " items from \"" + mod + "\", but that mod isn't installed:\n"
                 + list(lines);
-        if (onlyFromMods) {
-            detail += "\nThese all ship inside other mods (usually compat for an optional mod), "
-                    + "so Minecraft just skips them.";
-        }
-        return new Finding(onlyFromMods ? Severity.INFO : Severity.WARNING, Finding.ITEMS_FROM_MISSING_MOD,
-                "Items from a missing mod: " + mod, detail,
-                onlyFromMods ? null : "Install " + mod + ", or swap these items for ones that exist.",
-                List.of());
+        return new Finding(Severity.WARNING, Finding.ITEMS_FROM_MISSING_MOD, "Items from a missing mod: " + mod,
+                detail, "Install " + mod + ", or swap these items for ones that exist.", List.of());
     }
 
     private Finding brokenQuests() {

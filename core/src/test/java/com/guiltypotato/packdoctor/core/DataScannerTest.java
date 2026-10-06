@@ -65,8 +65,15 @@ class DataScannerTest {
         scanner.lootTable("create:chests/compat", "mod:create", """
                 {"pools": [{"entries": [{"type": "minecraft:item", "name": "farmersdelight:tomato"}]}]}
                 """);
-        Finding f = byCode(Finding.ITEMS_FROM_MISSING_MOD).get(0);
-        assertEquals(Finding.Severity.INFO, f.severity());
+        // 1.21.1 names mod data packs "mod/<id>" (real FTB Skies 2: Farming for Blockheads market recipes).
+        scanner.recipe("farmingforblockheads:market/byg/aspen_sapling", "mod/farmingforblockheads",
+                "{\"type\":\"farmingforblockheads:market\",\"result\":{\"item\":\"byg:aspen_sapling\"}}");
+        scanner.recipe("farmingforblockheads:market/quark/blue_blossom_sapling", "mod/farmingforblockheads",
+                "{\"type\":\"farmingforblockheads:market\",\"result\":{\"item\":\"quark:blue_blossom_sapling\"}}");
+        List<Finding> found = byCode(Finding.ITEMS_FROM_MISSING_MOD);
+        assertEquals(1, found.size());
+        assertEquals(Finding.Severity.INFO, found.get(0).severity());
+        assertTrue(found.get(0).detail().contains("byg (1)"), found.get(0).detail());
     }
 
     @Test
