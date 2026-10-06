@@ -3,7 +3,7 @@ plugins {
     id 'java-library'
 }
 
-base { archivesName = 'packdoctor-core' }
+base { archivesName = 'checkengine-core' }
 
 dependencies {
     // Phase 2: add a TOML parser here for neoforge.mods.toml (night-config ships with NeoForge).

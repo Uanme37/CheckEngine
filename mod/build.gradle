@@ -1,4 +1,4 @@
-// The NeoForge 1.21.1 mod: boot warning screen + /packdoctor scan.
+// The NeoForge 1.21.1 mod: boot warning screen + /checkengine scan.
 plugins {
     id 'java-library'
     id 'idea'

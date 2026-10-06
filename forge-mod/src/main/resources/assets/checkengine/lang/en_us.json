@@ -1,0 +1,13 @@
+{
+  "checkengine.screen.title": "Check Engine found problems in this pack",
+  "checkengine.screen.title_warnings": "Check Engine has a heads-up about this pack",
+  "checkengine.screen.summary": "%s. The report has details and how to fix each one.",
+  "checkengine.screen.more": "...and %s more in the report",
+  "checkengine.screen.open_report": "Open report",
+  "checkengine.screen.dismiss": "Don't show these again",
+  "checkengine.screen.continue": "Continue",
+  "checkengine.join.title": "Can't join: your mods don't match the server",
+  "checkengine.join.summary": "Fix these and try again. The report has the full list.",
+  "checkengine.join.mods_folder": "Mods folder",
+  "checkengine.join.details": "Details"
+}

@@ -1,14 +1,14 @@
 @echo off
-rem Pack Doctor: drag a modpack folder (e.g. a CurseForge instance) onto this file to check it before launching.
+rem Check Engine: drag a modpack folder (e.g. a CurseForge instance) onto this file to check it before launching.
 rem Works on any PC that has played modern modded Minecraft: it borrows the Java 17/21 that the launchers install.
 setlocal EnableExtensions
 
-rem --- Find the Pack Doctor program: next to this file (download), or in the project's build folder (dev).
+rem --- Find the Check Engine program: next to this file (download), or in the project's build folder (dev).
 set "JAR="
-for %%F in ("%~dp0packdoctor-cli*.jar") do set "JAR=%%~fF"
-if not defined JAR for %%F in ("%~dp0cli\build\libs\packdoctor-cli*.jar") do set "JAR=%%~fF"
+for %%F in ("%~dp0checkengine-cli*.jar") do set "JAR=%%~fF"
+if not defined JAR for %%F in ("%~dp0cli\build\libs\checkengine-cli*.jar") do set "JAR=%%~fF"
 if not defined JAR (
-    echo Can't find packdoctor-cli.jar. Keep it in the same folder as this file.
+    echo Can't find checkengine-cli.jar. Keep it in the same folder as this file.
     pause
     exit /b 2
 )
@@ -51,8 +51,8 @@ if /i "%PACK:~-4%"==".zip" (
 )
 
 echo.
-if not exist "%PACK%\packdoctor" mkdir "%PACK%\packdoctor" 2>nul
-"%JAVA%" -jar "%JAR%" scan "%PACK%" --out "%PACK%\packdoctor\check-report.txt"
+if not exist "%PACK%\checkengine" mkdir "%PACK%\checkengine" 2>nul
+"%JAVA%" -jar "%JAR%" scan "%PACK%" --out "%PACK%\checkengine\check-report.txt"
 if errorlevel 2 (
     echo.
     echo Couldn't check that folder. Is it a pack folder with a mods folder inside?

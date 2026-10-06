@@ -14,5 +14,5 @@ Notes only. Never copy whole packs in here (jars/zips are gitignored anyway).
 - [x] mod missing its dependency (Sophisticated Backpacks without Sophisticated Core)
 - [x] client-only mod on the server (ATM10 scanned with --server: 39 flagged, AppleSkin allowed)
 - [x] quest item from a removed mod (`ftbquests:missing_item`) (real catch: ATM10 productive_bees.snbt has artifacts:crystal_heart)
-- [x] loot table / recipe pointing at a removed mod (dev server + test datapack, /packdoctor scan)
+- [x] loot table / recipe pointing at a removed mod (dev server + test datapack, /checkengine scan)
 - [ ] client and server on different mod versions

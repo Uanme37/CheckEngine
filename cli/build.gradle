@@ -3,14 +3,14 @@ plugins {
     id 'application'
 }
 
-base { archivesName = 'packdoctor-cli' }
+base { archivesName = 'checkengine-cli' }
 
 dependencies {
     implementation project(':core')
 }
 
 application {
-    mainClass = 'com.guiltypotato.packdoctor.cli.PackDoctorCli'
+    mainClass = 'com.guiltypotato.checkengine.cli.CheckEngineCli'
 }
 
 // Runs on Java 17 too, so the launcher Java from 1.20.1 packs is enough.
@@ -18,10 +18,10 @@ tasks.withType(JavaCompile).configureEach { options.release = 17 }
 
 evaluationDependsOn(':core')
 
-// Single runnable jar: bundles core's classes so "java -jar packdoctor-cli-x.jar" just works.
+// Single runnable jar: bundles core's classes so "java -jar checkengine-cli-x.jar" just works.
 // When core gets third-party deps, switch to the Shadow plugin.
 tasks.named('jar', Jar) {
-    manifest { attributes 'Main-Class': 'com.guiltypotato.packdoctor.cli.PackDoctorCli' }
+    manifest { attributes 'Main-Class': 'com.guiltypotato.checkengine.cli.CheckEngineCli' }
     from(project(':core').sourceSets.main.output)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

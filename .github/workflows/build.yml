@@ -33,7 +33,7 @@ jobs:
           cp mod/build/libs/*.jar forge-mod/build/libs/*.jar cli/build/libs/*.jar "Check Pack.bat" dist/
       - uses: actions/upload-artifact@v7
         with:
-          name: packdoctor
+          name: checkengine
           path: dist/
       # On a v* tag (or a manual run with a tag), publish a GitHub release with the same files plus one zip of all of them.
       - name: Release
@@ -42,6 +42,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          (cd dist && zip -r "../PackDoctor-${TAG}.zip" .)
-          gh release create "$TAG" dist/* "PackDoctor-${TAG}.zip" --target "$GITHUB_SHA" \
-            --title "Pack Doctor ${TAG#v}" --notes-file .github/release-notes.md
+          (cd dist && zip -r "../CheckEngine-${TAG}.zip" .)
+          gh release create "$TAG" dist/* "CheckEngine-${TAG}.zip" --target "$GITHUB_SHA" \
+            --title "Check Engine ${TAG#v}" --notes-file .github/release-notes.md

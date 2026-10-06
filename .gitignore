@@ -39,7 +39,7 @@ run/
 repo/
 !**/src/**/repo/
 
-# Pack Doctor
+# Check Engine
 mod/runs/
 test-packs/**/*.jar
 test-packs/**/*.zip
