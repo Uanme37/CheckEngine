@@ -120,6 +120,19 @@ class PackScannerTest {
     }
 
     @Test
+    void monocleLetsIrisRunOnEmbeddium() throws IOException {
+        // Real FTB Skies 2: Iris says it needs Sodium and hates Embeddium; Monocle strips both rules at load time.
+        neoMod("embeddium", "1.0.15", null).writeTo(mods, "embeddium.jar");
+        neoMod("iris", "1.8.12", dep("iris", "embeddium", "incompatible", "[0.0.1,)", "CLIENT")
+                + dep("iris", "sodium", "required", "[0.6,)", "CLIENT")).writeTo(mods, "iris.jar");
+        assertEquals(2, scan(CLIENT_1211).findings().size());
+        jar().with("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nFMLModType: LIBRARY\n\n")
+                .nest("META-INF/jarjar/monocle-mod-file.jar", neoMod("monocle", "0.2.3", null))
+                .writeTo(mods, "monocle-0.2.3.ms.jar");
+        assertEquals(List.of(), scan(CLIENT_1211).findings());
+    }
+
+    @Test
     void incompatibleAndDiscouragedMods() throws IOException {
         neoMod("optifine", "1.0", null).writeTo(mods, "optifine.jar");
         neoMod("rubidium", "1.0", null).writeTo(mods, "rubidium.jar");

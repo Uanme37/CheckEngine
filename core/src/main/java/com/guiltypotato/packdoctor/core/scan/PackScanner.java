@@ -165,7 +165,12 @@ public final class PackScanner {
         nestedIn.forEach((id, p) -> {
             if (!topLevel.containsKey(id)) dependents.add(p);
         });
-        checkDependencies(dependents, topLevel, nested, options, dependencyOverrides(modsFolder, options), findings);
+        Map<String, Set<String>> overrides = dependencyOverrides(modsFolder, options);
+        if (topLevel.containsKey("monocle") || nested.containsKey("monocle")) {
+            // Monocle (Iris on Embeddium) rewrites Iris's mod info while loading and drops these two rules.
+            overrides.computeIfAbsent("iris", k -> new HashSet<>()).addAll(Set.of("sodium", "embeddium"));
+        }
+        checkDependencies(dependents, topLevel, nested, options, overrides, findings);
         java.util.Set<String> installed = new java.util.HashSet<>(topLevel.keySet());
         installed.addAll(nested.keySet());
         findings.addAll(HiddenDependencies.check(loaded, installed));
