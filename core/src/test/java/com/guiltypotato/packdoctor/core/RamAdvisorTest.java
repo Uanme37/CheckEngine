@@ -39,6 +39,12 @@ class RamAdvisorTest {
     }
 
     @Test
+    void serverFolderIsNotToldToUseCurseForge() {
+        Finding f = RamAdvisor.advise(new Facts(453, List.of(), 0, null, 0, 0), true).get(0);
+        assertTrue(f.fix().contains("user_jvm_args.txt") && !f.fix().contains("CurseForge"), f.fix());
+    }
+
+    @Test
     void tooMuchForThePc() {
         Finding f = advise(new Facts(400, List.of(), 14336, "x", 0, 16384));
         assertEquals("Memory: leaves too little for Windows", f.title());

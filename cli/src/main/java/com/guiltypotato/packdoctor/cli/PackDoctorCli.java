@@ -94,7 +94,7 @@ public final class PackDoctorCli {
             Path root = pack.modsFolder().getFileName().toString().equalsIgnoreCase("mods")
                     ? pack.modsFolder().getParent() : pack.modsFolder();
             StringBuilder memory = new StringBuilder("\nMemory (RAM)\n");
-            for (Finding f : RamAdvisor.advise(RamAdvisor.facts(root, pack.modsFolder()))) {
+            for (Finding f : RamAdvisor.advise(RamAdvisor.facts(root, pack.modsFolder()), side == Side.SERVER)) {
                 memory.append(f.title()).append("\n  ").append(f.detail().replace("\n", "\n  ")).append('\n');
                 if (f.fix() != null) memory.append("  Fix: ").append(f.fix()).append('\n');
             }

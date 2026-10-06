@@ -94,6 +94,32 @@ class PackScannerTest {
     }
 
     @Test
+    void neoForgeRangeMadeFor121StillLoadsOn1211() throws IOException {
+        // Real Create: Ballast 0.1.1 says "[21.0.0-beta,21.1.227)" and loads on 21.1.251 (NeoForge's support matrix).
+        neoMod("ballastmod", "0.1.1", dep("ballastmod", "neoforge", "required", "[21.0.0-beta,21.1.227)", "BOTH"))
+                .writeTo(mods, "ballastmod-0.1.1.jar");
+        assertEquals(List.of(), scan(CLIENT_1211).findings());
+        // A range that skips 1.21's NeoForge is still checked.
+        neoMod("newmod", "1.0", dep("newmod", "neoforge", "required", "[21.1.0,21.1.200)", "BOTH"))
+                .writeTo(mods, "newmod.jar");
+        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+    }
+
+    @Test
+    void fmlTomlOverrideSwitchesOffAnIncompatibility() throws IOException {
+        // Real Better MC 5: CITResewn says it's incompatible with Connector, and config/fml.toml drops that rule.
+        Path packMods = Files.createDirectories(mods.resolve("pack").resolve("mods"));
+        neoMod("connector", "2.0.0", null).writeTo(packMods, "connector.jar");
+        neoMod("citresewn", "1.0", dep("citresewn", "connector", "incompatible", "*", "BOTH"))
+                .writeTo(packMods, "citresewn.jar");
+        assertEquals(1, PackScanner.scan(packMods, CLIENT_1211).byCode(Finding.INCOMPATIBLE_MOD).size());
+        Path config = Files.createDirectories(packMods.getParent().resolve("config"));
+        Files.writeString(config.resolve("fml.toml"),
+                "earlyWindowControl = true\n[dependencyOverrides]\n\tcitresewn = [\"-connector\", \"+jei\"]\n");
+        assertEquals(List.of(), PackScanner.scan(packMods, CLIENT_1211).findings());
+    }
+
+    @Test
     void incompatibleAndDiscouragedMods() throws IOException {
         neoMod("optifine", "1.0", null).writeTo(mods, "optifine.jar");
         neoMod("rubidium", "1.0", null).writeTo(mods, "rubidium.jar");

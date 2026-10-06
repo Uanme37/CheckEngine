@@ -62,6 +62,14 @@ public final class RamAdvisor {
     }
 
     public static List<Finding> advise(Facts f) {
+        return advise(f, false);
+    }
+
+    /** @param server true for a dedicated server folder, where memory is set in its start script, not CurseForge */
+    public static List<Finding> advise(Facts f, boolean server) {
+        String where = server
+                ? "On the server: set -Xmx in user_jvm_args.txt (or your host's memory setting)."
+                : "In CurseForge: right-click the pack > Profile Options > Allocated Memory.";
         List<Finding> out = new ArrayList<>();
         long rec = recommendedMb(f);
         String basis = f.measuredMb() > 0
@@ -73,7 +81,7 @@ public final class RamAdvisor {
         if (f.allocatedMb() <= 0) {
             out.add(new Finding(Severity.INFO, CODE, "Memory: give it about " + gb(rec), basis
                     + "\nPack Doctor couldn't tell how much memory the launcher gives it.",
-                    "In CurseForge: right-click the pack > Profile Options > Allocated Memory.", List.of()));
+                    where, List.of()));
             return out;
         }
         String has = "It gets " + gb(f.allocatedMb()) + " (" + f.allocatedFrom() + ")"
@@ -82,8 +90,8 @@ public final class RamAdvisor {
             out.add(new Finding(Severity.WARNING, CODE, "Memory: too little (" + gb(f.allocatedMb()) + ", needs about "
                     + gb(rec) + ")", basis + "\n" + has + " Too little memory means stutters, freezes and "
                     + "\"OutOfMemoryError\" crashes.",
-                    "Raise it to " + gb(rec) + ". In CurseForge: right-click the pack > Profile Options > Allocated "
-                            + "Memory (or Settings > Minecraft for all packs).", List.of()));
+                    "Raise it to " + gb(rec) + ". " + (server ? where : "In CurseForge: right-click the pack > Profile "
+                            + "Options > Allocated Memory (or Settings > Minecraft for all packs)."), List.of()));
         } else if (f.systemMb() > 0 && f.allocatedMb() > f.systemMb() * 3 / 4) {
             out.add(new Finding(Severity.WARNING, CODE, "Memory: leaves too little for Windows",
                     has + " Windows, Discord and your browser need the rest, or everything starts swapping and lags.",

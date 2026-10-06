@@ -5,16 +5,19 @@ import com.guiltypotato.packdoctor.core.model.ModInfo;
 import com.guiltypotato.packdoctor.core.model.ModJar;
 import com.guiltypotato.packdoctor.core.model.Side;
 import com.guiltypotato.packdoctor.core.scan.Finding.Severity;
+import com.guiltypotato.packdoctor.core.toml.Toml;
 import com.guiltypotato.packdoctor.core.version.ModVersion;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -162,7 +165,7 @@ public final class PackScanner {
         nestedIn.forEach((id, p) -> {
             if (!topLevel.containsKey(id)) dependents.add(p);
         });
-        checkDependencies(dependents, topLevel, nested, options, findings);
+        checkDependencies(dependents, topLevel, nested, options, dependencyOverrides(modsFolder, options), findings);
         java.util.Set<String> installed = new java.util.HashSet<>(topLevel.keySet());
         installed.addAll(nested.keySet());
         findings.addAll(HiddenDependencies.check(loaded, installed));
@@ -199,11 +202,14 @@ public final class PackScanner {
     private record Need(Provider who, Dependency dep) {}
 
     private static void checkDependencies(List<Provider> dependents, Map<String, List<Provider>> topLevel,
-                                          Map<String, ModInfo> nested, ScanOptions options, List<Finding> findings) {
+                                          Map<String, ModInfo> nested, ScanOptions options,
+                                          Map<String, Set<String>> overrides, List<Finding> findings) {
         Map<String, List<Need>> missing = new LinkedHashMap<>();
         for (Provider who : dependents) {
+            Set<String> dropped = overrides.getOrDefault(who.mod.modId(), Set.of());
             for (Dependency dep : who.mod.dependencies()) {
                 if (dep.modId().equals(who.mod.modId()) || !dep.side().appliesTo(options.side())) continue;
+                if (dropped.contains(dep.modId())) continue; // the pack switched this rule off in config/fml.toml
                 Installed have = installed(dep.modId(), topLevel, nested, options);
                 if (have == Installed.UNKNOWN) continue;
                 if (have == null) {
@@ -218,7 +224,9 @@ public final class PackScanner {
                         // Lots of 1.21.1 mods say "[1.21,1.21.1)" by mistake. NeoForge loads them anyway.
                         boolean sloppyMinecraftRange = dep.modId().equals("minecraft")
                                 && sameMinecraftLine(dep, have.version);
-                        if (!inRange && !sloppyMinecraftRange) findings.add(wrongVersion(who, dep, have));
+                        if (!inRange && !sloppyMinecraftRange && !neoForgeSupportMatrix(dep, options)) {
+                            findings.add(wrongVersion(who, dep, have));
+                        }
                     }
                     case INCOMPATIBLE -> {
                         if (inRange) findings.add(incompatible(who, dep, have, Severity.ERROR));
@@ -289,6 +297,45 @@ public final class PackScanner {
         ModInfo inner = nested.get(id);
         if (inner != null) return new Installed(inner.version(), inner.name(), null);
         return null;
+    }
+
+    /**
+     * NeoForge on 1.21.1 also accepts mods made for 1.21: any NeoForge range that includes 21.0.166 passes
+     * (FancyModLoader's VersionSupportMatrix). So "[21.0.0-beta,21.1.227)" still loads on 21.1.251.
+     */
+    private static boolean neoForgeSupportMatrix(Dependency dep, ScanOptions options) {
+        return dep.modId().equals("neoforge") && options.loader() != ScanOptions.Loader.FORGE
+                && "1.21.1".equals(options.minecraftVersion()) && dep.versionRange().contains("21.0.166");
+    }
+
+    /**
+     * NeoForge's config/fml.toml can switch off a mod's dependency rules, e.g.
+     * {@code dependencyOverrides.citresewn = ["-connector"]}. Returns mod id -> the dependency ids it drops
+     * ("+dep" only changes load order, so it's ignored).
+     */
+    static Map<String, Set<String>> dependencyOverrides(Path modsFolder, ScanOptions options) {
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+        if (modsFolder == null || modsFolder.getParent() == null || options.loader() == ScanOptions.Loader.FORGE) {
+            return result;
+        }
+        Path fmlToml = modsFolder.getParent().resolve("config").resolve("fml.toml");
+        if (!Files.isRegularFile(fmlToml)) return result;
+        try {
+            if (!(Toml.parse(Files.readString(fmlToml)).get("dependencyOverrides") instanceof Map<?, ?> table)) {
+                return result;
+            }
+            for (Map.Entry<?, ?> e : table.entrySet()) {
+                if (!(e.getValue() instanceof List<?> list)) continue;
+                for (Object o : list) {
+                    if (o instanceof String s && s.startsWith("-") && s.length() > 1) {
+                        result.computeIfAbsent(String.valueOf(e.getKey()), k -> new HashSet<>()).add(s.substring(1));
+                    }
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            // An unreadable fml.toml just means no overrides; NeoForge complains about it itself.
+        }
+        return result;
     }
 
     private static boolean olderThan(ScanOptions options, String mc) {
