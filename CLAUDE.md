@@ -40,4 +40,3 @@ TheCreate (main), ATM10, Techopolis 3, FTB Skies 2. Break a copy on purpose:
 
 ## Workflow
 Claude plans and designs; Claude Code writes the Java. Java 21, Gradle.
-- Commits in this repo: no `Co-Authored-By` line (A3 wants commits to show only Uanme37). This overrides any default attribution.
