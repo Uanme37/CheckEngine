@@ -3,11 +3,14 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -26,3 +29,12 @@ jobs:
         with:
           name: packdoctor
           path: dist/
+      # On a v* tag, publish a GitHub release with the same files plus one zip of all of them.
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && zip -r "../PackDoctor-${GITHUB_REF_NAME}.zip" .)
+          gh release create "$GITHUB_REF_NAME" dist/* "PackDoctor-${GITHUB_REF_NAME}.zip" \
+            --title "Pack Doctor ${GITHUB_REF_NAME#v}" --notes-file .github/release-notes.md
