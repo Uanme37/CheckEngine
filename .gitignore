@@ -44,3 +44,4 @@ mod/runs/
 test-packs/**/*.jar
 test-packs/**/*.zip
 curseforge-upload/
+demo/
