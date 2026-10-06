@@ -5,6 +5,12 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  # Run by hand with a version (e.g. v0.1.0) to tag the current commit and release it.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.1.0
+        required: true
 
 jobs:
   build:
@@ -29,12 +35,13 @@ jobs:
         with:
           name: packdoctor
           path: dist/
-      # On a v* tag, publish a GitHub release with the same files plus one zip of all of them.
+      # On a v* tag (or a manual run with a tag), publish a GitHub release with the same files plus one zip of all of them.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          (cd dist && zip -r "../PackDoctor-${GITHUB_REF_NAME}.zip" .)
-          gh release create "$GITHUB_REF_NAME" dist/* "PackDoctor-${GITHUB_REF_NAME}.zip" \
-            --title "Pack Doctor ${GITHUB_REF_NAME#v}" --notes-file .github/release-notes.md
+          (cd dist && zip -r "../PackDoctor-${TAG}.zip" .)
+          gh release create "$TAG" dist/* "PackDoctor-${TAG}.zip" --target "$GITHUB_SHA" \
+            --title "Pack Doctor ${TAG#v}" --notes-file .github/release-notes.md
