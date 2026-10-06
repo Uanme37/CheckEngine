@@ -1,6 +1,6 @@
 # Check Engine (formerly Pack Doctor)
 
-Renamed from Pack Doctor on 2026-10-06 (the CurseForge name was taken). Mod id, command, report folder and Java packages are all `checkengine`; this folder and the GitHub repo (Uanme37/PackDoctor) kept the old name.
+Renamed from Pack Doctor on 2026-10-06 (the CurseForge name was taken). Mod id, command, report folder and Java packages are all `checkengine`. The GitHub repo was renamed to Uanme37/CheckEngine the same day. This folder was Projects\PackDoctor until 2026-10-06.
 
 A NeoForge 1.21.1 mod plus a standalone CLI that tells pack makers what's broken in their pack, in plain English. No gameplay changes.
 
@@ -12,7 +12,7 @@ Full plan (living doc): https://claude.ai/code/artifact/8e41a48e-9298-4450-935c-
 
 ## Layout (to create in phase 1)
 ```
-PackDoctor/
+CheckEngine/
   core/   plain Java library: reads jars and META-INF/neoforge.mods.toml, no Minecraft code
   mod/    NeoForge 1.21.1 mod: boot warning screen + /checkengine scan
   cli/    standalone jar: crash translator, server pack builder (works when the game won't start)
@@ -22,7 +22,7 @@ PackDoctor/
 ## Roadmap
 | Phase | Weeks | Work |
 | --- | --- | --- |
-| Setup | 1 | NeoForge MDK, GitHub repo (Uanme37/PackDoctor), test packs ready |
+| Setup | 1 | NeoForge MDK, GitHub repo (Uanme37/CheckEngine, was PackDoctor), test packs ready |
 | Core scanner | 2 to 3 | read mod jars, dupes and deps, client-only check |
 | In-game mod | 4 to 5 | boot warning, /checkengine scan, report file |
 | **v0.1 release** | | when every test catches its problem |

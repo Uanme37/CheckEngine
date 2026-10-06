@@ -1,26 +1,30 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.1.2.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.1.3.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.1.2.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.1.3.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.1.2.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.1.2.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.1.2.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.1.2.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.1.3.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.1.3.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.1.3.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.1.3.jar compare <pack folder> <server folder or server pack .zip>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-1.21.1-0.1.2.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.1.2.jar** for Forge 1.20.1
+- **checkengine-neoforge-1.21.1-0.1.3.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.1.3.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed.
+
+## What's new in 0.1.3
+- Check Engine now has its icon and a link to its GitHub page in the Mods menu.
+- GitHub links point at the renamed repo (Uanme37/CheckEngine).
 
 ## What's new in 0.1.2
 - **New name: Check Engine** (it was Pack Doctor; another mod already had that name). The command is now `/checkengine scan` and reports go to the `checkengine` folder.
