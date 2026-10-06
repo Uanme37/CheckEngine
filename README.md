@@ -29,3 +29,6 @@ java -jar packdoctor-cli.jar crash <pack folder or crash-*.txt> # explain the ne
 java -jar packdoctor-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]  # server copy without client-only mods
 java -jar packdoctor-cli.jar compare <pack folder> <server folder or server pack .zip>  # why players can't join
 ```
+
+## License
+MIT, see [LICENSE](LICENSE).
