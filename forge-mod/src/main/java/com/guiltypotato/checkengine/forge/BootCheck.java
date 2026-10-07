@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.forge;
 
+import com.guiltypotato.checkengine.core.launcher.CheckPackBat;
 import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
@@ -37,6 +38,18 @@ public final class BootCheck {
 
     static void start() {
         result = CompletableFuture.supplyAsync(BootCheck::run);
+        installCheckPackBat();
+    }
+
+    /** Puts Check Pack.bat in the pack folder so the pack can be checked before the next launch (Windows only). */
+    private static void installCheckPackBat() {
+        try {
+            if (CheckPackBat.install(FMLPaths.GAMEDIR.get())) {
+                CheckEngine.LOGGER.info("Check Engine: added {} to the pack folder", CheckPackBat.FILE_NAME);
+            }
+        } catch (IOException | RuntimeException e) {
+            CheckEngine.LOGGER.warn("Check Engine: couldn't add {}", CheckPackBat.FILE_NAME, e);
+        }
     }
 
     /** The finished report, or null if the scan failed or isn't done after a few seconds. */
