@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -77,6 +78,35 @@ public final class DataScanner {
         // A recipe type from a missing mod means the whole recipe can't load.
         if (obj.get("type") instanceof String type) use(new Ref(Kind.RECIPE, id, source, type));
         walk(obj, v -> use(new Ref(Kind.RECIPE, id, source, v)), "item", "id");
+        // Since 1.21.2 ingredients are plain strings: "ingredients": ["mod:gear"], "key": {"A": "mod:gear"}.
+        ingredients(obj, v -> use(new Ref(Kind.RECIPE, id, source, v)), false);
+    }
+
+    /** Recipe fields that hold ingredients. */
+    private static final Set<String> INGREDIENT_KEYS =
+            Set.of("ingredients", "ingredient", "key", "base", "addition", "template", "input", "inputs");
+
+    /** Calls {@code found} for every item id written as a plain string inside an ingredient field (not tags). */
+    private static void ingredients(Object node, Consumer<String> found, boolean inside) {
+        if (node instanceof Map<?, ?> map) {
+            if (isConditional(map)) return;
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                boolean in = inside || INGREDIENT_KEYS.contains(e.getKey());
+                if (e.getValue() instanceof String s) {
+                    if (in && !"tag".equals(e.getKey()) && !"type".equals(e.getKey()) && !s.startsWith("#")) found.accept(s);
+                } else {
+                    ingredients(e.getValue(), found, in);
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof String s) {
+                    if (inside && !s.startsWith("#")) found.accept(s);
+                } else {
+                    ingredients(o, found, inside);
+                }
+            }
+        }
     }
 
     public void lootTable(String id, String source, String json) {
@@ -163,6 +193,8 @@ public final class DataScanner {
         int colon = ref.item().indexOf(':');
         if (colon <= 0) return; // "stone" means minecraft:stone
         String ns = ref.item().substring(0, colon);
+        // Tags ("#c:ingots"), shared tag namespaces ("c", "forge") and text that isn't an id at all aren't mods.
+        if (!ns.matches("[a-z0-9_.-]+") || ns.equals("c") || ns.equals("forge")) return;
         if (!namespaceExists.test(ns)) byMissingMod.computeIfAbsent(ns, k -> new ArrayList<>()).add(ref);
     }
 

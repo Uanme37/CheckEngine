@@ -32,6 +32,29 @@ class DataScannerTest {
     }
 
     @Test
+    void plainStringIngredientsFrom1212On() {
+        // 1.21.2+ and 26.x write ingredients as plain strings; tags (#) and installed mods are fine.
+        scanner.recipe("mypack:a", "file/mypack.zip", """
+                {"type": "minecraft:crafting_shapeless", "ingredients": ["fakemod:mystery_gear", "#c:ingots", "create:cogwheel"],
+                 "result": {"id": "minecraft:stone"}}
+                """);
+        scanner.recipe("mypack:b", "file/mypack.zip", """
+                {"type": "minecraft:crafting_shaped", "pattern": ["#"], "key": {"#": ["othermod:bolt", "minecraft:stick"]},
+                 "result": {"id": "minecraft:stone"}}
+                """);
+        scanner.recipe("mypack:c", "file/mypack.zip", """
+                {"type": "minecraft:smelting", "ingredient": "thirdmod:ore", "result": {"id": "minecraft:iron_ingot"}}
+                """);
+        scanner.recipe("mypack:d", "file/mypack.zip", """
+                {"type": "minecraft:smelting", "ingredient": {"tag": "c:ores/tin"}, "base": "forge:ingots/tin",
+                 "result": {"id": "minecraft:iron_ingot"}}
+                """);
+        List<String> titles = byCode(Finding.ITEMS_FROM_MISSING_MOD).stream().map(Finding::title).toList();
+        assertEquals(List.of("Items from a missing mod: fakemod", "Items from a missing mod: othermod",
+                "Items from a missing mod: thirdmod"), titles);
+    }
+
+    @Test
     void recipeTypeFromRemovedMod() {
         scanner.recipe("kubejs:mix", "kubejs", """
                 {"type": "mekanism:crushing", "input": {"item": "minecraft:stone"}, "output": {"id": "minecraft:gravel"}}
