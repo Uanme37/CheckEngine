@@ -55,6 +55,7 @@ tasks.register('devJar', Jar) {
         from(modProject.tasks.named('jar'))
         rename { 'checkengine-mod.jar' }
     }
+    from(modProject.file('src/main/resources/checkengine_logo.png'))
     from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
     manifest {
         attributes('Automatic-Module-Name': 'checkengine_early', 'Implementation-Version': project.version + '-dev')

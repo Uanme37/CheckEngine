@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.early;
 
+import com.guiltypotato.checkengine.core.intercept.LaunchIntercept;
 import com.guiltypotato.checkengine.core.model.ModInfo;
 import com.guiltypotato.checkengine.core.model.ModJar;
 import com.guiltypotato.checkengine.core.model.Side;
@@ -9,6 +10,7 @@ import com.guiltypotato.checkengine.core.scan.IssueText;
 import com.guiltypotato.checkengine.core.scan.LoadBlockers;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
+import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.RootProblem;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -29,6 +32,7 @@ import net.minecraftforge.fml.loading.EarlyLoadingException;
 import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.fml.loading.ModDirTransformerDiscoverer;
+import net.minecraftforge.forgespi.language.IModInfo;
 import net.minecraftforge.forgespi.locating.IDependencyLocator;
 import net.minecraftforge.forgespi.locating.IModFile;
 import org.slf4j.Logger;
@@ -61,7 +65,9 @@ public class EarlyCheck implements IDependencyLocator {
 
     private static List<EarlyLoadingException.ExceptionData> check(Iterable<IModFile> mods) throws IOException {
         startPackScan();
-        Path report = FMLPaths.GAMEDIR.get().resolve("checkengine").resolve(REPORT_FILE);
+        Path folder = FMLPaths.GAMEDIR.get().resolve("checkengine");
+        Path report = folder.resolve(REPORT_FILE);
+        LaunchIntercept.Message repeat = LaunchIntercept.repeatCrash(FMLPaths.GAMEDIR.get(), folder, snapshot(mods));
         List<LoadBlockers.Blocker> rules = DependencyRules.check(mods, Map.of());
         Report scan = null;
         if (!rules.isEmpty()) {
@@ -72,6 +78,7 @@ public class EarlyCheck implements IDependencyLocator {
         if (rules.isEmpty()) {
             LOGGER.info("Check Engine: nothing will stop loading");
             Files.deleteIfExists(report);
+            intercept(repeat, folder); // the last launch crashed and nothing changed: it will again
             return List.of();
         }
         List<RootProblem> problems = LoadBlockers.analyze(rules, DependencyRules.coreMods(mods),
@@ -87,6 +94,7 @@ public class EarlyCheck implements IDependencyLocator {
             LOGGER.warn("Check Engine: other mod-finding plugins are installed, so this is only logged");
             return List.of();
         }
+        intercept(LaunchIntercept.willFail(problems, scan == null ? null : scan.changes(), report), folder);
         List<EarlyLoadingException.ExceptionData> out = new ArrayList<>();
         // "{3}" isn't in Forge's language file, so the screen shows the argument as is ({0} to {2} are Forge's own
         // slots: mod info, loading stage, exception).
@@ -95,6 +103,32 @@ public class EarlyCheck implements IDependencyLocator {
             out.add(new EarlyLoadingException.ExceptionData("{3}", IssueText.clue(scan.changes().toFinding())));
         }
         return out;
+    }
+
+    /**
+     * Pre-Launch Failure Intercept: on a player's game, show the Check Engine window now, before the loading screen.
+     * Quit closes the game right away instead of waiting for the whole pack to load just to see the error.
+     */
+    private static void intercept(LaunchIntercept.Message message, Path folder) {
+        if (message == null || FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
+        LOGGER.warn("Check Engine: {}", message.toText().replace('\n', ' '));
+        if (LaunchIntercept.ask(message) == LaunchIntercept.Choice.QUIT) {
+            LOGGER.info("Check Engine: the player chose Quit before loading");
+            System.exit(0);
+        }
+    }
+
+    /** The mods Forge found, for "did anything change since the last launch?". */
+    private static PackSnapshot snapshot(Iterable<IModFile> mods) {
+        Map<String, PackSnapshot.Entry> out = new TreeMap<>();
+        for (IModFile file : mods) {
+            if (file.getModFileInfo() == null) continue;
+            for (IModInfo m : file.getModInfos()) {
+                out.put(m.getModId(), new PackSnapshot.Entry(m.getDisplayName(), m.getVersion().toString(),
+                        file.getFileName()));
+            }
+        }
+        return new PackSnapshot(LocalDateTime.now().withNano(0).toString(), null, null, out);
     }
 
     /** Mod ids packed inside other jars (jar-in-jar), with their versions, from Check Engine's own scan. */
