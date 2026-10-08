@@ -1,5 +1,7 @@
 package com.guiltypotato.checkengine;
 
+import com.guiltypotato.checkengine.core.crash.CrashDoctor;
+import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.EarlyHandoff;
 import com.guiltypotato.checkengine.core.scan.Finding;
@@ -25,6 +27,7 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 public final class BootCheck {
     private static CompletableFuture<Report> result;
+    private static LastCrash lastCrash;
 
     private BootCheck() {}
 
@@ -37,7 +40,18 @@ public final class BootCheck {
         return outputFolder().resolve("boot-report.txt");
     }
 
+    /** The previous game's crash, explained, if it hasn't been shown yet (Crash Doctor). */
+    public static LastCrash lastCrash() {
+        return lastCrash;
+    }
+
     static void start() {
+        lastCrash = CrashDoctor.checkAndStartSession(FMLPaths.GAMEDIR.get(), outputFolder());
+        if (lastCrash != null) {
+            Finding f = lastCrash.main();
+            CheckEngine.LOGGER.warn("Check Engine: the last game crashed ({}): {}. Fix: {}", lastCrash.when(), f.title(),
+                    f.fix());
+        }
         // The early plugin already started the scan before mods loaded; dev runs don't have it, so scan here.
         CompletableFuture<Report> early = EarlyHandoff.scan();
         result = early != null ? early.thenApply(BootCheck::save) : CompletableFuture.supplyAsync(BootCheck::run);

@@ -9,5 +9,12 @@
   "checkengine.join.title": "Can't join: your mods don't match the server",
   "checkengine.join.summary": "Fix these and try again. The report has the full list.",
   "checkengine.join.mods_folder": "Mods folder",
-  "checkengine.join.details": "Details"
+  "checkengine.join.details": "Details",
+  "checkengine.crash.title": "Your last game crashed",
+  "checkengine.crash.when": "%s. Here's what Check Engine thinks happened.",
+  "checkengine.crash.fix": "Fix: ",
+  "checkengine.crash.also": "Also in the crash report:",
+  "checkengine.crash.changed": "Changed since the pack last worked:",
+  "checkengine.crash.open_details": "Open details",
+  "checkengine.crash.open_crash": "Open crash report"
 }
