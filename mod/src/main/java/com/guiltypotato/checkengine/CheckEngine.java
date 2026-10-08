@@ -10,6 +10,7 @@ import net.minecraft.network.chat.HoverEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -23,6 +24,8 @@ public final class CheckEngine {
     public CheckEngine(IEventBus modEventBus, ModContainer modContainer) {
         StartupTimer.install();
         BootCheck.start();
+        LoadingClues.add();
+        modEventBus.addListener((FMLLoadCompleteEvent e) -> LoadingClues.remove());
         NeoForge.EVENT_BUS.addListener(CheckEngine::registerCommands);
         // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {

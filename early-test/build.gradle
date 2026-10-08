@@ -1,0 +1,27 @@
+// Dev only: a plain NeoForge 1.21.1 game whose mods folder (run/mods) gets the built early jar, so tests see
+// exactly what a real install does. Put test mods in run/mods too, then runClient or runServer.
+plugins {
+    id 'net.neoforged.moddev'
+}
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+        }
+        server {
+            server()
+            gameDirectory = file('run')
+            programArgument '--nogui'
+        }
+    }
+}
+
+def installEarlyJar = tasks.register('installEarlyJar', Copy) {
+    from(project(':early').tasks.named('jar'))
+    into 'run/mods'
+}
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach { dependsOn installEarlyJar }

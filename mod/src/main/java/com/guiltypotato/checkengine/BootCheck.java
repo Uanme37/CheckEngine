@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine;
 
 import com.guiltypotato.checkengine.core.model.Side;
+import com.guiltypotato.checkengine.core.scan.EarlyHandoff;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
@@ -36,7 +37,9 @@ public final class BootCheck {
     }
 
     static void start() {
-        result = CompletableFuture.supplyAsync(BootCheck::run);
+        // The early plugin already started the scan before mods loaded; dev runs don't have it, so scan here.
+        CompletableFuture<Report> early = EarlyHandoff.scan();
+        result = early != null ? early.thenApply(BootCheck::save) : CompletableFuture.supplyAsync(BootCheck::run);
     }
 
     /** The finished report, or null if the scan failed or isn't done after a few seconds. */
@@ -86,7 +89,17 @@ public final class BootCheck {
             ScanOptions found = PackFolder.locate(FMLPaths.GAMEDIR.get(), side).options();
             ScanOptions options = new ScanOptions(side, FMLLoader.versionInfo().mcVersion(),
                     FMLLoader.versionInfo().neoForgeVersion(), found.clientOnlyFiles(), ScanOptions.Loader.NEOFORGE);
-            Report report = PackScanner.scan(FMLPaths.MODSDIR.get(), options);
+            return save(PackScanner.scan(FMLPaths.MODSDIR.get(), options));
+        } catch (IOException | RuntimeException e) {
+            CheckEngine.LOGGER.error("Check Engine: boot check failed", e);
+            return null;
+        }
+    }
+
+    /** Writes checkengine/boot-report.txt and logs the problems. */
+    private static Report save(Report report) {
+        if (report == null) return null;
+        try {
             Files.createDirectories(outputFolder());
             Files.writeString(reportFile(), report.toText(), StandardCharsets.UTF_8);
             List<Finding> shown = worthShowing(report);
@@ -96,10 +109,9 @@ public final class BootCheck {
                 CheckEngine.LOGGER.warn("Check Engine: {}. Details: {}", Report.summary(shown), reportFile());
                 for (Finding f : shown) CheckEngine.LOGGER.warn("  [{}] {}", f.severity(), f.title());
             }
-            return report;
         } catch (IOException | RuntimeException e) {
-            CheckEngine.LOGGER.error("Check Engine: boot check failed", e);
-            return null;
+            CheckEngine.LOGGER.error("Check Engine: couldn't save the boot report", e);
         }
+        return report;
     }
 }
