@@ -16,6 +16,6 @@
   "checkengine.crash.also": "Also in the crash report:",
   "checkengine.crash.changed": "Changed since the pack last worked:",
   "checkengine.crash.open_details": "Open details",
-  "checkengine.crash.open_crash": "Open crash report",
+  "checkengine.crash.open_crash": "Crash report",
   "checkengine.crash.help": "Make help file"
 }

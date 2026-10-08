@@ -119,7 +119,9 @@ public final class CrashTranslator {
             }
         }
 
-        List<Finding> findings = mergeMissing(loadingIssues(lines));
+        List<Finding> issues = loadingIssues(lines);
+        if (issues.isEmpty()) issues = errorList(lines);
+        List<Finding> findings = mergeMissing(issues);
         if (findings.isEmpty() && exception != null) {
             findings.add(runtimeCrash(lines, exceptionLine, description, exception));
         }
@@ -180,6 +182,41 @@ public final class CrashTranslator {
             if (msg.startsWith("Check Engine")) continue;
             List<String> files = modFile == null ? List.of() : List.of(modFile);
             out.add(loadingIssue(msg, files));
+        }
+        return out;
+    }
+
+    /**
+     * NeoForge 26.1 lists the errors under the exception instead of in "-- Mod loading issue --" blocks:
+     * "ModLoadingException: Loading errors encountered:" then "\t- message" with "\t  more" lines, until
+     * "Loading warnings encountered:" or a blank line. Only the errors count.
+     */
+    private static List<Finding> errorList(String[] lines) {
+        List<Finding> out = new ArrayList<>();
+        int start = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].endsWith("Loading errors encountered:")) {
+                start = i + 1;
+                break;
+            }
+        }
+        if (start < 0) return out;
+        StringBuilder message = null;
+        for (int i = start; i <= lines.length; i++) {
+            String l = i < lines.length ? lines[i] : "";
+            boolean item = l.startsWith("\t- ");
+            boolean more = l.startsWith("\t  ") && message != null;
+            if (more) {
+                message.append(' ').append(l.strip());
+                continue;
+            }
+            if (message != null) {
+                String msg = message.toString().replaceAll("\\s+", " ").strip();
+                if (!msg.startsWith("Check Engine")) out.add(loadingIssue(msg, List.of()));
+                message = null;
+            }
+            if (!item) break;
+            message = new StringBuilder(l.substring(3));
         }
         return out;
     }

@@ -10,4 +10,4 @@ plugins {
 }
 
 rootProject.name = 'CheckEngine'
-include 'core', 'cli', 'mod', 'early', 'early-test', 'forge-mod', 'mod-26'
+include 'core', 'cli', 'mod', 'early', 'early-test', 'forge-mod', 'mod-26', 'early-26', 'early-test-26'

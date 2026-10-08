@@ -91,6 +91,27 @@ class CrashDoctorTest {
         assertEquals(java.util.List.of("cecrash-1.0.0.jar"), f.get(0).files());
     }
 
+    /** NeoForge 26.1 lists loading errors under the exception, without "-- Mod loading issue --" blocks. */
+    @Test
+    void readsTheNeoForge261LoadingErrorList() {
+        String report = """
+                ---- Minecraft Crash Report ----
+                Description: Bootstrap
+
+                net.neoforged.fml.ModLoadingException: Loading errors encountered:
+                	- CE Test Crash Mod (cecrash) has failed to load correctly
+                	  java.lang.IllegalStateException: CE test: this mod crashes on purpose
+                Loading warnings encountered:
+                	- Check Engine clue: Duplicate mod: CE Test Dupe
+                	  Fix: Keep cedupe-1.1.0.jar (the newest) and remove the others.
+
+                	at net.neoforged.fml.ModLoader.waitForFuture(ModLoader.java:253) ~[loader-11.0.15.jar:11.0] {}
+                """;
+        var f = com.guiltypotato.checkengine.core.crash.CrashTranslator.translate(report).findings();
+        assertEquals(1, f.size(), f.toString());
+        assertEquals("CE Test Crash Mod crashed while loading", f.get(0).title());
+    }
+
     @Test
     void ignoresCrashesFromBeforeCheckEngine() throws IOException {
         crash("crash-2025-01-01_10.00.00-client.txt", 86_400_000L * 30);

@@ -5,7 +5,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-base { archivesName = "${mod_id}-neoforge-${mc26_version}" }
+// Packed inside the early plugin jar (early-26/), which is what players install.
+base { archivesName = "${mod_id}-neoforge-${mc26_version}-mod" }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
@@ -38,7 +39,7 @@ configurations {
 
 dependencies {
     implementation project(':core')
-    jarJar(project(':core'))
+    // Real installs get core from the early plugin jar it's packed in, so it's not bundled here.
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
