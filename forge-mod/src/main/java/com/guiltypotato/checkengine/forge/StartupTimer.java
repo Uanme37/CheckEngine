@@ -41,12 +41,21 @@ public final class StartupTimer {
     private StartupTimer() {}
 
     /** Called from our mod's constructor, while mods are being built. */
-    static void install() {
+    static void install(IEventBus ourBus) {
         modsStartedAt = System.currentTimeMillis();
+        ourBus.addListener(EventPriority.HIGHEST, false, RegisterEvent.class, e -> attachOnce(ourBus));
+    }
+
+    private static volatile boolean attached;
+
+    private static synchronized void attachOnce(IEventBus ourBus) {
+        if (attached) return;
+        attached = true;
         try {
             ModList.get().forEachModContainer((id, container) -> {
                 if (!(container instanceof FMLModContainer fml)) return;
                 IEventBus bus = fml.getEventBus();
+                if (bus == ourBus) return; // ours is busy posting this event right now
                 for (Class<? extends Event> type : EVENTS) watch(bus, id, type);
             });
         } catch (RuntimeException e) {

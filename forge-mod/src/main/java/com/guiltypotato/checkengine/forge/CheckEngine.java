@@ -22,7 +22,7 @@ public final class CheckEngine {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public CheckEngine() {
-        StartupTimer.install();
+        StartupTimer.install(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         BootCheck.start();
         MinecraftForge.EVENT_BUS.addListener(CheckEngine::registerCommands);
         // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).

@@ -24,7 +24,7 @@ public final class CheckEngine {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public CheckEngine(IEventBus modEventBus, ModContainer modContainer) {
-        StartupTimer.install();
+        StartupTimer.install(modEventBus);
         BootCheck.start();
         LoadingClues.add();
         modEventBus.addListener((FMLLoadCompleteEvent e) -> LoadingClues.remove());

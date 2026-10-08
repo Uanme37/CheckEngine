@@ -39,13 +39,26 @@ public final class StartupTimer {
 
     private StartupTimer() {}
 
-    /** Called from our mod's constructor, while mods are being built. */
-    static void install() {
+    /**
+     * Called from our mod's constructor. Mods are built in parallel, so other mods' event buses must not be touched
+     * yet: adding listeners to a bus while its own mod is adding listeners on another thread can corrupt it (in a
+     * 400-mod pack it made Create register its client extensions twice and crash). The timing listeners are attached
+     * later, on the main thread, when registration starts and every mod is built.
+     */
+    static void install(IEventBus ourBus) {
         modsStartedAt = System.currentTimeMillis();
+        ourBus.addListener(EventPriority.HIGHEST, RegisterEvent.class, e -> attachOnce(ourBus));
+    }
+
+    private static volatile boolean attached;
+
+    private static synchronized void attachOnce(IEventBus ourBus) {
+        if (attached) return;
+        attached = true;
         try {
             ModList.get().forEachModContainer((id, container) -> {
                 IEventBus bus = container.getEventBus();
-                if (bus == null) return;
+                if (bus == null || bus == ourBus) return; // ours is busy posting this event right now
                 for (Class<? extends Event> type : EVENTS) watch(bus, id, type);
             });
         } catch (RuntimeException e) {
