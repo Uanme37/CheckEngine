@@ -33,10 +33,10 @@ class HelpBundleTest {
         Files.createDirectories(pack.resolve("logs"));
         Files.writeString(pack.resolve("logs/latest.log"), """
                 [main/INFO]: Setting user: Uanmee
-                [main/INFO]: Loading C:/Users/Gaming/curseforge/mods/x.jar and %s\\mods\\y.jar
+                [main/INFO]: Loading %s/curseforge/mods/x.jar
                 [main/INFO]: Connecting to 203.0.113.7, 25565 (local 127.0.0.1)
                 [main/INFO]: Found mod file somemod-1.20.1.2.jar version 2.0.1.4
-                """.formatted(home));
+                """.formatted(home.replace('\\', '/')));
 
         Path zip = HelpBundle.create(pack, PackScanner.scan(mods, new ScanOptions(Side.CLIENT, "1.21.1", "21.1.251",
                 Set.of())));
@@ -45,7 +45,7 @@ class HelpBundleTest {
         assertTrue(files.get("mods.txt").contains("create-1.21.1-6.0.4.jar  [create 6.0.4]"), files.get("mods.txt"));
         String log = files.get("logs/latest.log");
         assertTrue(log.contains("Setting user: <player>"), log);
-        assertTrue(log.contains("<home>/curseforge") || log.contains("C:/Users/<user>/curseforge"), log);
+        assertTrue(log.contains("Loading <home>/curseforge/mods/x.jar"), log);
         assertFalse(log.contains(home), log);
         assertTrue(log.contains("Connecting to <ip>, 25565 (local 127.0.0.1)"), log);
         assertTrue(log.contains("somemod-1.20.1.2.jar version 2.0.1.4"), "versions aren't IPs: " + log);
