@@ -2,7 +2,9 @@ package com.guiltypotato.checkengine.core.scan;
 
 import com.guiltypotato.checkengine.core.model.ModJar;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Everything a scan found.
@@ -11,8 +13,33 @@ import java.util.List;
  * @param options    what we knew about the pack
  * @param jars       every jar we looked at
  * @param findings   problems, worst first
+ * @param roots      what to fix first: the causes behind the loading errors, biggest first
  */
-public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, List<Finding> findings) {
+public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, List<Finding> findings,
+                     List<RootProblem> roots) {
+
+    public Report(Path modsFolder, ScanOptions options, List<ModJar> jars, List<Finding> findings) {
+        this(modsFolder, options, jars, findings, List.of());
+    }
+
+    /**
+     * One line on how the pack is doing, counted per jar: "394 jars: 381 OK, 3 with warnings, 10 can't load".
+     * A jar counts as "can't load" if a problem names it or a root problem stops it.
+     */
+    public String health() {
+        Map<String, Finding.Severity> worst = new HashMap<>();
+        for (Finding f : findings) {
+            if (f.severity() == Finding.Severity.INFO) continue;
+            for (String file : f.files()) worst.merge(file, f.severity(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
+        }
+        for (RootProblem p : roots) {
+            for (String file : p.files()) worst.put(file, Finding.Severity.ERROR);
+        }
+        long broken = jars.stream().filter(j -> worst.get(j.fileName()) == Finding.Severity.ERROR).count();
+        long warned = jars.stream().filter(j -> worst.get(j.fileName()) == Finding.Severity.WARNING).count();
+        long ok = jars.size() - broken - warned;
+        return jars.size() + " jars: " + ok + " OK, " + warned + " with warnings, " + broken + " can't load";
+    }
 
     public long count(Finding.Severity s) {
         return findings.stream().filter(f -> f.severity() == s).count();
@@ -39,8 +66,20 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         if (options.minecraftVersion() != null) sb.append(", Minecraft ").append(options.minecraftVersion());
         if (options.neoforgeVersion() != null) sb.append(", ").append(options.loaderName()).append(" ").append(options.neoforgeVersion());
         sb.append('\n');
-        sb.append("Jars: ").append(jars.size()).append('\n');
+        sb.append("Pack health: ").append(health()).append('\n');
         sb.append('\n');
+        if (!roots.isEmpty()) {
+            sb.append("FIX THESE FIRST (").append(roots.size()).append(roots.size() == 1 ? " root problem" : " root problems")
+                    .append(")\n\n");
+            int n = 1;
+            for (RootProblem p : roots) {
+                sb.append(n++).append(". ").append(p.title()).append('\n');
+                sb.append("   ").append(p.detail().replace("\n", "\n   ")).append('\n');
+                if (p.certainty() != null) sb.append("   How sure: ").append(p.certainty()).append('\n');
+                sb.append("   Fix: ").append(p.fix()).append("\n\n");
+            }
+            sb.append("Everything Check Engine found:\n\n");
+        }
         appendFindings(sb, findings);
         return sb.toString();
     }

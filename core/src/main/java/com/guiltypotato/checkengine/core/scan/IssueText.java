@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.core.scan;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -26,9 +27,17 @@ public final class IssueText {
 
     /** The scan's findings worth showing as clues next to a loading error. */
     public static List<Finding> clues(Report report) {
+        return clues(report, List.of());
+    }
+
+    /** Same, leaving out what the root problems already explain (e.g. "Fabric mod: Create" under "Create is the Fabric version"). */
+    public static List<Finding> clues(Report report, List<RootProblem> roots) {
         if (report == null) return List.of();
+        Set<String> explained = new HashSet<>();
+        roots.forEach(r -> explained.addAll(r.files()));
         return report.findings().stream()
                 .filter(f -> f.severity() != Finding.Severity.INFO && !LOADER_RULES.contains(f.code()))
+                .filter(f -> f.files().isEmpty() || !explained.containsAll(f.files()))
                 .toList();
     }
 }

@@ -8,6 +8,7 @@ import com.guiltypotato.checkengine.core.scan.LoadBlockers;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
 import com.guiltypotato.checkengine.core.scan.Report;
+import com.guiltypotato.checkengine.core.scan.RootProblem;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -46,26 +47,30 @@ public class EarlyCheck implements IDependencyLocator {
     public void scanMods(List<IModFile> mods, IDiscoveryPipeline pipeline) {
         try {
             startPackScan();
-            List<Finding> blockers = LoadBlockers.explain(DependencyRules.check(mods));
+            List<LoadBlockers.Blocker> rules = DependencyRules.check(mods);
             Path report = FMLPaths.GAMEDIR.get().resolve("checkengine").resolve(REPORT_FILE);
-            if (blockers.isEmpty()) {
+            if (rules.isEmpty()) {
                 LOGGER.info("Check Engine: {} mod files, nothing will stop loading", mods.size());
                 Files.deleteIfExists(report);
                 return;
             }
-            LOGGER.error("Check Engine: {} problem(s) will stop this pack from loading. Details: {}",
-                    blockers.size(), report);
-            for (Finding f : blockers) {
+            // The pack is failing anyway, so wait for the full scan: it shows why a mod looks missing (a Fabric
+            // build, a broken download...), and its warnings go under the problems as clues.
+            Report scan = waitForScan();
+            List<RootProblem> problems = LoadBlockers.analyze(rules, DependencyRules.coreMods(mods),
+                    scan == null ? List.of() : scan.jars(), FMLPaths.MODSDIR.get());
+            List<Finding> roots = problems.stream().map(RootProblem::toFinding).toList();
+            LOGGER.error("Check Engine: {} root problem(s) will stop this pack from loading. Details: {}",
+                    roots.size(), report);
+            for (Finding f : roots) {
                 LOGGER.error("  {}", f.title());
                 // "{0}" isn't in NeoForge's language file, so the screen shows the argument as is.
                 pipeline.addIssue(ModLoadingIssue.error("{0}", IssueText.problem(f)));
             }
-            // The pack is failing anyway, so wait for the full scan: its warnings (a duplicate mod, a broken
-            // download...) go under the problems as clues.
-            for (Finding f : IssueText.clues(waitForScan())) {
+            for (Finding f : IssueText.clues(scan, problems)) {
                 pipeline.addIssue(ModLoadingIssue.warning("{0}", IssueText.clue(f)));
             }
-            save(report, blockers);
+            save(report, roots);
         } catch (Throwable t) {
             // Never be the reason a pack doesn't start.
             LOGGER.error("Check Engine: early check failed", t);

@@ -1,5 +1,7 @@
 package com.guiltypotato.checkengine.early;
 
+import com.guiltypotato.checkengine.core.model.Dependency;
+import com.guiltypotato.checkengine.core.model.ModInfo;
 import com.guiltypotato.checkengine.core.scan.LoadBlockers.Blocker;
 import com.guiltypotato.checkengine.core.scan.LoadBlockers.Kind;
 import java.util.ArrayList;
@@ -9,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.guiltypotato.checkengine.core.version.VersionRange;
 import net.neoforged.fml.loading.FMLConfig;
 import net.neoforged.fml.loading.VersionSupportMatrix;
 import net.neoforged.neoforgespi.language.IModInfo;
@@ -58,6 +61,22 @@ final class DependencyRules {
         return out;
     }
 
+    /** NeoForge's view of every mod, in core's terms, so the root-cause engine can follow who needs whom. */
+    static List<ModInfo> coreMods(List<IModFile> files) {
+        List<ModInfo> out = new ArrayList<>();
+        for (IModFile file : files) {
+            for (IModInfo mod : file.getModInfos()) {
+                List<Dependency> deps = mod.getDependencies().stream()
+                        .map(d -> new Dependency(d.getModId(), Dependency.Type.parse(d.getType().name()),
+                                VersionRange.parseLenient(d.getVersionRange().toString()), Dependency.DepSide.BOTH,
+                                d.getReason().orElse(null)))
+                        .toList();
+                out.add(new ModInfo(mod.getModId(), mod.getVersion().toString(), mod.getDisplayName(), deps));
+            }
+        }
+        return out;
+    }
+
     private static boolean notContained(IModInfo.ModVersion dep, Map<String, ArtifactVersion> versions) {
         return !VersionSupportMatrix.testVersionSupportMatrix(dep.getVersionRange(), dep.getModId(), "mod",
                 (id, range) -> versions.containsKey(id)
@@ -68,7 +87,7 @@ final class DependencyRules {
                                    Map<String, ArtifactVersion> versions) {
         IModInfo target = mods.get(dep.getModId());
         ArtifactVersion have = versions.get(dep.getModId());
-        return new Blocker(kind, mod.getDisplayName(), dep.getModId(),
+        return new Blocker(kind, mod.getModId(), mod.getDisplayName(), dep.getModId(),
                 target == null ? null : target.getDisplayName(), dep.getVersionRange().toString(),
                 have == null ? null : have.toString(), dep.getReason().orElse(null));
     }

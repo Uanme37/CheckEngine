@@ -91,6 +91,30 @@ public final class VersionRange {
         return contains(ModVersion.parse(version));
     }
 
+    /** True if the version is too old for every part of this range (it wants something newer). */
+    public boolean wantsNewerThan(String version) {
+        ModVersion v = ModVersion.parse(version);
+        if (bounds.isEmpty()) return false;
+        for (Bound b : bounds) {
+            if (b.lower == null) return false;
+            int c = v.compareTo(b.lower);
+            if (c > 0 || (c == 0 && b.lowerInclusive)) return false;
+        }
+        return true;
+    }
+
+    /** True if the version is too new for every part of this range (it wants something older). */
+    public boolean wantsOlderThan(String version) {
+        ModVersion v = ModVersion.parse(version);
+        if (bounds.isEmpty()) return false;
+        for (Bound b : bounds) {
+            if (b.upper == null) return false;
+            int c = v.compareTo(b.upper);
+            if (c < 0 || (c == 0 && b.upperInclusive)) return false;
+        }
+        return true;
+    }
+
     /** Plain-English form: "1.0.0 or newer", "exactly 1.21.1", "1.0.0 up to (not including) 2.0". */
     public String describe() {
         if (bounds.isEmpty()) return "any version";
