@@ -1,27 +1,32 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.2.0.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.3.0.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.2.0.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.3.0.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.2.0.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.2.0.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.2.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.2.0.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.3.0.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.3.0.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.3.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.3.0.jar compare <pack folder> <server folder or server pack .zip>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.2.0.jar** for NeoForge 26.1.2 and newer 26.1.x
-- **checkengine-neoforge-1.21.1-0.2.0.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.2.0.jar** for Forge 1.20.1
+- **checkengine-neoforge-26.1-0.3.0.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-1.21.1-0.3.0.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.3.0.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
+
+## What's new in 0.3.0
+- **NeoForge 1.21.1: Check Engine now explains why a pack won't start, right on NeoForge's error screen.** It runs just before NeoForge checks dependencies, so even when the game refuses to load you see what's wrong and how to fix it, grouped ("3 mods need Create, but it isn't installed"). It uses NeoForge's own rules, so it only speaks up when NeoForge is really about to stop. Also saved to `checkengine/early-report.txt`.
+- **Clues when loading fails:** if any mod breaks loading, Check Engine's warnings (duplicate mods, broken downloads...) show under the error with their fix. When the pack loads fine you just get the usual popup.
+- Still one jar to install. 26.1 and Forge 1.20.1 get the same early check in a later version.
 
 ## What's new in 0.2.0
 - **Minecraft 26.1 support** (NeoForge 26.1.2+): startup check, warning screen, `/checkengine scan` and the join mismatch screen.
