@@ -14,12 +14,13 @@ import java.util.Map;
  * @param jars       every jar we looked at
  * @param findings   problems, worst first
  * @param roots      what to fix first: the causes behind the loading errors, biggest first
+ * @param changes    what changed since the last launch that worked, or null if there's no record of one
  */
 public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, List<Finding> findings,
-                     List<RootProblem> roots) {
+                     List<RootProblem> roots, Changes changes) {
 
     public Report(Path modsFolder, ScanOptions options, List<ModJar> jars, List<Finding> findings) {
-        this(modsFolder, options, jars, findings, List.of());
+        this(modsFolder, options, jars, findings, List.of(), null);
     }
 
     /**
@@ -67,6 +68,10 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         if (options.neoforgeVersion() != null) sb.append(", ").append(options.loaderName()).append(" ").append(options.neoforgeVersion());
         sb.append('\n');
         sb.append("Pack health: ").append(health()).append('\n');
+        if (changes != null && !changes.isEmpty()) {
+            sb.append("Changed since it last worked (").append(changes.when()).append("):\n  ")
+                    .append(changes.summary().replace("\n", "\n  ")).append('\n');
+        }
         sb.append('\n');
         if (!roots.isEmpty()) {
             sb.append("FIX THESE FIRST (").append(roots.size()).append(roots.size() == 1 ? " root problem" : " root problems")

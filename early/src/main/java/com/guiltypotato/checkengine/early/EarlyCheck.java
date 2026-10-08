@@ -59,6 +59,7 @@ public class EarlyCheck implements IDependencyLocator {
             Report scan = waitForScan();
             List<RootProblem> problems = LoadBlockers.analyze(rules, DependencyRules.coreMods(mods),
                     scan == null ? List.of() : scan.jars(), FMLPaths.MODSDIR.get());
+            if (scan != null && scan.changes() != null) problems = scan.changes().annotate(problems);
             List<Finding> roots = problems.stream().map(RootProblem::toFinding).toList();
             LOGGER.error("Check Engine: {} root problem(s) will stop this pack from loading. Details: {}",
                     roots.size(), report);

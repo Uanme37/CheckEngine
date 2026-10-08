@@ -140,7 +140,7 @@ public final class LoadBlockers {
         }
         affected.appendTo(detail, group.size());
         return new RootProblem(Finding.MISSING_DEPENDENCY, title, detail.toString(), fix, certainty,
-                affected.names(), distinct(files));
+                affected.names(), distinct(files), ids(group));
     }
 
     private static String needs(List<Blocker> group, String dep) {
@@ -193,7 +193,7 @@ public final class LoadBlockers {
         reasons(detail, group);
         affected.appendTo(detail, group.size());
         return new RootProblem(Finding.WRONG_VERSION, title, detail.toString(), fix, null, affected.names(),
-                affected.files());
+                affected.files(), ids(group));
     }
 
     private static void appendWants(StringBuilder detail, List<Blocker> group) {
@@ -218,10 +218,18 @@ public final class LoadBlockers {
         affected.appendTo(detail, 1);
         return new RootProblem(Finding.INCOMPATIBLE_MOD, b.modName() + " doesn't work with " + name,
                 detail.toString(), "Remove " + b.modName() + " or " + name + ".", null, affected.names(),
-                affected.files());
+                affected.files(), ids(List.of(b)));
     }
 
     // ---- shared
+
+    /** The mods with the broken rule, then the mod the rule is about. */
+    private static List<String> ids(List<Blocker> group) {
+        List<String> ids = new ArrayList<>();
+        group.forEach(b -> ids.add(b.modId()));
+        ids.add(group.get(0).depId());
+        return distinct(ids);
+    }
 
     private static String describe(String range) {
         return VersionRange.parseLenient(range).describe();

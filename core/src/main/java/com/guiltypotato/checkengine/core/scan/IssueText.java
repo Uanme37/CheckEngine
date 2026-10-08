@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.core.scan;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -22,7 +23,9 @@ public final class IssueText {
 
     /** A warning that might explain a failure: kept short, the report file has the details. */
     public static String clue(Finding f) {
-        return "§6Check Engine clue:§r §e" + f.title() + "§r\n§aFix:§r " + f.fix();
+        // The list of changes is the clue itself, so it's shown in full.
+        String what = f.code().equals(Changes.CODE) ? f.detail() + "\n" : "";
+        return "§6Check Engine clue:§r §e" + f.title() + "§r\n" + what + "§aFix:§r " + f.fix();
     }
 
     /** The scan's findings worth showing as clues next to a loading error. */
@@ -35,9 +38,13 @@ public final class IssueText {
         if (report == null) return List.of();
         Set<String> explained = new HashSet<>();
         roots.forEach(r -> explained.addAll(r.files()));
-        return report.findings().stream()
+        List<Finding> clues = new ArrayList<>();
+        // "It worked yesterday": what changed since then is often the best clue, so it goes first.
+        if (report.changes() != null && !report.changes().isEmpty()) clues.add(report.changes().toFinding());
+        report.findings().stream()
                 .filter(f -> f.severity() != Finding.Severity.INFO && !LOADER_RULES.contains(f.code()))
                 .filter(f -> f.files().isEmpty() || !explained.containsAll(f.files()))
-                .toList();
+                .forEach(clues::add);
+        return clues;
     }
 }

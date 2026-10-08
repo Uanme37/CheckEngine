@@ -36,7 +36,7 @@ public final class ClientEvents {
         CheckEngine.LOGGER.debug("Check Engine: title screen opening over {}", event.getCurrentScreen());
         if (!memoryRecorded) {
             memoryRecorded = true;
-            BootCheck.recordMemory();
+            BootCheck.launchSucceeded();
             StartupTimer.finish(false);
         }
         Report report = BootCheck.get();

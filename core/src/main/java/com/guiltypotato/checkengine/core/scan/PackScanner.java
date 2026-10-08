@@ -181,14 +181,23 @@ public final class PackScanner {
         List<ModInfo> loadedMods = dependents.stream().map(Provider::mod).toList();
         List<RootProblem> roots = new ArrayList<>(LoadBlockers.analyze(blockers, loadedMods, jars, modsFolder));
         addOtherProblems(roots, findings, explainedByRoots);
+        Changes changes = changesSinceLastGoodLaunch(modsFolder, jars, options);
+        List<RootProblem> linked = changes == null ? roots : changes.annotate(roots);
 
         // Two copies of one mod would report its dependency problems twice.
         List<Finding> unique = new ArrayList<>(new java.util.LinkedHashSet<>(findings));
         unique.sort(Comparator.comparing(Finding::severity).thenComparing(Finding::code).thenComparing(Finding::title));
-        return new Report(modsFolder, options, jars, List.copyOf(unique), roots);
+        return new Report(modsFolder, options, jars, List.copyOf(unique), List.copyOf(linked), changes);
     }
 
     private record Provider(ModInfo mod, ModJar jar) {}
+
+    /** Compares the pack with the last launch that worked (saved by the mod in checkengine/ next to mods/). */
+    private static Changes changesSinceLastGoodLaunch(Path modsFolder, List<ModJar> jars, ScanOptions options) {
+        if (modsFolder == null || modsFolder.getParent() == null) return null;
+        PackSnapshot last = PackSnapshot.load(modsFolder.getParent().resolve("checkengine"));
+        return last == null ? null : last.changesTo(PackSnapshot.of(jars, options));
+    }
 
     /**
      * The other things that break the pack (a broken file, a hidden missing mod...) are root problems of their own,
@@ -201,7 +210,7 @@ public final class PackScanner {
         for (Finding f : new java.util.LinkedHashSet<>(findings)) {
             if (f.severity() != Severity.ERROR || loaderRules.contains(f)) continue;
             if (!f.files().isEmpty() && explained.containsAll(f.files())) continue;
-            roots.add(new RootProblem(f.code(), f.title(), f.detail(), f.fix(), null, List.of(), f.files()));
+            roots.add(new RootProblem(f.code(), f.title(), f.detail(), f.fix(), null, List.of(), f.files(), List.of()));
         }
     }
 

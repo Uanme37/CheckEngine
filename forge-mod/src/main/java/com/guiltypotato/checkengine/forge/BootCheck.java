@@ -4,6 +4,7 @@ import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
+import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.RamAdvisor;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
@@ -52,6 +53,21 @@ public final class BootCheck {
     /** Problems and warnings (not notes): what's worth interrupting the player for. */
     public static List<Finding> worthShowing(Report report) {
         return report.findings().stream().filter(f -> f.severity() != Finding.Severity.INFO).toList();
+    }
+
+    /**
+     * The game reached the title screen (or the server started). Saves the memory use and a fingerprint of the mods
+     * (checkengine/last-good-launch.properties), so if the pack breaks later Check Engine can say what changed.
+     */
+    public static void launchSucceeded() {
+        recordMemory();
+        Report report = get();
+        if (report == null) return;
+        try {
+            PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
+        } catch (IOException | RuntimeException e) {
+            CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
+        }
     }
 
     /**

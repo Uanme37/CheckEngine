@@ -32,7 +32,7 @@ public final class ClientEvents {
         }
         if (checked || !(event.getNewScreen() instanceof TitleScreen title)) return;
         checked = true;
-        BootCheck.recordMemory();
+        BootCheck.launchSucceeded();
         StartupTimer.finish(false);
         Report report = BootCheck.get();
         if (report == null) return;

@@ -30,7 +30,7 @@ public final class CheckEngine {
         // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {
             if (e.getServer().isDedicatedServer()) {
-                BootCheck.recordMemory();
+                BootCheck.launchSucceeded();
                 StartupTimer.finish(true);
             }
         });
