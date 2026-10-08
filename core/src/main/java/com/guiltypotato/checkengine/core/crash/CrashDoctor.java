@@ -88,6 +88,21 @@ public final class CrashDoctor {
         return crash;
     }
 
+    /**
+     * The previous session's unseen crash without marking anything (for the pre-launch check, which runs before
+     * {@link #checkAndStartSession}), or null.
+     */
+    public static LastCrash peek(Path gameDir, Path checkEngineFolder) {
+        Properties state = load(checkEngineFolder);
+        String started = state.getProperty("session_started");
+        if (started == null) return null;
+        try {
+            return find(gameDir, Long.parseLong(started), state.getProperty("last_shown"));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** The newest crash report written since {@code sessionStart} that isn't {@code lastShown}, explained. */
     static LastCrash find(Path gameDir, long sessionStart, String lastShown) {
         Path dir = gameDir.resolve("crash-reports");

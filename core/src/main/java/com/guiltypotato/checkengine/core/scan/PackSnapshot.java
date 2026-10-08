@@ -47,20 +47,29 @@ public record PackSnapshot(String time, String minecraft, String loader, Map<Str
     }
 
     public void save(Path checkEngineFolder) throws IOException {
+        save(checkEngineFolder, FILE);
+    }
+
+    /** Saves under another name, e.g. the mods of the latest launch, whether it worked or not. */
+    public void save(Path checkEngineFolder, String fileName) throws IOException {
         Properties p = new Properties();
         p.setProperty("time", time);
         if (minecraft != null) p.setProperty("minecraft", minecraft);
         if (loader != null) p.setProperty("loader", loader);
         mods.forEach((id, e) -> p.setProperty("mod." + id, e.version() + "|" + e.file() + "|" + e.name()));
         Files.createDirectories(checkEngineFolder);
-        try (Writer out = Files.newBufferedWriter(checkEngineFolder.resolve(FILE), StandardCharsets.UTF_8)) {
+        try (Writer out = Files.newBufferedWriter(checkEngineFolder.resolve(fileName), StandardCharsets.UTF_8)) {
             p.store(out, "Check Engine: the mods of the last launch that worked");
         }
     }
 
     /** The last good launch saved in this folder, or null if there isn't one (or it can't be read). */
     public static PackSnapshot load(Path checkEngineFolder) {
-        Path file = checkEngineFolder.resolve(FILE);
+        return load(checkEngineFolder, FILE);
+    }
+
+    public static PackSnapshot load(Path checkEngineFolder, String fileName) {
+        Path file = checkEngineFolder.resolve(fileName);
         if (!Files.isRegularFile(file)) return null;
         Properties p = new Properties();
         try (Reader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
