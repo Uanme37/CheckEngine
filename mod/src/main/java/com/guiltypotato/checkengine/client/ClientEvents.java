@@ -2,6 +2,8 @@ package com.guiltypotato.checkengine.client;
 
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
+import com.guiltypotato.checkengine.StartupTimer;
+import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.util.List;
@@ -31,11 +33,17 @@ public final class ClientEvents {
         }
         if (checked || !(event.getNewScreen() instanceof TitleScreen title)) return;
         checked = true;
-        BootCheck.recordMemory();
+        BootCheck.launchSucceeded();
+        StartupTimer.finish(false);
         Report report = BootCheck.get();
-        if (report == null) return;
-        List<Finding> findings = BootCheck.worthShowing(report);
-        if (findings.isEmpty() || BootWarningScreen.dismissed(findings)) return;
-        event.setNewScreen(new BootWarningScreen(title, findings));
+        Screen next = title;
+        if (report != null) {
+            List<Finding> findings = BootCheck.worthShowing(report);
+            if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
+        }
+        // Crash Doctor first: if the last game crashed, that's what the player wants to know about.
+        LastCrash crash = BootCheck.lastCrash();
+        if (crash != null) next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
+        if (next != title) event.setNewScreen(next);
     }
 }

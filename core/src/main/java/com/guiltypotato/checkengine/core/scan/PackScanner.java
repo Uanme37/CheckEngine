@@ -170,19 +170,49 @@ public final class PackScanner {
             // Monocle (Iris on Embeddium) rewrites Iris's mod info while loading and drops these two rules.
             overrides.computeIfAbsent("iris", k -> new HashSet<>()).addAll(Set.of("sodium", "embeddium"));
         }
-        checkDependencies(dependents, topLevel, nested, options, overrides, findings);
+        List<LoadBlockers.Blocker> blockers = new ArrayList<>();
+        int before = findings.size();
+        checkDependencies(dependents, topLevel, nested, options, overrides, findings, blockers);
+        Set<Finding> explainedByRoots = new HashSet<>(findings.subList(before, findings.size()));
         java.util.Set<String> installed = new java.util.HashSet<>(topLevel.keySet());
         installed.addAll(nested.keySet());
         findings.addAll(HiddenDependencies.check(loaded, installed));
         if (options.side() == Side.SERVER) checkClientOnly(topLevel, options, findings);
+        List<ModInfo> loadedMods = dependents.stream().map(Provider::mod).toList();
+        List<RootProblem> roots = new ArrayList<>(LoadBlockers.analyze(blockers, loadedMods, jars, modsFolder));
+        addOtherProblems(roots, findings, explainedByRoots);
+        Changes changes = changesSinceLastGoodLaunch(modsFolder, jars, options);
+        List<RootProblem> linked = changes == null ? roots : changes.annotate(roots);
 
         // Two copies of one mod would report its dependency problems twice.
         List<Finding> unique = new ArrayList<>(new java.util.LinkedHashSet<>(findings));
         unique.sort(Comparator.comparing(Finding::severity).thenComparing(Finding::code).thenComparing(Finding::title));
-        return new Report(modsFolder, options, jars, List.copyOf(unique));
+        return new Report(modsFolder, options, jars, List.copyOf(unique), List.copyOf(linked), changes);
     }
 
     private record Provider(ModInfo mod, ModJar jar) {}
+
+    /** Compares the pack with the last launch that worked (saved by the mod in checkengine/ next to mods/). */
+    private static Changes changesSinceLastGoodLaunch(Path modsFolder, List<ModJar> jars, ScanOptions options) {
+        if (modsFolder == null || modsFolder.getParent() == null) return null;
+        PackSnapshot last = PackSnapshot.load(modsFolder.getParent().resolve("checkengine"));
+        return last == null ? null : last.changesTo(PackSnapshot.of(jars, options));
+    }
+
+    /**
+     * The other things that break the pack (a broken file, a hidden missing mod...) are root problems of their own,
+     * after the loading ones. Skips any whose files a root problem already explains (e.g. the Fabric build of a mod
+     * that "is the Fabric version").
+     */
+    private static void addOtherProblems(List<RootProblem> roots, List<Finding> findings, Set<Finding> loaderRules) {
+        Set<String> explained = new HashSet<>();
+        roots.forEach(r -> explained.addAll(r.files()));
+        for (Finding f : new java.util.LinkedHashSet<>(findings)) {
+            if (f.severity() != Severity.ERROR || loaderRules.contains(f)) continue;
+            if (!f.files().isEmpty() && explained.containsAll(f.files())) continue;
+            roots.add(new RootProblem(f.code(), f.title(), f.detail(), f.fix(), null, List.of(), f.files(), List.of()));
+        }
+    }
 
     private static void checkDuplicates(Map<String, List<Provider>> topLevel, String loader, List<Finding> findings) {
         for (Map.Entry<String, List<Provider>> e : topLevel.entrySet()) {
@@ -208,7 +238,8 @@ public final class PackScanner {
 
     private static void checkDependencies(List<Provider> dependents, Map<String, List<Provider>> topLevel,
                                           Map<String, ModInfo> nested, ScanOptions options,
-                                          Map<String, Set<String>> overrides, List<Finding> findings) {
+                                          Map<String, Set<String>> overrides, List<Finding> findings,
+                                          List<LoadBlockers.Blocker> blockers) {
         Map<String, List<Need>> missing = new LinkedHashMap<>();
         for (Provider who : dependents) {
             Set<String> dropped = overrides.getOrDefault(who.mod.modId(), Set.of());
@@ -220,6 +251,7 @@ public final class PackScanner {
                 if (have == null) {
                     if (dep.type() == Dependency.Type.REQUIRED) {
                         missing.computeIfAbsent(dep.modId(), k -> new ArrayList<>()).add(new Need(who, dep));
+                        blockers.add(blocker(LoadBlockers.Kind.MISSING, who, dep, null));
                     }
                     continue;
                 }
@@ -231,10 +263,14 @@ public final class PackScanner {
                                 && sameMinecraftLine(dep, have.version);
                         if (!inRange && !sloppyMinecraftRange && !neoForgeSupportMatrix(dep, options)) {
                             findings.add(wrongVersion(who, dep, have));
+                            blockers.add(blocker(LoadBlockers.Kind.WRONG_VERSION, who, dep, have));
                         }
                     }
                     case INCOMPATIBLE -> {
-                        if (inRange) findings.add(incompatible(who, dep, have, Severity.ERROR));
+                        if (inRange) {
+                            findings.add(incompatible(who, dep, have, Severity.ERROR));
+                            blockers.add(blocker(LoadBlockers.Kind.INCOMPATIBLE, who, dep, have));
+                        }
                     }
                     case DISCOURAGED -> {
                         if (inRange) findings.add(incompatible(who, dep, have, Severity.WARNING));
@@ -263,6 +299,11 @@ public final class PackScanner {
                             : "Install " + depId + ", or remove the mods that need it.",
                     needs.stream().map(n -> n.who.jar.fileName()).distinct().toList()));
         }
+    }
+
+    private static LoadBlockers.Blocker blocker(LoadBlockers.Kind kind, Provider who, Dependency dep, Installed have) {
+        return new LoadBlockers.Blocker(kind, who.mod.modId(), who.mod.name(), dep.modId(), have == null ? null : have.name,
+                dep.versionRange().toString(), have == null ? null : have.version, dep.reason());
     }
 
     /** What's installed under a mod id: a version, null for "not installed", or UNKNOWN for "can't tell". */

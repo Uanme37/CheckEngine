@@ -1,10 +1,14 @@
 package com.guiltypotato.checkengine;
 
+import com.guiltypotato.checkengine.core.crash.CrashDoctor;
 import com.guiltypotato.checkengine.core.launcher.CheckPackBat;
+import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.model.Side;
+import com.guiltypotato.checkengine.core.scan.EarlyHandoff;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
+import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.RamAdvisor;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
@@ -24,6 +28,7 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 public final class BootCheck {
     private static CompletableFuture<Report> result;
+    private static LastCrash lastCrash;
 
     private BootCheck() {}
 
@@ -36,8 +41,21 @@ public final class BootCheck {
         return outputFolder().resolve("boot-report.txt");
     }
 
+    /** The previous game's crash, explained, if it hasn't been shown yet (Crash Doctor). */
+    public static LastCrash lastCrash() {
+        return lastCrash;
+    }
+
     static void start() {
-        result = CompletableFuture.supplyAsync(BootCheck::run);
+        lastCrash = CrashDoctor.checkAndStartSession(FMLPaths.GAMEDIR.get(), outputFolder());
+        if (lastCrash != null) {
+            Finding f = lastCrash.main();
+            CheckEngine.LOGGER.warn("Check Engine: the last game crashed ({}): {}. Fix: {}", lastCrash.when(), f.title(),
+                    f.fix());
+        }
+        // The early plugin already started the scan before mods loaded; dev runs don't have it, so scan here.
+        CompletableFuture<Report> early = EarlyHandoff.scan();
+        result = early != null ? early.thenApply(BootCheck::save) : CompletableFuture.supplyAsync(BootCheck::run);
         installCheckPackBat();
     }
 
@@ -65,6 +83,21 @@ public final class BootCheck {
     /** Problems and warnings (not notes): what's worth interrupting the player for. */
     public static List<Finding> worthShowing(Report report) {
         return report.findings().stream().filter(f -> f.severity() != Finding.Severity.INFO).toList();
+    }
+
+    /**
+     * The game reached the title screen (or the server started). Saves the memory use and a fingerprint of the mods
+     * (checkengine/last-good-launch.properties), so if the pack breaks later Check Engine can say what changed.
+     */
+    public static void launchSucceeded() {
+        recordMemory();
+        Report report = get();
+        if (report == null) return;
+        try {
+            PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
+        } catch (IOException | RuntimeException e) {
+            CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
+        }
     }
 
     /**
@@ -99,7 +132,17 @@ public final class BootCheck {
             ScanOptions found = PackFolder.locate(FMLPaths.GAMEDIR.get(), side).options();
             ScanOptions options = new ScanOptions(side, FMLLoader.getCurrent().getVersionInfo().mcVersion(),
                     FMLLoader.getCurrent().getVersionInfo().neoForgeVersion(), found.clientOnlyFiles(), ScanOptions.Loader.NEOFORGE);
-            Report report = PackScanner.scan(FMLPaths.MODSDIR.get(), options);
+            return save(PackScanner.scan(FMLPaths.MODSDIR.get(), options));
+        } catch (IOException | RuntimeException e) {
+            CheckEngine.LOGGER.error("Check Engine: boot check failed", e);
+            return null;
+        }
+    }
+
+    /** Writes checkengine/boot-report.txt and logs the problems. */
+    private static Report save(Report report) {
+        if (report == null) return null;
+        try {
             Files.createDirectories(outputFolder());
             Files.writeString(reportFile(), report.toText(), StandardCharsets.UTF_8);
             List<Finding> shown = worthShowing(report);
@@ -109,10 +152,9 @@ public final class BootCheck {
                 CheckEngine.LOGGER.warn("Check Engine: {}. Details: {}", Report.summary(shown), reportFile());
                 for (Finding f : shown) CheckEngine.LOGGER.warn("  [{}] {}", f.severity(), f.title());
             }
-            return report;
         } catch (IOException | RuntimeException e) {
-            CheckEngine.LOGGER.error("Check Engine: boot check failed", e);
-            return null;
+            CheckEngine.LOGGER.error("Check Engine: couldn't save the boot report", e);
         }
+        return report;
     }
 }

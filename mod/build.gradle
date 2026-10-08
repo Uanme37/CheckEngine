@@ -5,7 +5,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-base { archivesName = "${mod_id}-neoforge-1.21.1" }
+// Packed inside the early plugin jar (early/), which is what players install.
+base { archivesName = "${mod_id}-neoforge-1.21.1-mod" }
 
 sourceSets.main.resources {
     srcDir('src/generated/resources')
@@ -49,6 +50,7 @@ dependencies {
     implementation project(':core')
     // Lets runClient/runServer find core classes (dev runs only)
     additionalRuntimeClasspath project(':core')
+    // Real installs get core from the early plugin jar it's packed in, so it's not bundled here.
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
@@ -76,14 +78,4 @@ idea {
         downloadSources = true
         downloadJavadoc = true
     }
-}
-
-// The mod jar is also the pre-launch checker: core and the cli are bundled straight in (not jar-in-jar, so
-// "java -jar" sees them) and Main-Class runs the cli. Check Pack.bat finds it in mods\ (see CheckPackBat).
-evaluationDependsOn(':core')
-evaluationDependsOn(':cli')
-tasks.named('jar', Jar) {
-    from(project(':core').sourceSets.main.output)
-    from(project(':cli').sourceSets.main.output)
-    manifest { attributes 'Main-Class': 'com.guiltypotato.checkengine.cli.CheckEngineCli' }
 }

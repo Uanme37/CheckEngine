@@ -4,7 +4,8 @@ plugins {
     id 'net.neoforged.moddev.legacyforge'
 }
 
-base { archivesName = "${mod_id}-forge-1.20.1" }
+// Packed inside the early plugin jar (early-forge/), which is what players install.
+base { archivesName = "${mod_id}-forge-1.20.1-mod" }
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 legacyForge {
@@ -35,6 +36,7 @@ legacyForge {
 dependencies {
     implementation project(':core')
     additionalRuntimeClasspath project(':core')
+    // Real installs get core from the early plugin jar it's packed in, so it's not bundled here.
     // Dev runs only: load real (obfuscated) mod jars from a folder, e.g. -PtestMods=C:/some/folder
     if (project.hasProperty('testMods')) {
         repositories { flatDir { dirs project.property('testMods') } }
@@ -60,13 +62,3 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
 }
 sourceSets.main.resources.srcDir generateModMetadata
 legacyForge.ideSyncTask generateModMetadata
-
-// The mod jar is also the pre-launch checker: core and the cli are bundled straight in (not jar-in-jar, so
-// "java -jar" sees them) and Main-Class runs the cli. Check Pack.bat finds it in mods\ (see CheckPackBat).
-evaluationDependsOn(':core')
-evaluationDependsOn(':cli')
-tasks.named('jar', Jar) {
-    from(project(':core').sourceSets.main.output)
-    from(project(':cli').sourceSets.main.output)
-    manifest { attributes 'Main-Class': 'com.guiltypotato.checkengine.cli.CheckEngineCli' }
-}

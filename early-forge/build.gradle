@@ -1,0 +1,66 @@
+// The jar players install for Forge 1.20.1: like early/ (NeoForge 1.21.1), but built against Forge's loader
+// (fmlloader 47), with the Forge mod (from :forge-mod, reobfuscated) packed inside. Java 17.
+plugins {
+    id 'java-library'
+}
+
+base { archivesName = "${mod_id}-forge-1.20.1" }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    maven { url = 'https://maven.minecraftforge.net' }
+}
+
+dependencies {
+    implementation project(':core')
+    // Forge's loader is already there at runtime.
+    compileOnly("net.minecraftforge:fmlloader:${forge_version}") { transitive = false }
+    compileOnly('net.minecraftforge:forgespi:7.0.1') { transitive = false }
+    compileOnly 'net.minecraftforge:mergetool:1.1.5:api'
+    compileOnly('cpw.mods:securejarhandler:2.1.10') { transitive = false }
+    compileOnly('cpw.mods:modlauncher:10.0.9') { transitive = false }
+    compileOnly 'org.apache.maven:maven-artifact:3.8.5'
+    compileOnly 'org.slf4j:slf4j-api:2.0.7'
+}
+
+def modProject = project(':forge-mod')
+
+tasks.named('jar', Jar) {
+    dependsOn ':forge-mod:reobfJar', ':forge-mod:generateModMetadata'
+    // core lives here, next to the plugin, and the mod uses this copy (one copy per game, so they can share data).
+    from(project(':core').sourceSets.main.output)
+    // The cli too, so "java -jar" on this jar runs the pre-launch checker (Check Pack.bat finds it in mods\).
+    from(project(':cli').sourceSets.main.output)
+    into('META-INF/jarjar') {
+        from(modProject.tasks.named('reobfJar'))
+        rename { 'checkengine-mod.jar' }
+    }
+    // The mod's metadata and logo again on the outside, so CurseForge and launchers see what this jar is.
+    from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
+    from(modProject.file('src/main/resources/checkengine_logo.png'))
+    manifest {
+        attributes('Main-Class': 'com.guiltypotato.checkengine.cli.CheckEngineCli',
+                'Automatic-Module-Name': 'checkengine_early',
+                'Implementation-Version': project.version)
+    }
+}
+
+// Dev only: the same jar with the dev-named mod inside, for early-test-forge (dev games don't use Forge's
+// production names).
+tasks.register('devJar', Jar) {
+    dependsOn ':forge-mod:jar', ':forge-mod:generateModMetadata'
+    archiveClassifier = 'dev'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+    from(sourceSets.main.output)
+    from(project(':core').sourceSets.main.output)
+    into('META-INF/jarjar') {
+        from(modProject.tasks.named('jar'))
+        rename { 'checkengine-mod.jar' }
+    }
+    from(modProject.file('src/main/resources/checkengine_logo.png'))
+    from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
+    manifest {
+        attributes('Automatic-Module-Name': 'checkengine_early', 'Implementation-Version': project.version + '-dev')
+    }
+}

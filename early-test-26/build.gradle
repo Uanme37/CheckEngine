@@ -1,0 +1,29 @@
+// Dev only: a plain NeoForge 26.1 game whose mods folder (run/mods) gets the built early-26 jar, so tests see
+// exactly what a real install does. Put test mods in run/mods too, then runClient or runServer.
+plugins {
+    id 'net.neoforged.moddev'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+neoForge {
+    version = project.neo26_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+        }
+        server {
+            server()
+            gameDirectory = file('run')
+            programArgument '--nogui'
+        }
+    }
+}
+
+def installEarlyJar = tasks.register('installEarlyJar', Copy) {
+    from(project(':early-26').tasks.named('jar'))
+    into 'run/mods'
+}
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach { dependsOn installEarlyJar }

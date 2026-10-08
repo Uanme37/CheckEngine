@@ -35,6 +35,9 @@ public final class CrashTranslator {
     private static final Pattern FORGE_FILE = Pattern.compile(
             "File (.+?) is for Minecraft Forge or an older version of NeoForge");
     private static final Pattern FABRIC_FILE = Pattern.compile("File (.+?) is a Fabric mod");
+    /** NeoForge: "Create (create) has failed to load correctly java.lang.IllegalStateException: ..." */
+    private static final Pattern FAILED_TO_LOAD = Pattern.compile(
+            "^(.+?) \\(([a-z0-9_.-]+)\\) has failed to load correctly(?: (?:[a-z0-9_]+\\.)*([A-Za-z0-9_$]+(?:Exception|Error)\\b.*))?$");
     /** Mixin errors name the mod whose patch failed: "...MixinLevelRenderer from mod epicfight->@Inject..." */
     private static final Pattern FROM_MOD = Pattern.compile("from mod ([a-z][a-z0-9_]*)");
     /** "Bobber Detector (bobberdetector) has failed to load correctly java.lang.NoClassDefFoundError: com/simibubi/create/..." */
@@ -116,7 +119,9 @@ public final class CrashTranslator {
             }
         }
 
-        List<Finding> findings = mergeMissing(loadingIssues(lines));
+        List<Finding> issues = loadingIssues(lines);
+        if (issues.isEmpty()) issues = errorList(lines);
+        List<Finding> findings = mergeMissing(issues);
         if (findings.isEmpty() && exception != null) {
             findings.add(runtimeCrash(lines, exceptionLine, description, exception));
         }
@@ -172,8 +177,46 @@ public final class CrashTranslator {
                     message.append(' ').append(l);
                 }
             }
+            String msg = message.toString().replaceAll("\\s+", " ").strip();
+            // Check Engine's own notes on NeoForge's screen end up in the report too; NeoForge's own issue says the same.
+            if (msg.startsWith("Check Engine")) continue;
             List<String> files = modFile == null ? List.of() : List.of(modFile);
-            out.add(loadingIssue(message.toString().replaceAll("\\s+", " ").strip(), files));
+            out.add(loadingIssue(msg, files));
+        }
+        return out;
+    }
+
+    /**
+     * NeoForge 26.1 lists the errors under the exception instead of in "-- Mod loading issue --" blocks:
+     * "ModLoadingException: Loading errors encountered:" then "\t- message" with "\t  more" lines, until
+     * "Loading warnings encountered:" or a blank line. Only the errors count.
+     */
+    private static List<Finding> errorList(String[] lines) {
+        List<Finding> out = new ArrayList<>();
+        int start = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].endsWith("Loading errors encountered:")) {
+                start = i + 1;
+                break;
+            }
+        }
+        if (start < 0) return out;
+        StringBuilder message = null;
+        for (int i = start; i <= lines.length; i++) {
+            String l = i < lines.length ? lines[i] : "";
+            boolean item = l.startsWith("\t- ");
+            boolean more = l.startsWith("\t  ") && message != null;
+            if (more) {
+                message.append(' ').append(l.strip());
+                continue;
+            }
+            if (message != null) {
+                String msg = message.toString().replaceAll("\\s+", " ").strip();
+                if (!msg.startsWith("Check Engine")) out.add(loadingIssue(msg, List.of()));
+                message = null;
+            }
+            if (!item) break;
+            message = new StringBuilder(l.substring(3));
         }
         return out;
     }
@@ -240,6 +283,14 @@ public final class CrashTranslator {
             return new Finding(Severity.ERROR, Finding.WRONG_LOADER, "Fabric mod in a NeoForge pack: " + f,
                     f + " is a Fabric mod. NeoForge can't load it on its own.",
                     "Swap it for the NeoForge version, or remove it.", List.of(f));
+        }
+        if ((m = FAILED_TO_LOAD.matcher(msg)).find()) {
+            String error = m.group(3) == null ? "" : " Its error: " + m.group(3);
+            return new Finding(Severity.ERROR, "mod-crashed", m.group(1) + " crashed while loading",
+                    m.group(1) + " (" + m.group(2) + ") hit an error while the game was starting up, so loading stopped."
+                            + error,
+                    "Update " + m.group(1) + " (check its page for known problems). If it still crashes, remove it "
+                            + "and send this crash report to its author.", files);
         }
         return new Finding(Severity.ERROR, "loading-issue", "Mod loading problem", msg,
                 files.isEmpty() ? null : "Update or remove " + files.get(0) + ".", files);

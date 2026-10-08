@@ -29,11 +29,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - run: chmod +x gradlew
       - run: ./gradlew build
-      # One download with everything a player needs: the mods (NeoForge 26.1, NeoForge 1.21.1, Forge 1.20.1), the standalone checker and its launcher.
+      # One download with everything a player needs: the mods (from early/, early-26/ and early-forge/, each with the mod packed inside), the standalone checker and its launcher.
       - name: Collect files
         run: |
           mkdir dist
-          cp mod/build/libs/*.jar mod-26/build/libs/*.jar forge-mod/build/libs/*.jar cli/build/libs/*.jar "Check Pack.bat" dist/
+          cp early/build/libs/*.jar early-26/build/libs/*.jar early-forge/build/libs/*.jar cli/build/libs/*.jar "Check Pack.bat" dist/
       - uses: actions/upload-artifact@v7
         with:
           name: checkengine

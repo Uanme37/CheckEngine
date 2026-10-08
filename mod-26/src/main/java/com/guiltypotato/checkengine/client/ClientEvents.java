@@ -2,6 +2,8 @@ package com.guiltypotato.checkengine.client;
 
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
+import com.guiltypotato.checkengine.StartupTimer;
+import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.util.List;
@@ -18,6 +20,7 @@ public final class ClientEvents {
     /** True once the player closed the warning screen (or there was nothing to show). */
     static boolean done;
     private static boolean memoryRecorded;
+    private static boolean crashShown;
 
     private ClientEvents() {}
 
@@ -35,15 +38,28 @@ public final class ClientEvents {
         CheckEngine.LOGGER.debug("Check Engine: title screen opening over {}", event.getCurrentScreen());
         if (!memoryRecorded) {
             memoryRecorded = true;
-            BootCheck.recordMemory();
+            BootCheck.launchSucceeded();
+            StartupTimer.finish(false);
+        }
+        // 26.1 can open the title screen more than once while starting up, so keep showing ours until it's closed.
+        if (event.getCurrentScreen() instanceof BootWarningScreen || event.getCurrentScreen() instanceof CrashDoctorScreen) {
+            event.setNewScreen(event.getCurrentScreen());
+            return;
         }
         Report report = BootCheck.get();
         List<Finding> findings = report == null ? List.of() : BootCheck.worthShowing(report);
-        if (findings.isEmpty() || BootWarningScreen.dismissed(findings)) {
+        Screen next = title;
+        if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
+        // Crash Doctor first: if the last game crashed, that's what the player wants to know about (shown once).
+        LastCrash crash = BootCheck.lastCrash();
+        if (crash != null && !crashShown) {
+            crashShown = true;
+            next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
+        }
+        if (next == title) {
             done = true;
             return;
         }
-        // 26.1 can open the title screen more than once while starting up, so keep showing ours until it's closed.
-        if (!(event.getCurrentScreen() instanceof BootWarningScreen)) event.setNewScreen(new BootWarningScreen(title, findings));
+        event.setNewScreen(next);
     }
 }
