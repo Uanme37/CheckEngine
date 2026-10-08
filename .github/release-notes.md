@@ -24,6 +24,9 @@ Put the jar for your version in the pack's `mods` folder:
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
 
+## What's new in 0.9.1
+- Fixed the pre-launch window: panels now fill its width, and arrows no longer show as a box.
+
 ## What's new in 0.9.0
 **Your 400-mod pack is broken? Find out in seconds, not after Minecraft finishes loading.**
 - **Pre-launch check:** if the pack can't start, a small Check Engine window opens right after you press Play, before the loading screen: what's wrong, what changed since it last worked, and the fix. **Quit** closes the game immediately, **Load anyway** carries on, **Show full error** opens the full report.
