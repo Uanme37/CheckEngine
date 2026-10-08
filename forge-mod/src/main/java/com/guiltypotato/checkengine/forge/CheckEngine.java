@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.forge;
 
+import com.guiltypotato.checkengine.core.scan.HelpBundle;
 import com.guiltypotato.checkengine.core.scan.StartupTimes;
 import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
@@ -11,6 +12,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 /** Forge 1.20.1 entry point. Same features as the NeoForge mod: boot check, warning screen, /checkengine scan. */
@@ -33,10 +35,32 @@ public final class CheckEngine {
     }
 
     private static void registerCommands(RegisterCommandsEvent event) {
+        // Ops only, except export in singleplayer: that's when a player needs it most.
         event.getDispatcher().register(Commands.literal("checkengine")
-                .requires(s -> s.hasPermission(2))
-                .then(Commands.literal("scan").executes(ctx -> DataScan.run(ctx.getSource())))
-                .then(Commands.literal("startup").executes(ctx -> startup(ctx.getSource()))));
+                .then(Commands.literal("scan").requires(s -> s.hasPermission(2))
+                        .executes(ctx -> DataScan.run(ctx.getSource())))
+                .then(Commands.literal("startup").requires(s -> s.hasPermission(2))
+                        .executes(ctx -> startup(ctx.getSource())))
+                .then(Commands.literal("export")
+                        .requires(s -> s.hasPermission(2) || !s.getServer().isDedicatedServer())
+                        .executes(ctx -> export(ctx.getSource()))));
+    }
+
+    /** /checkengine export: one zip with the reports, mod list and logs, to send to whoever is helping. */
+    private static int export(CommandSourceStack source) {
+        try {
+            String path = HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get()).toAbsolutePath().toString();
+            source.sendSuccess(() -> Component.literal("Check Engine: help file saved: ").append(Component.literal(
+                    path.substring(path.lastIndexOf(java.io.File.separatorChar) + 1)).withStyle(s -> s.withUnderlined(true)
+                    .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, BootCheck.outputFolder().toString()))
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(path))))), false);
+            source.sendSuccess(() -> Component.literal("Send it to whoever is helping you. Your Windows user name, "
+                    + "player name and IP addresses were blanked out."), false);
+            return 1;
+        } catch (java.io.IOException e) {
+            source.sendFailure(Component.literal("Check Engine: couldn't make the help file: " + e.getMessage()));
+            return 0;
+        }
     }
 
     /** /checkengine startup: the last launch's total and its slowest mods, with a link to the full report. */

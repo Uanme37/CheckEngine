@@ -4,7 +4,8 @@ plugins {
     id 'net.neoforged.moddev.legacyforge'
 }
 
-base { archivesName = "${mod_id}-forge-1.20.1" }
+// Packed inside the early plugin jar (early-forge/), which is what players install.
+base { archivesName = "${mod_id}-forge-1.20.1-mod" }
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 legacyForge {
@@ -35,7 +36,7 @@ legacyForge {
 dependencies {
     implementation project(':core')
     additionalRuntimeClasspath project(':core')
-    jarJar(project(':core'))
+    // Real installs get core from the early plugin jar it's packed in, so it's not bundled here.
     // Dev runs only: load real (obfuscated) mod jars from a folder, e.g. -PtestMods=C:/some/folder
     if (project.hasProperty('testMods')) {
         repositories { flatDir { dirs project.property('testMods') } }

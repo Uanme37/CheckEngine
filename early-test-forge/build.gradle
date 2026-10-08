@@ -1,0 +1,29 @@
+// Dev only: a plain Forge 1.20.1 game whose mods folder (run/mods) gets early-forge's dev jar, so tests see what a
+// real install does. Put test mods in run/mods too, then runClient or runServer.
+plugins {
+    id 'net.neoforged.moddev.legacyforge'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+legacyForge {
+    version = project.forge_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+        }
+        server {
+            server()
+            gameDirectory = file('run')
+            programArgument '--nogui'
+        }
+    }
+}
+
+def installEarlyJar = tasks.register('installEarlyJar', Copy) {
+    from(project(':early-forge').tasks.named('devJar'))
+    into 'run/mods'
+}
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach { dependsOn installEarlyJar }
