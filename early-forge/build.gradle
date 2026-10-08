@@ -30,6 +30,8 @@ tasks.named('jar', Jar) {
     dependsOn ':forge-mod:reobfJar', ':forge-mod:generateModMetadata'
     // core lives here, next to the plugin, and the mod uses this copy (one copy per game, so they can share data).
     from(project(':core').sourceSets.main.output)
+    // The cli too, so "java -jar" on this jar runs the pre-launch checker (Check Pack.bat finds it in mods\).
+    from(project(':cli').sourceSets.main.output)
     into('META-INF/jarjar') {
         from(modProject.tasks.named('reobfJar'))
         rename { 'checkengine-mod.jar' }
@@ -38,7 +40,8 @@ tasks.named('jar', Jar) {
     from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
     from(modProject.file('src/main/resources/checkengine_logo.png'))
     manifest {
-        attributes('Automatic-Module-Name': 'checkengine_early',
+        attributes('Main-Class': 'com.guiltypotato.checkengine.cli.CheckEngineCli',
+                'Automatic-Module-Name': 'checkengine_early',
                 'Implementation-Version': project.version)
     }
 }
