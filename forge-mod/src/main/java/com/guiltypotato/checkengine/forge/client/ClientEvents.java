@@ -2,6 +2,7 @@ package com.guiltypotato.checkengine.forge.client;
 
 import com.guiltypotato.checkengine.forge.BootCheck;
 import com.guiltypotato.checkengine.forge.CheckEngine;
+import com.guiltypotato.checkengine.forge.StartupTimer;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.util.List;
@@ -32,6 +33,7 @@ public final class ClientEvents {
         if (checked || !(event.getNewScreen() instanceof TitleScreen title)) return;
         checked = true;
         BootCheck.recordMemory();
+        StartupTimer.finish(false);
         Report report = BootCheck.get();
         if (report == null) return;
         List<Finding> findings = BootCheck.worthShowing(report);

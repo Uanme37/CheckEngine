@@ -7,6 +7,7 @@ import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
 import com.guiltypotato.checkengine.core.scan.RamAdvisor;
+import com.guiltypotato.checkengine.core.scan.StartupTimes;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
 import com.guiltypotato.checkengine.core.scan.ServerCompare;
@@ -97,6 +98,17 @@ public final class CheckEngineCli {
             for (Finding f : RamAdvisor.advise(RamAdvisor.facts(root, pack.modsFolder()), side == Side.SERVER)) {
                 memory.append(f.title()).append("\n  ").append(f.detail().replace("\n", "\n  ")).append('\n');
                 if (f.fix() != null) memory.append("  Fix: ").append(f.fix()).append('\n');
+            }
+            StartupTimes.Data startup = StartupTimes.load(root.resolve("checkengine"));
+            if (startup != null) {
+                memory.append("\nStartup (last launch with the Check Engine mod, ").append(startup.when()).append(")\n")
+                        .append(StartupTimes.wasServer(root.resolve("checkengine")) ? "Server ready in " : "Title screen after ")
+                        .append(StartupTimes.time(startup.totalMs())).append(": mods ")
+                        .append(StartupTimes.time(startup.modsMs())).append(", then ")
+                        .append(StartupTimes.time(startup.finishingMs())).append('\n');
+                startup.mods().stream().filter(m -> m.ms() >= 250).limit(5).forEach(m -> memory.append("  ")
+                        .append(m.name()).append(": ").append(StartupTimes.time(m.ms())).append('\n'));
+                memory.append("  Full breakdown: checkengine\\").append(StartupTimes.REPORT_FILE).append('\n');
             }
             String text = report.toText() + memory;
             System.out.print(text);

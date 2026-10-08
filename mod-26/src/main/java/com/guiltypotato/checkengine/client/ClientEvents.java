@@ -2,6 +2,7 @@ package com.guiltypotato.checkengine.client;
 
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
+import com.guiltypotato.checkengine.StartupTimer;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.util.List;
@@ -36,6 +37,7 @@ public final class ClientEvents {
         if (!memoryRecorded) {
             memoryRecorded = true;
             BootCheck.recordMemory();
+            StartupTimer.finish(false);
         }
         Report report = BootCheck.get();
         List<Finding> findings = report == null ? List.of() : BootCheck.worthShowing(report);
