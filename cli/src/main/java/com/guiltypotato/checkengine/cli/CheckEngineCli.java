@@ -3,6 +3,7 @@ package com.guiltypotato.checkengine.cli;
 import com.guiltypotato.checkengine.core.CheckEngineCore;
 import com.guiltypotato.checkengine.core.crash.CrashTranslator;
 import com.guiltypotato.checkengine.core.scan.Finding;
+import com.guiltypotato.checkengine.core.scan.HelpBundle;
 import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
 import com.guiltypotato.checkengine.core.scan.PackScanner;
@@ -27,6 +28,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar crash <crash report, or a pack folder for its newest crash>
                    java -jar checkengine-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]
                    java -jar checkengine-cli.jar compare <pack folder> <server folder or server pack .zip>
+                   java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -49,6 +51,7 @@ public final class CheckEngineCli {
         if (args[0].equals("crash")) return crash(args);
         if (args[0].equals("serverpack")) return serverPack(args);
         if (args[0].equals("compare")) return compare(args);
+        if (args[0].equals("export")) return export(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -122,6 +125,28 @@ public final class CheckEngineCli {
             return report.hasErrors() ? 1 : 0;
         } catch (IOException e) {
             System.err.println(CheckEngineCore.NAME + " couldn't scan " + folder + ": " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Makes the help zip (reports, mod list, latest.log, newest crash, personal bits blanked) for asking for help. */
+    static int export(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            PackFolder pack = PackFolder.locate(Path.of(args[1]), Side.CLIENT);
+            Report report = PackScanner.scan(pack.modsFolder(), pack.options());
+            Path root = pack.modsFolder().getFileName().toString().equalsIgnoreCase("mods")
+                    ? pack.modsFolder().getParent() : pack.modsFolder();
+            Path zip = HelpBundle.create(root, report);
+            System.out.println("Help file saved: " + zip.toAbsolutePath());
+            System.out.println("Drag it into the Discord or GitHub issue where you're asking for help. Your Windows "
+                    + "user name, player name and IP addresses were blanked out.");
+            return 0;
+        } catch (IOException e) {
+            System.err.println(CheckEngineCore.NAME + " couldn't make a help file for " + args[1] + ": " + e.getMessage());
             return 2;
         }
     }

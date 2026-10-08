@@ -70,8 +70,19 @@ set /p "SERVER=then press Enter (or just press Enter to skip): "
 if defined SERVER call :compare
 
 if exist "%PACK%\crash-reports\*.txt" call :crash
+
+echo.
+set "HELP="
+set /p "HELP=Asking someone for help? Make one file with the reports and logs to send them (y/n): "
+if /i "%HELP%"=="y" call :export
 echo.
 pause
+exit /b
+
+:export
+echo.
+"%JAVA%" -jar "%JAR%" export "%PACK%"
+if not errorlevel 1 start "" "%PACK%\checkengine"
 exit /b
 
 :compare

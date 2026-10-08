@@ -4,6 +4,7 @@ import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
 import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.scan.Finding;
+import com.guiltypotato.checkengine.core.scan.HelpBundle;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -14,6 +15,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.fml.loading.FMLPaths;
 
 /** Crash Doctor: shown once before the title screen when the previous game crashed. */
 public final class CrashDoctorScreen extends Screen {
@@ -30,9 +32,9 @@ public final class CrashDoctorScreen extends Screen {
 
     @Override
     protected void init() {
-        int w = 120;
+        int w = 95;
         int y = height - 30;
-        int x = width / 2 - (w * 3 + 10) / 2;
+        int x = width / 2 - (w * 4 + 15) / 2;
         addRenderableWidget(Button.builder(Component.translatable("checkengine.crash.open_details"), b -> {
             try {
                 Path details = crash.save(BootCheck.outputFolder());
@@ -43,8 +45,16 @@ public final class CrashDoctorScreen extends Screen {
         }).bounds(x, y, w, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("checkengine.crash.open_crash"),
                 b -> Util.getPlatform().openFile(crash.file().toFile())).bounds(x + w + 5, y, w, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("checkengine.crash.help"), b -> {
+            try {
+                HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get());
+                Util.getPlatform().openFile(BootCheck.outputFolder().toFile());
+            } catch (IOException e) {
+                CheckEngine.LOGGER.warn("Check Engine: couldn't make the help file", e);
+            }
+        }).bounds(x + (w + 5) * 2, y, w, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("checkengine.screen.continue"), b -> onClose())
-                .bounds(x + (w + 5) * 2, y, w, 20).build());
+                .bounds(x + (w + 5) * 3, y, w, 20).build());
     }
 
     @Override
