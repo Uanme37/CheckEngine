@@ -248,13 +248,15 @@ final class Popup {
         };
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setBorder(new EmptyBorder(7, 13, 7, 12));
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE)); // full width, like a gauge readout
         p.setAlignmentX(0f);
         return p;
     }
 
     private static JLabel label(String text, Font f, Color c) {
         JLabel l = new JLabel(text);
-        l.setFont(f);
+        // Bahnschrift has no arrows; anything it can't draw falls back to a font that can.
+        l.setFont(f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, f.getStyle(), f.getSize()));
         l.setForeground(c);
         l.setAlignmentX(0f);
         l.setBorder(new EmptyBorder(1, 0, 1, 0));
