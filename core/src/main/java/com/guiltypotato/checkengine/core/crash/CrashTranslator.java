@@ -289,8 +289,7 @@ public final class CrashTranslator {
             return new Finding(Severity.ERROR, "mod-crashed", m.group(1) + " crashed while loading",
                     m.group(1) + " (" + m.group(2) + ") hit an error while the game was starting up, so loading stopped."
                             + error,
-                    "Update " + m.group(1) + " (check its page for known problems). If it still crashes, remove it "
-                            + "and send this crash report to its author.", files);
+                    updateOrRemove(m.group(1), "its author"), files);
         }
         return new Finding(Severity.ERROR, "loading-issue", "Mod loading problem", msg,
                 files.isEmpty() ? null : "Update or remove " + files.get(0) + ".", files);
@@ -395,10 +394,18 @@ public final class CrashTranslator {
         return new Finding(Severity.ERROR, "crash", culprit != null ? "Crash in " + culprit : "Game crashed",
                 "Minecraft crashed with: " + exception + where + suspectLine,
                 culprit != null
-                        ? "Update " + culprit + ". If it still crashes, remove it and send this crash report to its "
-                                + "issue tracker."
+                        ? updateOrRemove(culprit, "its issue tracker")
                         : "Send this crash report to the pack or mod authors.",
                 List.of());
+    }
+
+    /**
+     * Fix for a crash inside one mod. The player may already have its newest version, so updating is only the first
+     * step: "Update X." alone sends them looking for an update that doesn't exist.
+     */
+    private static String updateOrRemove(String mod, String reportTo) {
+        return "If there's a newer version of " + mod + ", update it. If you already have the newest one, remove "
+                + mod + " or send this crash report to " + reportTo + ".";
     }
 
     /** "1.1.3 or above" stays, "any" becomes "any version". */

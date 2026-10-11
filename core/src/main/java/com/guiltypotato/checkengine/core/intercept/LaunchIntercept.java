@@ -94,12 +94,16 @@ public final class LaunchIntercept {
      */
     public static Message repeatCrash(Path gameDir, Path checkEngineFolder, PackSnapshot now) {
         PackSnapshot previous = PackSnapshot.load(checkEngineFolder, LAST_LAUNCH_FILE);
+        boolean previousStarted = reachedTitleScreen(checkEngineFolder);
         try {
             now.save(checkEngineFolder, LAST_LAUNCH_FILE);
         } catch (IOException ignored) {
             // next launch just can't compare
         }
         if (previous == null || !previous.mods().equals(now.mods())) return null;
+        // The last launch got through startup and crashed later, while playing: startup itself works, so warning
+        // "startup will fail again" would be a false alarm. Crash Doctor still explains that crash after loading.
+        if (previousStarted) return null;
         LastCrash crash = CrashDoctor.peek(gameDir, checkEngineFolder);
         if (crash == null) return null;
         Path details;
@@ -109,6 +113,21 @@ public final class LaunchIntercept {
             details = crash.file();
         }
         return mayFail(crash, details);
+    }
+
+    /**
+     * Whether the latest launch got to the title screen (or server ready): the mod saves the last good launch then,
+     * so it's newer than the record this check wrote when that launch started.
+     */
+    static boolean reachedTitleScreen(Path checkEngineFolder) {
+        try {
+            Path started = checkEngineFolder.resolve(LAST_LAUNCH_FILE);
+            Path good = checkEngineFolder.resolve(PackSnapshot.FILE);
+            return Files.isRegularFile(started) && Files.isRegularFile(good)
+                    && Files.getLastModifiedTime(good).compareTo(Files.getLastModifiedTime(started)) >= 0;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     static List<String> changedLines(Changes changes) {
