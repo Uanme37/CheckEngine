@@ -70,10 +70,12 @@ public final class StripMine {
      * @param notes       one line per finished round, for the final report
      * @param keepOn      jars a test launch showed other mods need without saying so: never switched off
      * @param retries     how many times this round had to be set up again after a different crash
+     * @param roots       mod ids that failed to load in the original crash (from the game log). Some packs hide every
+     *                    loading failure behind the same knock-on crash, so this is what tells crashes apart
      */
     public record State(String crash, boolean startup, Status status, int round, List<String> suspects, List<String> toDisable,
                         List<String> disabled, long roundStart, int startCount, List<String> notes,
-                        List<String> keepOn, int retries) {
+                        List<String> keepOn, int retries, List<String> roots) {
         public boolean active() {
             return status == Status.PENDING || status == Status.RUNNING;
         }
@@ -89,12 +91,12 @@ public final class StripMine {
         }
 
         State with(Status s, int r, List<String> sus, List<String> off, List<String> dis, long start, List<String> n) {
-            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n, keepOn, retries);
+            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n, keepOn, retries, roots);
         }
 
         State retry(List<String> keep, int tries) {
             return new State(crash, startup, status, round, suspects, toDisable, disabled, roundStart, startCount, notes,
-                    keep, tries);
+                    keep, tries, roots);
         }
     }
 
@@ -118,8 +120,11 @@ public final class StripMine {
         }
         suspects.sort(String.CASE_INSENSITIVE_ORDER);
         if (suspects.size() < 2) throw new IOException("Strip Mine needs at least 2 mods to search.");
+        // The crashed launch's log: the newest rotated one while the game runs again, else latest.log.
+        List<String> roots = new ArrayList<>(crashRoots(modsFolder.getParent()));
+        if (!roots.isEmpty()) crash = String.join(", ", roots) + " failed to load"; // the real failure, not a knock-on
         State s = new State(crash, startup, Status.PENDING, 1, suspects, List.of(), List.of(), 0, suspects.size(),
-                List.of(), List.of(), 0);
+                List.of(), List.of(), 0, roots);
         s = s.with(Status.PENDING, 1, suspects, plan(suspects, jars), List.of(), 0, List.of());
         save(checkEngineFolder, s);
         return applyNow ? apply(modsFolder, checkEngineFolder, s) : s;
@@ -178,13 +183,29 @@ public final class StripMine {
             // Did the test launch fail the same way as the original crash? Switching mods off can break others in
             // new ways (a mod that uses a library without saying so): that round tells nothing about the original.
             Path report = newestCrash(gameDir, s.roundStart());
-            String evidence = report != null ? read(report) : recentLog(gameDir, s.roundStart());
-            String title = report != null ? title(evidence) : null;
-            boolean different = title != null && !title.equals(s.crash());
+            String log = recentLog(gameDir, s.roundStart());
+            String evidence = (report != null ? read(report) : "") + "\n" + (log == null ? "" : log);
+            String title = report != null ? title(read(report)) : null;
+            boolean different;
+            if (!s.roots().isEmpty() && outcome == Outcome.CRASHED) {
+                // Same crash only if one of the mods that failed originally failed again.
+                Set<String> now = loadingRoots(evidence);
+                different = java.util.Collections.disjoint(now, s.roots());
+                if (different && title == null) title = now.isEmpty() ? "no mod failed to load" : String.join(", ", now) + " failed to load";
+            } else {
+                different = title != null && !title.equals(s.crash());
+            }
             Set<String> learned = evidence == null ? Set.of() : neededJars(evidence, modsFolder, s.disabled());
-            // A crash over a class or mod from a jar Strip Mine switched off can never be the original crash: that
-            // one happened with every mod on.
-            if (different || !learned.isEmpty()) {
+            if (!s.roots().isEmpty() && outcome == Outcome.CRASHED && !different) {
+                // The original mod failed again: a real "still crashes". Remember what else broke for later rounds.
+                if (!learned.isEmpty()) {
+                    List<String> keep = new ArrayList<>(s.keepOn());
+                    for (String j : learned) if (!keep.contains(j)) keep.add(j);
+                    s = s.retry(keep, s.retries());
+                }
+            } else if (different || !learned.isEmpty()) {
+                // A crash over a class or mod from a jar Strip Mine switched off can never be the original crash:
+                // that one happened with every mod on.
                 return retry(modsFolder, checkEngineFolder, s, learned, title);
             }
         }
@@ -276,6 +297,56 @@ public final class StripMine {
             }
         }
         return out;
+    }
+
+    private static final java.util.regex.Pattern ROOT = java.util.regex.Pattern.compile(
+            "Failed to create mod instance\\. ModID: ([a-z0-9_.-]+)"
+                    + "|\\(([a-z0-9_.-]+)\\) has failed to load correctly"
+                    + "|\\(([a-z0-9_.-]+)\\) encountered an error"
+                    + "|-- Mod loading issue for: ([a-z0-9_.-]+) --");
+
+    /** Mod ids a log or crash report says failed to load (the mods whose own code broke, not knock-on crashes). */
+    static Set<String> loadingRoots(String text) {
+        Set<String> out = new LinkedHashSet<>();
+        java.util.regex.Matcher m = ROOT.matcher(text);
+        while (m.find()) for (int g = 1; g <= m.groupCount(); g++) if (m.group(g) != null) out.add(m.group(g));
+        return out;
+    }
+
+    /**
+     * The mods that failed to load in the launch that wrote the newest crash report: read from that launch's log (the
+     * newest log, latest or rotated, finished around the time of the crash that names any). Empty if none does.
+     */
+    static Set<String> crashRoots(Path gameDir) {
+        Path crash = newestCrash(gameDir, 0);
+        if (crash == null) return Set.of();
+        long when = modified(crash) - 60_000;
+        Path logs = gameDir.resolve("logs");
+        try (Stream<Path> files = Files.list(logs)) {
+            List<Path> candidates = files.filter(p -> {
+                        String n = p.getFileName().toString();
+                        return !n.startsWith("debug") && (n.equals("latest.log") || n.endsWith(".log.gz"));
+                    })
+                    .filter(p -> modified(p) >= when)
+                    .sorted(Comparator.comparingLong(StripMine::modified))
+                    .toList();
+            for (Path p : candidates) { // oldest first: the crashed launch ended before any later one
+                Set<String> roots = loadingRoots(logText(p));
+                if (!roots.isEmpty()) return roots;
+            }
+        } catch (IOException e) {
+            // no logs: compare crash titles instead
+        }
+        return Set.of();
+    }
+
+    private static String logText(Path p) {
+        if (!p.getFileName().toString().endsWith(".gz")) return read(p) == null ? "" : read(p);
+        try (java.io.InputStream in = new java.util.zip.GZIPInputStream(Files.newInputStream(p))) {
+            return new String(in.readAllBytes(), StandardCharsets.ISO_8859_1);
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     private static String read(Path p) {
@@ -521,7 +592,7 @@ public final class StripMine {
                     Integer.parseInt(p.getProperty("round", "1")), list(p, "suspects"), list(p, "to_disable"),
                     list(p, "disabled"), Long.parseLong(p.getProperty("round_start", "0")),
                     Integer.parseInt(p.getProperty("start_count", "0")), list(p, "notes"), list(p, "keep_on"),
-                    Integer.parseInt(p.getProperty("retries", "0")));
+                    Integer.parseInt(p.getProperty("retries", "0")), list(p, "roots"));
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -541,6 +612,7 @@ public final class StripMine {
         p.setProperty("notes", String.join("\n", s.notes()));
         p.setProperty("keep_on", String.join("\n", s.keepOn()));
         p.setProperty("retries", Integer.toString(s.retries()));
+        p.setProperty("roots", String.join("\n", s.roots()));
         Files.createDirectories(checkEngineFolder);
         Path tmp = checkEngineFolder.resolve(STATE_FILE + ".tmp");
         try (Writer out = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {

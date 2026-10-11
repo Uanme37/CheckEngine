@@ -119,6 +119,58 @@ class StripMineTest {
         assertTrue(launches <= 12, "took " + launches + " launches");
     }
 
+    /**
+     * Beyond the Crank: any mod failing to load ends in the same knock-on crash report ("Mod 'arch' is not
+     * available"). Only latest.log says which mod failed, so that's what tells the original crash from new ones.
+     */
+    @Test
+    void knockOnCrashReportsAreToldApartByTheLog() throws Exception {
+        pack();
+        TestJars.neoMod("sneaky", "1.0", null).with("com/sneaky/Api.class", new byte[] {1})
+                .writeTo(mods(), "sneaky-1.0.jar");
+        TestJars.neoMod("hidden", "1.0", null).writeTo(mods(), "hidden-1.0.jar");
+        Path reports = game.resolve("crash-reports");
+        Path logs = game.resolve("logs");
+        Files.createDirectories(reports);
+        Files.createDirectories(logs);
+        String knockOn = """
+                Description: Initializing game
+
+                java.lang.IllegalStateException: Mod 'arch' is not available!
+                	at TRANSFORMER/arch@1.0/dev.arch.Hooks.whenAvailable(Hooks.java:34) ~[arch-1.0.jar%23607!/:?]
+                """;
+        String bad = "mod13-1.0.jar";
+        Files.writeString(logs.resolve("latest.log"),
+                "[main/ERROR] Failed to create mod instance. ModID: mod13, class x.Mod13\n");
+        Files.writeString(reports.resolve("crash-original.txt"), knockOn);
+        State s = StripMine.start(mods(), folder(), "Mod didn't load: arch", true, true);
+        assertEquals(List.of("mod13"), s.roots());
+        int launches = 0;
+        for (; launches < 30 && s.active(); launches++) {
+            List<String> on = enabled();
+            Thread.sleep(15);
+            StringBuilder log = new StringBuilder("[main/INFO] Loading mods\n");
+            boolean failed = false;
+            if (on.contains(bad)) {
+                log.append("[main/ERROR] Failed to create mod instance. ModID: mod13, class x.Mod13\n");
+                failed = true;
+            }
+            if (on.contains("hidden-1.0.jar") && !on.contains("sneaky-1.0.jar")) {
+                log.append("[main/ERROR] Failed to create mod instance. ModID: hidden, class x.Hidden\n")
+                        .append("java.lang.NoClassDefFoundError: com/sneaky/Api\n");
+                failed = true;
+            }
+            Files.writeString(logs.resolve("latest.log"), log.toString());
+            if (failed) Files.writeString(reports.resolve("crash-" + launches + ".txt"), knockOn);
+            else StripMine.markWorked(folder());
+            Thread.sleep(15);
+            s = StripMine.advance(game, mods(), folder(), null);
+        }
+        assertEquals(Status.FOUND, s.status(), String.join("\n", s.notes()));
+        assertEquals(bad, s.found());
+        assertTrue(launches <= 12, "took " + launches + " launches");
+    }
+
     @Test
     void checkEngineAndThePlayersDisabledModsAreNeverSuspects() throws Exception {
         pack();
