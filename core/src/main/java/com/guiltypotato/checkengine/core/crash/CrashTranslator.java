@@ -52,6 +52,24 @@ public final class CrashTranslator {
     /** Marks a log where Forge stopped because of dependencies. */
     public static final String FORGE_DEPS_MARKER = "Missing or unsupported mandatory dependencies";
     private static final Pattern NOT_AVAILABLE = Pattern.compile("Mod '([^']+)' is not available");
+    /**
+     * Something registered twice. NeoForge 1.21: "Duplicate client extensions registration for Block{create:belt}";
+     * vanilla registries: "Adding duplicate key 'ResourceKey[minecraft:block / create:belt]' to registry"; Forge:
+     * "...has been registered twice for the same name create:belt"; DeferredRegister: "Duplicate registration belt".
+     */
+    private static final Pattern DUPLICATE = Pattern.compile(
+            "Duplicate (?:client extensions )?registration(?: for)? (?:\\w+\\{)?([a-z0-9_.-]+:[a-z0-9_/.-]+)"
+                    + "|Adding duplicate (?:key|value) '?ResourceKey\\[[a-z0-9_.:/-]+ / ([a-z0-9_.-]+:[a-z0-9_/.-]+)\\]"
+                    + "|registered twice for the same name ([a-z0-9_.-]+:[a-z0-9_/.-]+)"
+                    + "|Duplicate registration ([a-z0-9_/.-]+)\\b");
+    /** "Create (create) encountered an error while dispatching..." / "...has failed to load correctly" */
+    private static final Pattern REPORTER = Pattern.compile(
+            "^(.+?) \\(([a-z0-9_.-]+)\\) (?:has failed to load correctly|encountered an error)");
+    /** Mixin naming the patch that got there first: "already redirected by supplementaries.mixins.json:...". */
+    private static final Pattern MIXIN_FIRST = Pattern.compile(
+            "(?:already redirected by|previously written by|merged by) ([A-Za-z0-9_.$-]+)");
+    /** The game class a failed patch targets: "LVT in net/minecraft/client/renderer/LevelRenderer::m_109599_". */
+    private static final Pattern MIXIN_TARGET = Pattern.compile("(net/minecraft/[A-Za-z0-9_/$]+)::");
 
     private CrashTranslator() {}
 
@@ -284,6 +302,11 @@ public final class CrashTranslator {
                     f + " is a Fabric mod. NeoForge can't load it on its own.",
                     "Swap it for the NeoForge version, or remove it.", List.of(f));
         }
+        Matcher reporter = REPORTER.matcher(msg);
+        Finding duplicate = reporter.find()
+                ? duplicateRegistration(msg, reporter.group(1), reporter.group(2), files)
+                : duplicateRegistration(msg, null, null, files);
+        if (duplicate != null) return duplicate;
         if ((m = FAILED_TO_LOAD.matcher(msg)).find()) {
             String error = m.group(3) == null ? "" : " Its error: " + m.group(3);
             return new Finding(Severity.ERROR, "mod-crashed", m.group(1) + " crashed while loading",
@@ -375,12 +398,28 @@ public final class CrashTranslator {
                 culprit = suspects.containsKey(mixinMod) ? suspects.get(mixinMod) + " (" + mixinMod + ")" : mixinMod;
                 where = "\nThe patch that failed belongs to " + culprit + ".";
             }
+            List<String> others = new ArrayList<>();
+            for (String id : mixinRivals(lines, all, mixinMod != null ? mixinMod : culpritId)) {
+                others.add(suspects.containsKey(id) ? suspects.get(id) + " (" + id + ")" : id);
+            }
+            if (culprit != null && !others.isEmpty()) {
+                String rival = String.join(" or ", others);
+                return new Finding(Severity.ERROR, "mixin-conflict",
+                        "Two mods changed the same game code: " + culprit + " and " + rival,
+                        culprit + "'s code patch (mixin) couldn't be applied, because " + rival + " also changes "
+                                + "that part of the game." + suspectLine,
+                        "Update both: one of them may already have a fix for this clash. If that doesn't help, "
+                                + "remove " + culprit + " or " + rival + ".", List.of());
+            }
             return new Finding(Severity.ERROR, "mixin-conflict", "Two mods changed the same game code",
                     "A mod's code patch (mixin) couldn't be applied, usually because another mod or a different "
                             + "game version changed that code first." + where + suspectLine,
                     "Update " + (culprit != null ? culprit : "the mods involved")
                             + ". If that doesn't help, remove it or the mod it clashes with.", List.of());
         }
+        // The mod at the top of the stack isn't necessarily the one registering, so only the name itself counts here.
+        Finding duplicate = duplicateRegistration(all, null, null, List.of());
+        if (duplicate != null) return duplicate;
         if (description != null && description.startsWith("Ticking")) {
             String what = detailValue(lines, "Entity Type:", "Name:");
             String at = detailValue(lines, "Entity's Exact location:", "Block location:");
@@ -397,6 +436,77 @@ public final class CrashTranslator {
                         ? updateOrRemove(culprit, "its issue tracker")
                         : "Send this crash report to the pack or mod authors.",
                 List.of());
+    }
+
+    /**
+     * "Registered twice" crashes. Each mod registers each block, item or setting once, so a second registration means
+     * either the mod runs twice (two copies, or something made its setup run again) or another mod adds a thing with
+     * the same name. Null if the text isn't one.
+     */
+    private static Finding duplicateRegistration(String text, String reporterName, String reporterId, List<String> files) {
+        Matcher d = DUPLICATE.matcher(text);
+        if (!d.find()) return null;
+        String id = d.group(1) != null ? d.group(1) : d.group(2) != null ? d.group(2) : d.group(3);
+        if (id == null) id = (reporterId != null ? reporterId : "?") + ":" + d.group(4);
+        String owner = id.substring(0, id.indexOf(':'));
+        String who = reporterName != null ? reporterName : owner;
+        String title = "Registered twice: " + id;
+        if (reporterId == null || reporterId.equals(owner) || owner.equals("?")) {
+            return new Finding(Severity.ERROR, "duplicate-registration", title,
+                    who + " tried to add " + id + " a second time. A mod adds each block, item or setting once, so "
+                            + "either " + who + " is installed twice, or another mod made its setup run twice (a mod "
+                            + "that changes how mods load, or one added or updated since the pack last worked).",
+                    "Look in the mods folder for two copies of " + who + " and remove one. If there's only one, "
+                            + "remove the mods added or updated since the pack last worked, one at a time, until it "
+                            + "starts.", files);
+        }
+        return new Finding(Severity.ERROR, "duplicate-registration", title,
+                reporterName + " tried to add " + id + ", but that name belongs to " + owner + ", which already "
+                        + "added it. Usually " + reporterName + " is made for a different version of " + owner
+                        + ", or both mods add the same thing.",
+                "Update " + reporterName + " to the version made for your " + owner + ", or remove " + reporterName
+                        + ".", files);
+    }
+
+    /**
+     * The other mods in a mixin clash: the ones a log line says got there first ("already redirected by x.mixins.json",
+     * "previously written by com.x.mixin.Y"), and the ones that also patched the target class in the stack trace.
+     */
+    private static Set<String> mixinRivals(String[] lines, String all, String culpritId) {
+        Set<String> out = new LinkedHashSet<>();
+        Matcher f = MIXIN_FIRST.matcher(all);
+        while (f.find()) {
+            String mod = modFromMixinRef(f.group(1));
+            if (mod != null) out.add(mod);
+        }
+        Matcher t = MIXIN_TARGET.matcher(all);
+        if (t.find()) {
+            String target = t.group(1).replace('/', '.');
+            for (String l : lines) {
+                if (!l.contains(target + ".") && !l.contains(target + "(")) continue;
+                Matcher fm = FROM_MOD.matcher(l);
+                while (fm.find()) out.add(fm.group(1));
+            }
+        }
+        out.remove(culpritId);
+        out.removeAll(NOT_CULPRITS);
+        return out;
+    }
+
+    /** "supplementaries.mixins.json" -> supplementaries, "me.jellysquid.mods.sodium.mixin.Foo" -> sodium. */
+    public static String modFromMixinRef(String ref) {
+        int json = ref.indexOf(".json");
+        if (json > 0) {
+            String name = ref.substring(0, json);
+            if (name.startsWith("mixins.")) name = name.substring("mixins.".length());
+            name = name.split("[.]")[0].replaceAll("[-_](common|client|neoforge|forge|fabric|mixins?)$", "");
+            return name.isEmpty() ? null : name.toLowerCase();
+        }
+        String[] parts = ref.split("[.]");
+        for (int i = 1; i < parts.length; i++) {
+            if (parts[i].equals("mixin") || parts[i].equals("mixins")) return parts[i - 1].toLowerCase();
+        }
+        return null;
     }
 
     /**

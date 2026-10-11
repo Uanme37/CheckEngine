@@ -223,6 +223,66 @@ class CrashTranslatorTest {
     }
 
     @Test
+    void sameModRegisteringTwiceSaysInstalledTwiceOrSetupRanTwice() {
+        // Beyond the Crank, 2026-10-08 (Check Engine 0.9.1 made Create's setup run twice).
+        List<Finding> f = translate("""
+                Description: Initializing game
+
+                net.neoforged.fml.ModLoadingException: Loading errors encountered:
+                	- Create (create) encountered an error while dispatching the net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent event
+                	  java.lang.IllegalStateException: Duplicate client extensions registration for Block{create:belt} (old: com.simibubi.create.content.kinetics.belt.BeltBlock$RenderProperties@3a1a08af, new: com.simibubi.create.content.kinetics.belt.BeltBlock$RenderProperties@578f4687)
+
+                """);
+        assertEquals("duplicate-registration", f.get(0).code());
+        assertEquals("Registered twice: create:belt", f.get(0).title());
+        assertTrue(f.get(0).detail().startsWith("Create tried to add create:belt a second time."), f.get(0).detail());
+        assertTrue(f.get(0).fix().contains("two copies of Create"), f.get(0).fix());
+    }
+
+    @Test
+    void addonRegisteringAnotherModsNameIsBlamed() {
+        List<Finding> f = translate("""
+                Description: Initializing game
+
+                net.neoforged.fml.ModLoadingException: Loading errors encountered:
+                	- Old Belts Addon (oldbelts) has failed to load correctly
+                	  java.lang.IllegalStateException: Adding duplicate key 'ResourceKey[minecraft:block / create:belt]' to registry
+
+                """);
+        assertEquals("Registered twice: create:belt", f.get(0).title());
+        assertTrue(f.get(0).detail().startsWith("Old Belts Addon tried to add create:belt, but that name belongs to create"),
+                f.get(0).detail());
+        assertTrue(f.get(0).fix().startsWith("Update Old Belts Addon"), f.get(0).fix());
+    }
+
+    @Test
+    void mixinCrashNamesBothModsWhenTheOtherIsKnown() {
+        List<Finding> f = translate("""
+                Description: Initializing game
+
+                org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError: An unexpected critical error was encountered
+                	at net.minecraft.client.renderer.LevelRenderer.renderLevel(LevelRenderer.java:1000) ~[client.jar:?] {re:mixin,pl:mixin:APP:sodium-common.mixins.json:core.LevelRendererMixin from mod sodium,pl:mixin:APP:betterfpsdist.mixins.json:LevelRendererMixin from mod betterfpsdist}
+                Caused by: org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException: @At("INVOKE") cannot inject into net/minecraft/client/renderer/LevelRenderer::renderLevel [betterfpsdist.mixins.json:LevelRendererMixin from mod betterfpsdist]
+
+                A detailed walkthrough of the error, its code path and all known details is as follows:
+                	Suspected Mods: Sodium (sodium), BetterFpsDist (betterfpsdist)
+                """);
+        assertEquals("mixin-conflict", f.get(0).code());
+        assertEquals("Two mods changed the same game code: BetterFpsDist (betterfpsdist) and Sodium (sodium)",
+                f.get(0).title());
+        assertTrue(f.get(0).fix().startsWith("Update both"), f.get(0).fix());
+    }
+
+    @Test
+    void mixinRefsBecomeModIds() {
+        assertEquals("supplementaries", CrashTranslator.modFromMixinRef("supplementaries.mixins.json:LevelChunkMixin->@Redirect"));
+        assertEquals("oculus", CrashTranslator.modFromMixinRef("mixins.oculus.vertexformat.json:block_rendering.Foo"));
+        assertEquals("immersive_weathering", CrashTranslator.modFromMixinRef("immersive_weathering-common.mixins.json:X"));
+        assertEquals("sodium", CrashTranslator.modFromMixinRef("me.jellysquid.mods.sodium.mixin.features.Foo"));
+        assertEquals("starlight", CrashTranslator.modFromMixinRef("ca.spottedleaf.starlight.mixin.common.Bar"));
+    }
+
+    @Test
     void notACrashReport() {
         assertEquals("unknown-crash", translate("hello").get(0).code());
     }
