@@ -244,43 +244,61 @@ public final class StripMine {
     }
 
     /**
-     * Which suspects to switch off: the second half of them, minus any a switched-on mod needs. If the needs pull the
-     * whole half back on, try the first half instead. Empty if neither half can be switched off on its own.
+     * Which jars to switch off this round: about half of the suspects, each together with every jar that needs it
+     * (an addon can't load without its base mod, so it goes off with it). Those extra jars may already be cleared;
+     * switching them off doesn't change the test, because only one mod causes the crash. Suspects with the fewest
+     * dependents go first, so a library everything needs doesn't take the whole pack down with it. Empty if no split
+     * leaves at least one suspect on and one off.
      */
     static List<String> plan(List<String> suspects, Map<String, ModJar> jars) {
-        int half = suspects.size() / 2;
-        List<String> second = closeOver(suspects.subList(half, suspects.size()), jars);
-        if (!second.isEmpty() && second.size() < suspects.size()) return second;
-        List<String> first = closeOver(suspects.subList(0, half), jars);
-        if (!first.isEmpty() && first.size() < suspects.size()) return first;
-        return List.of();
+        Map<String, Set<String>> closure = new HashMap<>();
+        for (String s : suspects) closure.put(s, withDependents(s, jars));
+        Set<String> suspectSet = new HashSet<>(suspects);
+        List<String> order = new ArrayList<>(suspects);
+        order.sort(Comparator.comparingInt((String s) -> tested(closure.get(s), suspectSet))
+                .thenComparing(String.CASE_INSENSITIVE_ORDER));
+        int target = suspects.size() / 2;
+        Set<String> off = new LinkedHashSet<>();
+        for (String s : order) {
+            if (tested(off, suspectSet) >= target) break;
+            if (off.contains(s)) continue;
+            Set<String> next = new LinkedHashSet<>(off);
+            next.addAll(closure.get(s));
+            if (tested(next, suspectSet) >= suspects.size()) continue; // would leave no suspect on
+            off = next;
+        }
+        return tested(off, suspectSet) == 0 ? List.of() : new ArrayList<>(off);
     }
 
-    /** {@code wanted} without the jars that a jar staying on needs (repeated until nothing changes). */
-    static List<String> closeOver(List<String> wanted, Map<String, ModJar> jars) {
-        Set<String> off = new LinkedHashSet<>(wanted);
+    private static int tested(Set<String> off, Set<String> suspects) {
+        int n = 0;
+        for (String f : off) if (suspects.contains(f)) n++;
+        return n;
+    }
+
+    /** {@code jar} plus every jar that needs it, directly or through others (never Check Engine). */
+    static Set<String> withDependents(String jar, Map<String, ModJar> jars) {
+        Set<String> out = new LinkedHashSet<>(List.of(jar));
         boolean changed = true;
         while (changed) {
             changed = false;
-            Set<String> onIds = new HashSet<>();
-            for (ModJar j : jars.values()) if (!off.contains(j.fileName())) onIds.addAll(ids(j));
+            Set<String> offIds = new HashSet<>();
+            for (String f : out) if (jars.containsKey(f)) offIds.addAll(ids(jars.get(f)));
+            // An id another switched-on jar still provides (a duplicate) doesn't go missing.
+            Set<String> stillOn = new HashSet<>();
+            for (ModJar j : jars.values()) if (!out.contains(j.fileName())) stillOn.addAll(ids(j));
             for (ModJar j : jars.values()) {
-                if (off.contains(j.fileName())) continue;
-                for (ModInfo m : j.mods()) {
-                    for (Dependency d : m.dependencies()) {
-                        if (d.type() != Dependency.Type.REQUIRED || onIds.contains(d.modId())) continue;
-                        for (ModJar provider : jars.values()) {
-                            if (off.contains(provider.fileName()) && ids(provider).contains(d.modId())) {
-                                off.remove(provider.fileName());
-                                onIds.addAll(ids(provider));
-                                changed = true;
-                            }
-                        }
-                    }
+                if (out.contains(j.fileName()) || isCheckEngine(j)) continue;
+                boolean needs = j.mods().stream().flatMap(m -> m.dependencies().stream())
+                        .anyMatch(d -> d.type() == Dependency.Type.REQUIRED && offIds.contains(d.modId())
+                                && !stillOn.contains(d.modId()));
+                if (needs) {
+                    out.add(j.fileName());
+                    changed = true;
                 }
             }
         }
-        return new ArrayList<>(off);
+        return out;
     }
 
     // ---- files ----
