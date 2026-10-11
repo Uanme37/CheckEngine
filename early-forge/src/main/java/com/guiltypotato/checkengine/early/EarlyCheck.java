@@ -74,7 +74,15 @@ public class EarlyCheck implements IDependencyLocator {
         if (!rules.isEmpty()) {
             // Forge may not have added the mods packed inside other jars yet: count them too before saying anything.
             scan = waitForScan();
-            if (scan != null) rules = DependencyRules.check(mods, nestedMods(scan));
+            if (scan == null) {
+                // Without the scan, mods packed inside other jars (Kotlin for Forge, Puzzles Access API...) look
+                // missing. Not sure means not saying "won't start": never be the reason a pack doesn't load.
+                LOGGER.warn("Check Engine: the mods folder scan didn't finish in time, so possible problems are only logged: {}",
+                        rules.stream().map(LoadBlockers.Blocker::toString).toList());
+                intercept(repeat, folder);
+                return List.of();
+            }
+            rules = DependencyRules.check(mods, nestedMods(scan));
         }
         if (rules.isEmpty()) {
             LOGGER.info("Check Engine: nothing will stop loading");
@@ -163,7 +171,7 @@ public class EarlyCheck implements IDependencyLocator {
 
     private static Report waitForScan() {
         try {
-            return EarlyHandoff.scan().get(10, TimeUnit.SECONDS);
+            return EarlyHandoff.scan().get(30, TimeUnit.SECONDS); // a big pack on a busy disk can take a while
         } catch (Exception e) {
             return null;
         }
