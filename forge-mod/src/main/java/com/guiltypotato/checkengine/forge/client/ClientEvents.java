@@ -6,6 +6,7 @@ import com.guiltypotato.checkengine.forge.StartupTimer;
 import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
+import com.guiltypotato.checkengine.core.strip.StripMine;
 import java.util.List;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -31,10 +32,20 @@ public final class ClientEvents {
             if (ours != null) event.setNewScreen(ours);
             return;
         }
-        if (checked || !(event.getNewScreen() instanceof TitleScreen title)) return;
+        if (!(event.getNewScreen() instanceof TitleScreen title)) return;
+        boolean first = !checked;
         checked = true;
-        BootCheck.launchSucceeded();
-        StartupTimer.finish(false);
+        if (first) {
+            BootCheck.launchSucceeded();
+            StartupTimer.finish(false);
+        }
+        // Strip Mine: each round's result, or the answer, goes in front of everything else.
+        Screen strip = StripMineScreens.onTitle(title, event.getCurrentScreen());
+        if (strip != null) {
+            event.setNewScreen(strip);
+            return;
+        }
+        if (!first || StripMine.running(BootCheck.outputFolder()) != null) return;
         Report report = BootCheck.get();
         Screen next = title;
         if (report != null) {

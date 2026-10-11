@@ -29,6 +29,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]
                    java -jar checkengine-cli.jar compare <pack folder> <server folder or server pack .zip>
                    java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
+                   java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -52,6 +53,7 @@ public final class CheckEngineCli {
         if (args[0].equals("serverpack")) return serverPack(args);
         if (args[0].equals("compare")) return compare(args);
         if (args[0].equals("export")) return export(args);
+        if (args[0].equals("stripmine")) return StripMineCli.run(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;

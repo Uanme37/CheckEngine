@@ -80,6 +80,8 @@ public final class BootCheck {
         recordMemory();
         Report report = get();
         if (report == null) return;
+        // During a Strip Mine search half the pack is switched off on purpose: that's not "the pack that worked".
+        if (com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) return;
         try {
             PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
         } catch (IOException | RuntimeException e) {

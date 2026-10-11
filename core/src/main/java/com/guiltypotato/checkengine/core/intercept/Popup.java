@@ -61,7 +61,7 @@ final class Popup {
         System.setProperty("java.awt.headless", "false");
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        Color level = m.level() == Level.WILL_FAIL ? RED : AMBER;
+        Color level = m.level() == Level.WILL_FAIL ? RED : m.level() == Level.FOUND ? GREEN : AMBER;
         AtomicReference<Choice> choice = new AtomicReference<>(Choice.CONTINUE);
 
         JDialog d = new JDialog((java.awt.Frame) null, "Check Engine", true);
@@ -97,7 +97,8 @@ final class Popup {
         // Body: the problem, what changed, the fix, each in its own dashboard panel.
         JPanel body = column();
         JPanel problem = panel(level);
-        problem.add(label(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG" : "LAST CRASH", font(Font.BOLD, 12), level));
+        problem.add(label(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
+                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", font(Font.BOLD, 12), level));
         JPanel list = column();
         for (int i = 0; i < m.problems().size(); i++) {
             list.add(label(m.problems().get(i), font(Font.BOLD, i == 0 ? 15 : 14), TEXT));
@@ -119,7 +120,7 @@ final class Popup {
             JPanel fix = panel(GREEN);
             fix.add(label("FIX", font(Font.BOLD, 12), GREEN));
             JPanel lines = column();
-            m.fixes().forEach(f -> lines.add(label(m.fixes().size() > 1 ? "2022 " + f : f, font(Font.PLAIN, 14), TEXT)));
+            m.fixes().forEach(f -> lines.add(label(m.fixes().size() > 1 ? "• " + f : f, font(Font.PLAIN, 14), TEXT)));
             fix.add(fit(lines));
             body.add(fix);
         }
@@ -171,6 +172,7 @@ final class Popup {
     /** "CE-01 · MISSING MOD": a car-style fault code for the first problem. */
     static String faultCode(Message m) {
         if (m.level() == Level.MAY_FAIL) return "CE-09  ·  REPEAT CRASH";
+        if (m.level() == Level.FOUND) return "CE-10  ·  STRIP MINE RESULT";
         String p = m.problems().get(0).toLowerCase();
         if (p.contains("fabric version") || p.contains("wrong build")) return "CE-02  ·  WRONG BUILD";
         if (p.contains("broken")) return "CE-03  ·  BROKEN FILE";

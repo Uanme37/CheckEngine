@@ -6,6 +6,7 @@ import com.guiltypotato.checkengine.StartupTimer;
 import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
+import com.guiltypotato.checkengine.core.strip.StripMine;
 import java.util.List;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -34,7 +35,25 @@ public final class ClientEvents {
             if (ours != null) event.setNewScreen(ours);
             return;
         }
-        if (done || !(event.getNewScreen() instanceof TitleScreen title)) return;
+        if (!(event.getNewScreen() instanceof TitleScreen title)) return;
+        // Strip Mine: each round's result, or the answer, goes in front of everything else. 26.1 can open the title
+        // screen again while ours is waiting for an answer: keep ours.
+        if (StripMineScreens.open && event.getCurrentScreen() == StripMineScreens.showing) {
+            event.setNewScreen(event.getCurrentScreen());
+            return;
+        }
+        Screen strip = StripMineScreens.onTitle(title, event.getCurrentScreen());
+        if (strip != null) {
+            if (!memoryRecorded) {
+                memoryRecorded = true;
+                BootCheck.launchSucceeded();
+                StartupTimer.finish(false);
+            }
+            event.setNewScreen(strip);
+            return;
+        }
+        if (StripMine.running(BootCheck.outputFolder()) != null) return;
+        if (done) return;
         CheckEngine.LOGGER.debug("Check Engine: title screen opening over {}", event.getCurrentScreen());
         if (!memoryRecorded) {
             memoryRecorded = true;

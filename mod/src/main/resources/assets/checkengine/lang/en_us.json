@@ -17,5 +17,6 @@
   "checkengine.crash.changed": "Changed since the pack last worked:",
   "checkengine.crash.open_details": "Open details",
   "checkengine.crash.open_crash": "Crash report",
-  "checkengine.crash.help": "Make help file"
+  "checkengine.crash.help": "Make help file",
+  "checkengine.crash.strip_mine": "Strip Mine"
 }

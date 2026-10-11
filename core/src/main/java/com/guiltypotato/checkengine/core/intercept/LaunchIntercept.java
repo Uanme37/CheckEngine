@@ -6,6 +6,8 @@ import com.guiltypotato.checkengine.core.scan.Changes;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.RootProblem;
+import com.guiltypotato.checkengine.core.strip.StripMine;
+import com.guiltypotato.checkengine.core.strip.StripMineHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -28,7 +30,9 @@ public final class LaunchIntercept {
         /** The loader's own rules say the pack can't start. */
         WILL_FAIL,
         /** The last launch crashed and no mods changed since: it will very likely crash the same way. */
-        MAY_FAIL
+        MAY_FAIL,
+        /** Strip Mine finished: here's the mod behind the crash. */
+        FOUND
     }
 
     public enum Choice { QUIT, CONTINUE }
@@ -45,6 +49,7 @@ public final class LaunchIntercept {
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report) {
         public String headline() {
+            if (level == Level.FOUND) return problems.size() == 1 ? "STRIP MINE FOUND IT" : "STRIP MINE NARROWED IT DOWN";
             return level == Level.WILL_FAIL ? "STARTUP WILL FAIL" : "STARTUP WILL PROBABLY FAIL AGAIN";
         }
 
@@ -85,6 +90,20 @@ public final class LaunchIntercept {
                 main.fix() == null ? List.of() : List.of(main.fix()), report);
     }
 
+    /** What Strip Mine found, for the window. */
+    static Message stripMineResult(StripMine.State done, Path report) {
+        String found = done.found();
+        List<String> problems = found != null ? List.of(found + " causes the crash")
+                : done.suspects().stream().map(f -> f + " (one of these)").toList();
+        List<String> details = new ArrayList<>();
+        if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
+        details.add("Found in " + done.round() + " rounds. Every mod is switched back on.");
+        String fix = found != null
+                ? "Update " + found + ", or remove it. If you already have the newest version, send the crash report to its author."
+                : "These mods need each other, so Strip Mine can't split them. Update them, or remove them one at a time.";
+        return new Message(Level.FOUND, problems, details, List.of(), List.of(fix), report);
+    }
+
     /** The mods of the latest launch, whether it worked or crashed. */
     static final String LAST_LAUNCH_FILE = "last-launch.properties";
 
@@ -93,6 +112,27 @@ public final class LaunchIntercept {
      * mods are exactly the same now, returns the "will probably fail again" warning (else null).
      */
     public static Message repeatCrash(Path gameDir, Path checkEngineFolder, PackSnapshot now) {
+        // Strip Mine round: crashes are expected and the pack is half switched off on purpose. Start the helper that
+        // sets up the next round once this game closes, and stay quiet.
+        if (StripMine.running(checkEngineFolder) != null) {
+            StripMineHelper.launch(gameDir, gameDir.resolve("mods"), checkEngineFolder);
+            return null;
+        }
+        // Strip Mine just finished. Every mod is back on, so a crash-on-load pack crashes again before the title
+        // screen: the answer has to come now. Shown once.
+        StripMine.State done = StripMine.finished(checkEngineFolder);
+        if (done != null && enabled(checkEngineFolder)) {
+            try {
+                Path report = checkEngineFolder.resolve("strip-mine-result.txt");
+                Message m = stripMineResult(done, report);
+                Files.writeString(report, m.toText() + "\n\n" + String.join("\n", done.notes()) + "\n",
+                        StandardCharsets.UTF_8);
+                StripMine.clear(checkEngineFolder);
+                return m;
+            } catch (IOException ignored) {
+                // shown on the title screen instead
+            }
+        }
         PackSnapshot previous = PackSnapshot.load(checkEngineFolder, LAST_LAUNCH_FILE);
         boolean previousStarted = reachedTitleScreen(checkEngineFolder);
         try {

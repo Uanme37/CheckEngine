@@ -50,6 +50,7 @@ if /i "%PACK:~-4%"==".zip" (
     exit /b
 )
 
+if exist "%PACK%\checkengine\strip-mine.properties" call :stripcheck
 echo.
 if not exist "%PACK%\checkengine" mkdir "%PACK%\checkengine" 2>nul
 "%JAVA%" -jar "%JAR%" scan "%PACK%" --out "%PACK%\checkengine\check-report.txt"
@@ -95,8 +96,22 @@ exit /b
 echo.
 set "SHOW="
 set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
-if /i "%SHOW%"=="y" "%JAVA%" -jar "%JAR%" crash "%PACK%"
+if /i not "%SHOW%"=="y" exit /b
+"%JAVA%" -jar "%JAR%" crash "%PACK%"
+echo.
+set "DIG="
+set /p "DIG=Not sure which mod causes it? Strip Mine can find it, one launch per round (y/n): "
+if /i "%DIG%"=="y" "%JAVA%" -jar "%JAR%" stripmine "%PACK%"
 exit /b
+
+:stripcheck
+findstr /b /c:"status=RUNNING" /c:"status=PENDING" "%PACK%\checkengine\strip-mine.properties" >nul 2>&1 || exit /b
+echo.
+echo A Strip Mine search is running for this pack.
+"%JAVA%" -jar "%JAR%" stripmine "%PACK%"
+echo.
+pause
+exit
 
 :try
 if defined JAVA exit /b

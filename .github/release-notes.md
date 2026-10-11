@@ -1,31 +1,41 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.10.0.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.11.0.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.10.0.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.11.0.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.10.0.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.10.0.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.10.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.10.0.jar compare <pack folder> <server folder or server pack .zip>
-java -jar checkengine-cli-0.10.0.jar export <pack folder>
+java -jar checkengine-cli-0.11.0.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.11.0.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.11.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.11.0.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.11.0.jar export <pack folder>
+java -jar checkengine-cli-0.11.0.jar stripmine <pack folder>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.10.0.jar** for NeoForge 26.1.2 and newer 26.1.x
-- **checkengine-neoforge-1.21.1-0.10.0.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.10.0.jar** for Forge 1.20.1
+- **checkengine-neoforge-26.1-0.11.0.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-1.21.1-0.11.0.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.11.0.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
 
+## What's new in 0.11.0
+**Strip Mine: find the mod behind a crash nobody can explain.**
+- When Crash Doctor can't tell which mod crashed the game, press **Strip Mine**. Check Engine switches off half of your mods, you launch, and the result narrows it down: crash means the bad mod is still on, no crash means it's in the half that was off. A 400-mod pack takes about 9 launches instead of hours of guessing.
+- Mods a switched-on mod needs stay on, so a test launch doesn't fail for a different reason.
+- Nothing is deleted: mods are renamed to .disabled and switched back on at the end. Your own .disabled files are never touched. Stop any time and everything goes back.
+- Just keep pressing Play: Check Engine reads each result by itself (crash or title screen) and sets up the next round when the game closes. At the end a window says which mod it was.
+- Also in Check Pack.bat, for packs that can't start at all: it walks you through each round.
+- Fixed: a bullet in the pre-launch window showed as "2022" when there was more than one fix.
+
 ## What's new in 0.10.0
-**Crash Doctor understands two more kinds of crashes:**
+**Crash Doctor understands three more kinds of crashes:**
 - **"Registered twice" crashes** (like "Duplicate client extensions registration for Block{create:belt}"): it says which thing was added twice and why that happens: the mod is installed twice, something made its setup run twice, or an addon made for a different version adds the same thing. With the fix.
 - **Mixin clashes:** when two mods patch the same game code, it now names both of them instead of just one, and tells you to update both or remove one.
 - **Random timing crashes:** big packs set mods up in parallel, and sometimes two mods break a shared list at the same moment (like ChillOut with Player Animator). Crash Doctor now says it's random and to just launch again, and the pre-launch window no longer warns "will probably fail again" for it.

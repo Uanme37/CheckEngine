@@ -32,9 +32,9 @@ public final class CrashDoctorScreen extends Screen {
 
     @Override
     protected void init() {
-        int w = 95;
+        int w = 80;
         int y = height - 30;
-        int x = width / 2 - (w * 4 + 15) / 2;
+        int x = width / 2 - (w * 5 + 20) / 2;
         addRenderableWidget(Button.builder(Component.translatable("checkengine.crash.open_details"), b -> {
             try {
                 Path details = crash.save(BootCheck.outputFolder());
@@ -53,8 +53,11 @@ public final class CrashDoctorScreen extends Screen {
                 CheckEngine.LOGGER.warn("Check Engine: couldn't make the help file", e);
             }
         }).bounds(x + (w + 5) * 2, y, w, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("checkengine.screen.continue"), b -> onClose())
+        addRenderableWidget(Button.builder(Component.translatable("checkengine.crash.strip_mine"),
+                b -> minecraft.setScreen(StripMineScreens.confirmStart(this, crash)))
                 .bounds(x + (w + 5) * 3, y, w, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("checkengine.screen.continue"), b -> onClose())
+                .bounds(x + (w + 5) * 4, y, w, 20).build());
     }
 
     @Override
