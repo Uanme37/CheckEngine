@@ -184,6 +184,17 @@ public final class StripMine {
         return apply(modsFolder, checkEngineFolder, pending);
     }
 
+    /** Plans the current round again (game closed), e.g. after an update to how rounds are split. */
+    public static State replan(Path modsFolder, Path checkEngineFolder) throws IOException {
+        State s = load(checkEngineFolder);
+        if (s == null || !s.active()) return s;
+        List<String> plan = plan(s.suspects(), readJars(modsFolder, s.disabled()));
+        if (plan.isEmpty()) return s;
+        State pending = s.with(Status.PENDING, s.round(), s.suspects(), plan, s.disabled(), 0, s.notes());
+        save(checkEngineFolder, pending);
+        return apply(modsFolder, checkEngineFolder, pending);
+    }
+
     /** How the round that started at {@code roundStart} went: a new crash report, the title screen, or neither. */
     static Outcome outcome(Path gameDir, Path checkEngineFolder, long roundStart) {
         if (newestCrash(gameDir, roundStart) != null) return Outcome.CRASHED;

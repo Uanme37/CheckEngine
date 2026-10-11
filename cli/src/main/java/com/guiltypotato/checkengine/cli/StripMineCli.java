@@ -38,6 +38,12 @@ final class StripMineCli {
                         + " mods switched off.");
                 return 0;
             }
+            if (args.length > 2 && args[2].equals("replan")) {
+                State s = StripMine.replan(mods, folder);
+                System.out.println(s == null ? "No search." : "Round " + s.round() + ": " + s.disabled().size()
+                        + " mods switched off, " + s.suspects().size() + " suspects.");
+                return 0;
+            }
             if (args.length > 2 && args[2].equals("status")) {
                 State s = StripMine.load(folder);
                 System.out.println(s == null ? "No search." : s.status() + " round " + s.round() + ", suspects "
