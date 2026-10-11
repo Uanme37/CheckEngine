@@ -47,16 +47,23 @@ public final class LaunchIntercept {
      * @param report    the full report "Show full error" opens, or null
      * @param stripMine starts a Strip Mine search for this crash (the window then offers it), or null
      * @param stripMineMods how many mods a search would go through, for the window's explanation
+     * @param stripMineLocked whether CurseForge has the pack locked right now (checked again on Start), or null
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
-                          List<String> fixes, Path report, Runnable stripMine, int stripMineMods) {
+                          List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
+                          java.util.function.BooleanSupplier stripMineLocked) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null, 0);
+            this(level, problems, details, changed, fixes, report, null, 0, null);
         }
 
-        Message withStripMine(Runnable start, int mods) {
-            return new Message(level, problems, details, changed, fixes, report, start, mods);
+        Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
+            return new Message(level, problems, details, changed, fixes, report, start, mods, locked);
+        }
+
+        /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
+        public boolean isStripMineLocked() {
+            return stripMineLocked != null && stripMineLocked.getAsBoolean();
         }
 
         /** About how many launches a Strip Mine search takes. */
@@ -201,7 +208,7 @@ public final class LaunchIntercept {
             } catch (IOException ignored) {
                 // fewer than 2 mods, or the folder can't be written: nothing to search
             }
-        }, modCount);
+        }, modCount, () -> StripMine.lockedByCurseForge(gameDir));
     }
 
     /**

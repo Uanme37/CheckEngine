@@ -112,6 +112,12 @@ final class StripMineCli {
         if (crash != null) System.out.println("The crash it's looking for: " + crash);
         String when = ask("Does it crash while loading, before the title screen? (y/n): ");
         if (!when.equals("y") && !when.equals("n")) return null;
+        while (StripMine.lockedByCurseForge(game)) {
+            System.out.println();
+            System.out.println("CurseForge has this pack locked, so it would put switched-off mods straight back.");
+            System.out.println(StripMine.UNLOCK_STEPS);
+            if (!ask("Press Enter when it's on (or type stop): ").isEmpty()) return null;
+        }
         if (!ask("Make sure the game is closed, then start? (y/n): ").equals("y")) return null;
         State s = StripMine.start(mods, folder, crash == null ? "the crash" : crash, when.equals("y"), true);
         System.out.println(s.suspects().size() + " mods to search.");

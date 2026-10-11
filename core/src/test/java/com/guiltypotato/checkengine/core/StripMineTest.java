@@ -182,6 +182,21 @@ class StripMineTest {
         assertEquals(22, enabled().size(), "nothing renamed until the game is closed");
     }
 
+    /** A pack CurseForge keeps locked would get its switched-off mods downloaded again: refuse until unlocked. */
+    @Test
+    void aLockedCurseForgePackIsRefusedUntilUnlocked() throws Exception {
+        pack();
+        Path record = game.resolve("minecraftinstance.json");
+        Files.writeString(record, "{\"name\":\"Pack\",\"isUnlocked\":false,\"installedAddons\":[]}");
+        assertTrue(StripMine.lockedByCurseForge(game));
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class,
+                () -> StripMine.start(mods(), folder(), "Game crashed", true, true));
+        assertEquals(22, enabled().size(), "nothing renamed");
+        Files.writeString(record, "{\"name\":\"Pack\",\"isUnlocked\":true,\"installedAddons\":[]}");
+        assertFalse(StripMine.lockedByCurseForge(game));
+        assertEquals(Status.RUNNING, StripMine.start(mods(), folder(), "Game crashed", true, true).status());
+    }
+
     @Test
     void stopPutsEverythingBack() throws Exception {
         pack();

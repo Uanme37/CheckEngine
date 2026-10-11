@@ -193,6 +193,20 @@ final class Popup {
         page.add(header, BorderLayout.NORTH);
 
         JPanel body = column();
+        // CurseForge-installed packs are locked: the app would download the switched-off mods again.
+        JLabel lockState = label("", font(Font.BOLD, 13), RED);
+        if (m.isStripMineLocked()) {
+            JPanel unlock = panel(RED);
+            unlock.add(label("FIRST: LET STRIP MINE CHANGE THIS PACK", font(Font.BOLD, 12), RED));
+            unlock.add(label("CurseForge has this pack locked, so it would put switched-off mods straight back.",
+                    font(Font.PLAIN, 14), TEXT));
+            unlock.add(label("In the CurseForge app: three dots next to Play > Profile options >", font(Font.PLAIN, 14),
+                    TEXT));
+            unlock.add(label("turn on \"Allow content management\". Then press Start.", font(Font.PLAIN, 14), TEXT));
+            unlock.add(lockState);
+            body.add(unlock);
+            body.add(Box.createVerticalStrut(6));
+        }
         JPanel how = panel(AMBER);
         how.add(label("HOW IT WORKS", font(Font.BOLD, 12), AMBER));
         how.add(label("Check Engine switches off half of your mods, and you launch.", font(Font.PLAIN, 14), TEXT));
@@ -219,7 +233,15 @@ final class Popup {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttons.setOpaque(false);
         buttons.add(button("BACK", new Color(0x3A3D45), back));
-        buttons.add(button("START STRIP MINE", new Color(0x8A5A12), start));
+        buttons.add(button("START STRIP MINE", new Color(0x8A5A12), () -> {
+            if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
+                lockState.setText("Still locked: turn on \"Allow content management\" first.");
+                java.awt.Window w = javax.swing.SwingUtilities.getWindowAncestor(lockState);
+                if (w != null) w.pack(); // make room for the line
+                return;
+            }
+            start.run();
+        }));
         page.add(buttons, BorderLayout.SOUTH);
         return page;
     }

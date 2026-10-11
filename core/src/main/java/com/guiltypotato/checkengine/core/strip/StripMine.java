@@ -109,6 +109,26 @@ public final class StripMine {
 
     // ---- starting and stopping ----
 
+    /** What to tell the player when CurseForge has the pack locked. */
+    public static final String UNLOCK_STEPS = "In the CurseForge app, click the three dots next to Play, open Profile "
+            + "options and turn on \"Allow content management\".";
+
+    /**
+     * Whether the CurseForge app has this pack locked (installed as it came, "Allow content management" off). The app
+     * then checks the mod files at every launch and downloads the ones Strip Mine switched off again, which wrecks the
+     * search (and leaves duplicate files). The app saves the switch to minecraftinstance.json right away.
+     */
+    public static boolean lockedByCurseForge(Path gameDir) {
+        Path record = gameDir.resolve("minecraftinstance.json");
+        if (!Files.isRegularFile(record)) return false;
+        try {
+            String text = Files.readString(record, StandardCharsets.UTF_8);
+            return java.util.regex.Pattern.compile("\"isUnlocked\"\\s*:\\s*false").matcher(text).find();
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
     /**
      * Starts a search over every mod in {@code modsFolder} except Check Engine. With {@code applyNow} the files are
      * renamed straight away (Check Pack.bat, game closed); without it the plan waits for {@link #advance} after the
@@ -117,6 +137,9 @@ public final class StripMine {
     public static State start(Path modsFolder, Path checkEngineFolder, String crash, boolean startup,
                               boolean applyNow)
             throws IOException {
+        if (lockedByCurseForge(modsFolder.getParent())) {
+            throw new IOException("CurseForge has this pack locked, so it would undo Strip Mine. " + UNLOCK_STEPS);
+        }
         Map<String, ModJar> jars = readJars(modsFolder, List.of());
         List<String> suspects = new ArrayList<>();
         for (ModJar jar : jars.values()) {

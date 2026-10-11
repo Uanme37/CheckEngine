@@ -43,6 +43,15 @@ final class StripMineScreens {
                 Minecraft.getInstance().setScreen(back);
                 return;
             }
+            if (StripMine.lockedByCurseForge(game())) { // checked again: the app saves the switch right away
+                Minecraft.getInstance().setScreen(show(new ConfirmScreen(again -> {
+                    open = false;
+                    Minecraft.getInstance().setScreen(again ? confirmStart(back, crash) : back);
+                }, Component.literal("Still locked"),
+                        Component.literal("CurseForge still has this pack locked. " + StripMine.UNLOCK_STEPS),
+                        Component.literal("I've done it"), Component.literal("Back"))));
+                return;
+            }
             try {
                 StripMine.start(mods(), BootCheck.outputFolder(), crash.main().title(),
                         StripMine.isStartupCrash(crash.explained().description()), false);
@@ -55,7 +64,9 @@ final class StripMineScreens {
         }, Component.literal("Strip Mine: find the mod behind this crash"),
                 Component.literal("Check Engine switches off half of your mods, you launch, and the result narrows it "
                         + "down. About " + rounds + " rounds for " + mods + " mods. Nothing is deleted, and you can stop "
-                        + "any time.\n\nQuit the game now to set up round 1?"),
+                        + "any time." + (StripMine.lockedByCurseForge(game()) ? "\n\nFirst: CurseForge has this pack "
+                        + "locked, so it would put switched-off mods straight back. " + StripMine.UNLOCK_STEPS : "")
+                        + "\n\nQuit the game now to set up round 1?"),
                 Component.literal("Quit and start"), Component.literal("Cancel")));
     }
 
