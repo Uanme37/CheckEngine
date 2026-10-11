@@ -68,9 +68,12 @@ public final class StripMine {
      * @param roundStart  when the files for this round were put in place (ms), 0 if not yet
      * @param startCount  how many suspects there were at the start
      * @param notes       one line per finished round, for the final report
+     * @param keepOn      jars a test launch showed other mods need without saying so: never switched off
+     * @param retries     how many times this round had to be set up again after a different crash
      */
     public record State(String crash, boolean startup, Status status, int round, List<String> suspects, List<String> toDisable,
-                        List<String> disabled, long roundStart, int startCount, List<String> notes) {
+                        List<String> disabled, long roundStart, int startCount, List<String> notes,
+                        List<String> keepOn, int retries) {
         public boolean active() {
             return status == Status.PENDING || status == Status.RUNNING;
         }
@@ -86,7 +89,12 @@ public final class StripMine {
         }
 
         State with(Status s, int r, List<String> sus, List<String> off, List<String> dis, long start, List<String> n) {
-            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n);
+            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n, keepOn, retries);
+        }
+
+        State retry(List<String> keep, int tries) {
+            return new State(crash, startup, status, round, suspects, toDisable, disabled, roundStart, startCount, notes,
+                    keep, tries);
         }
     }
 
@@ -110,7 +118,8 @@ public final class StripMine {
         }
         suspects.sort(String.CASE_INSENSITIVE_ORDER);
         if (suspects.size() < 2) throw new IOException("Strip Mine needs at least 2 mods to search.");
-        State s = new State(crash, startup, Status.PENDING, 1, suspects, List.of(), List.of(), 0, suspects.size(), List.of());
+        State s = new State(crash, startup, Status.PENDING, 1, suspects, List.of(), List.of(), 0, suspects.size(),
+                List.of(), List.of(), 0);
         s = s.with(Status.PENDING, 1, suspects, plan(suspects, jars), List.of(), 0, List.of());
         save(checkEngineFolder, s);
         return applyNow ? apply(modsFolder, checkEngineFolder, s) : s;
@@ -165,6 +174,20 @@ public final class StripMine {
         if (s.status() == Status.PENDING) return apply(modsFolder, checkEngineFolder, s);
 
         Outcome outcome = override != null ? override : outcome(gameDir, checkEngineFolder, s.roundStart());
+        if (override == null && outcome != Outcome.WORKED) {
+            // Did the test launch fail the same way as the original crash? Switching mods off can break others in
+            // new ways (a mod that uses a library without saying so): that round tells nothing about the original.
+            Path report = newestCrash(gameDir, s.roundStart());
+            String evidence = report != null ? read(report) : recentLog(gameDir, s.roundStart());
+            String title = report != null ? title(evidence) : null;
+            boolean different = title != null && !title.equals(s.crash());
+            Set<String> learned = evidence == null ? Set.of() : neededJars(evidence, modsFolder, s.disabled());
+            // A crash over a class or mod from a jar Strip Mine switched off can never be the original crash: that
+            // one happened with every mod on.
+            if (different || !learned.isEmpty()) {
+                return retry(modsFolder, checkEngineFolder, s, learned, title);
+            }
+        }
         if (outcome == Outcome.UNKNOWN) return s; // the game was closed before crashing or loading: same round again
 
         Set<String> off = new HashSet<>(s.toDisable());
@@ -177,9 +200,9 @@ public final class StripMine {
 
         if (next.size() == 1) return finish(modsFolder, checkEngineFolder, s, Status.FOUND, next, notes);
         Map<String, ModJar> jars = readJars(modsFolder, s.disabled());
-        List<String> plan = plan(next, jars);
+        List<String> plan = plan(next, jars, new HashSet<>(s.keepOn()), next.size() / 2);
         if (plan.isEmpty()) return finish(modsFolder, checkEngineFolder, s, Status.STUCK, next, notes);
-        State pending = s.with(Status.PENDING, s.round() + 1, next, plan, s.disabled(), 0, notes);
+        State pending = s.retry(s.keepOn(), 0).with(Status.PENDING, s.round() + 1, next, plan, s.disabled(), 0, notes);
         save(checkEngineFolder, pending);
         return apply(modsFolder, checkEngineFolder, pending);
     }
@@ -188,11 +211,93 @@ public final class StripMine {
     public static State replan(Path modsFolder, Path checkEngineFolder) throws IOException {
         State s = load(checkEngineFolder);
         if (s == null || !s.active()) return s;
-        List<String> plan = plan(s.suspects(), readJars(modsFolder, s.disabled()));
+        List<String> plan = plan(s.suspects(), readJars(modsFolder, s.disabled()), new HashSet<>(s.keepOn()),
+                s.suspects().size() / 2);
         if (plan.isEmpty()) return s;
         State pending = s.with(Status.PENDING, s.round(), s.suspects(), plan, s.disabled(), 0, s.notes());
         save(checkEngineFolder, pending);
         return apply(modsFolder, checkEngineFolder, pending);
+    }
+
+    /**
+     * The round failed differently from the original crash. Keep on the jars the failure points at, and set the same
+     * round up again; with nothing to point at, switch fewer mods off. After a few tries, give up on splitting further.
+     */
+    private static State retry(Path modsFolder, Path checkEngineFolder, State s, Set<String> learned, String title)
+            throws IOException {
+        List<String> keep = new ArrayList<>(s.keepOn());
+        for (String f : learned) if (!keep.contains(f)) keep.add(f);
+        int tries = s.retries() + 1;
+        List<String> notes = new ArrayList<>(s.notes());
+        notes.add("Round " + s.round() + ": a different crash" + (title == null ? "" : " (" + title + ")")
+                + (learned.isEmpty() ? ", trying with fewer mods off" : ", keeping " + String.join(", ", learned)
+                + " on") + " and running it again");
+        State r = s.retry(keep, tries).with(s.status(), s.round(), s.suspects(), s.toDisable(), s.disabled(),
+                s.roundStart(), notes);
+        if (tries > 5) return finish(modsFolder, checkEngineFolder, r, Status.STUCK, s.suspects(), notes);
+        Map<String, ModJar> jars = readJars(modsFolder, s.disabled());
+        int target = s.suspects().size() / 2;
+        if (learned.isEmpty()) target = Math.max(1, target >> tries); // nothing to learn from: smaller steps
+        List<String> plan = plan(s.suspects(), jars, new HashSet<>(keep), target);
+        if (plan.isEmpty()) return finish(modsFolder, checkEngineFolder, r, Status.STUCK, s.suspects(), notes);
+        State pending = r.with(Status.PENDING, s.round(), s.suspects(), plan, s.disabled(), 0, notes);
+        save(checkEngineFolder, pending);
+        return apply(modsFolder, checkEngineFolder, pending);
+    }
+
+    private static final java.util.regex.Pattern MISSING_CLASS = java.util.regex.Pattern.compile(
+            "(?:NoClassDefFoundError|ClassNotFoundException)[:\\s]+([A-Za-z0-9_$./]+)");
+    private static final java.util.regex.Pattern MISSING_ID = java.util.regex.Pattern.compile(
+            "Mod '([a-z0-9_.-]+)' is not available|Missing mod: ([a-z0-9_.-]+)|Mod didn't load: ([a-z0-9_.-]+)"
+                    + "|Outdated mod: ([a-z0-9_.-]+)|Wrong version of ([a-z0-9_.-]+) for");
+
+    /** The switched-off jars a failure points at: ones holding a class it couldn't find, or a mod it said is missing. */
+    static Set<String> neededJars(String evidence, Path modsFolder, List<String> disabled) {
+        Set<String> classes = new HashSet<>();
+        java.util.regex.Matcher c = MISSING_CLASS.matcher(evidence);
+        while (c.find()) classes.add(c.group(1).replace('.', '/') + ".class");
+        Set<String> ids = new HashSet<>();
+        java.util.regex.Matcher m = MISSING_ID.matcher(evidence);
+        while (m.find()) for (int g = 1; g <= m.groupCount(); g++) if (m.group(g) != null) ids.add(m.group(g));
+        Set<String> out = new LinkedHashSet<>();
+        for (String f : disabled) {
+            Path p = modsFolder.resolve(f + DISABLED);
+            if (!Files.isRegularFile(p)) continue;
+            ModJar j = JarReader.read(p);
+            if (j.mods().stream().anyMatch(mod -> ids.contains(mod.modId()))) {
+                out.add(f);
+                continue;
+            }
+            if (classes.isEmpty()) continue;
+            try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(p.toFile())) {
+                if (classes.stream().anyMatch(k -> zip.getEntry(k) != null)) out.add(f);
+            } catch (IOException ignored) {
+                // unreadable: can't tell
+            }
+        }
+        return out;
+    }
+
+    private static String read(Path p) {
+        try {
+            return Files.readString(p, StandardCharsets.ISO_8859_1);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** This round's latest.log, if it was written since the round started. */
+    private static String recentLog(Path gameDir, long since) {
+        Path log = gameDir.resolve("logs").resolve("latest.log");
+        return modified(log) >= since ? read(log) : null;
+    }
+
+    private static String title(String crashReport) {
+        try {
+            return CrashTranslator.translate(crashReport).findings().get(0).title();
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** How the round that started at {@code roundStart} went: a new crash report, the title screen, or neither. */
@@ -262,13 +367,20 @@ public final class StripMine {
      * leaves at least one suspect on and one off.
      */
     static List<String> plan(List<String> suspects, Map<String, ModJar> jars) {
+        return plan(suspects, jars, Set.of(), suspects.size() / 2);
+    }
+
+    /** As {@link #plan(List, Map)}, never switching off a jar in {@code keepOn}, aiming for {@code target} suspects. */
+    static List<String> plan(List<String> suspects, Map<String, ModJar> jars, Set<String> keepOn, int target) {
         Map<String, Set<String>> closure = new HashMap<>();
-        for (String s : suspects) closure.put(s, withDependents(s, jars));
+        for (String s : suspects) {
+            Set<String> c = withDependents(s, jars);
+            if (c.stream().noneMatch(keepOn::contains)) closure.put(s, c);
+        }
         Set<String> suspectSet = new HashSet<>(suspects);
-        List<String> order = new ArrayList<>(suspects);
+        List<String> order = new ArrayList<>(closure.keySet());
         order.sort(Comparator.comparingInt((String s) -> tested(closure.get(s), suspectSet))
                 .thenComparing(String.CASE_INSENSITIVE_ORDER));
-        int target = suspects.size() / 2;
         Set<String> off = new LinkedHashSet<>();
         for (String s : order) {
             if (tested(off, suspectSet) >= target) break;
@@ -408,7 +520,8 @@ public final class StripMine {
                     Status.valueOf(p.getProperty("status")),
                     Integer.parseInt(p.getProperty("round", "1")), list(p, "suspects"), list(p, "to_disable"),
                     list(p, "disabled"), Long.parseLong(p.getProperty("round_start", "0")),
-                    Integer.parseInt(p.getProperty("start_count", "0")), list(p, "notes"));
+                    Integer.parseInt(p.getProperty("start_count", "0")), list(p, "notes"), list(p, "keep_on"),
+                    Integer.parseInt(p.getProperty("retries", "0")));
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -426,6 +539,8 @@ public final class StripMine {
         p.setProperty("round_start", Long.toString(s.roundStart()));
         p.setProperty("start_count", Integer.toString(s.startCount()));
         p.setProperty("notes", String.join("\n", s.notes()));
+        p.setProperty("keep_on", String.join("\n", s.keepOn()));
+        p.setProperty("retries", Integer.toString(s.retries()));
         Files.createDirectories(checkEngineFolder);
         Path tmp = checkEngineFolder.resolve(STATE_FILE + ".tmp");
         try (Writer out = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {

@@ -74,13 +74,58 @@ class StripMineTest {
         assertTrue(Files.exists(mods().resolve("old-1.0.jar.disabled")), "the player's own .disabled file is untouched");
     }
 
+    /**
+     * Like Beyond the Crank: "hidden" uses "sneaky"'s code without declaring it, so switching sneaky off alone makes
+     * hidden crash differently. Strip Mine must notice that isn't the original crash, keep sneaky on, and still find bad.
+     */
+    @Test
+    void aDifferentCrashFromAnUndeclaredLibraryIsLearnedNotCounted() throws Exception {
+        pack();
+        TestJars.neoMod("sneaky", "1.0", null).with("com/sneaky/Api.class", new byte[] {1})
+                .writeTo(mods(), "sneaky-1.0.jar");
+        TestJars.neoMod("hidden", "1.0", null).writeTo(mods(), "hidden-1.0.jar");
+        Path reports = game.resolve("crash-reports");
+        Files.createDirectories(reports);
+        String bad = "mod13-1.0.jar";
+        State s = StripMine.start(mods(), folder(), "Mod13 crashed while loading", true, true);
+        int launches = 0;
+        for (; launches < 30 && s.active(); launches++) {
+            List<String> on = enabled();
+            Thread.sleep(15);
+            if (on.contains(bad)) {
+                Files.writeString(reports.resolve("crash-" + launches + ".txt"), """
+                        Description: Mod loading error has occurred
+
+                        -- Mod loading issue for: mod13 --
+                        Details:
+                        	Failure message: Mod13 (mod13) has failed to load correctly
+                        		java.lang.IllegalStateException: boom
+                        """);
+            } else if (on.contains("hidden-1.0.jar") && !on.contains("sneaky-1.0.jar")) {
+                Files.writeString(reports.resolve("crash-" + launches + ".txt"), """
+                        Description: Initializing game
+
+                        java.lang.NoClassDefFoundError: com/sneaky/Api
+                        	at com.hidden.Hidden.init(Hidden.java:1) ~[hidden-1.0.jar%2312!/:?]
+                        """);
+            } else {
+                StripMine.markWorked(folder());
+            }
+            Thread.sleep(15);
+            s = StripMine.advance(game, mods(), folder(), null);
+        }
+        assertEquals(Status.FOUND, s.status(), String.join("\n", s.notes()));
+        assertEquals(bad, s.found());
+        assertTrue(launches <= 12, "took " + launches + " launches");
+    }
+
     @Test
     void checkEngineAndThePlayersDisabledModsAreNeverSuspects() throws Exception {
         pack();
         State s = StripMine.start(mods(), folder(), "Game crashed", true, false);
         assertFalse(s.suspects().stream().anyMatch(n -> n.startsWith("checkengine")));
         assertFalse(s.suspects().contains("old-1.0.jar"));
-        assertEquals(21, s.suspects().size());
+        assertEquals(21, s.suspects().size(), "20 mods and lib");
         assertEquals(Status.PENDING, s.status());
         assertEquals(22, enabled().size(), "nothing renamed until the game is closed");
     }
@@ -109,7 +154,9 @@ class StripMineTest {
     @Test
     void crashReportAndTitleScreenAreDetected() throws Exception {
         pack();
-        State s = StripMine.start(mods(), folder(), "Game crashed", true, true);
+        String crash = "Description: Initializing game\n\njava.lang.IllegalStateException: boom\n";
+        State s = StripMine.start(mods(), folder(), com.guiltypotato.checkengine.core.crash.CrashTranslator
+                .translate(crash).findings().get(0).title(), true, true);
         Thread.sleep(20);
         StripMine.markWorked(folder());
         State next = StripMine.advance(game, mods(), folder(), null);
@@ -118,7 +165,7 @@ class StripMineTest {
 
         Thread.sleep(20);
         Files.createDirectories(game.resolve("crash-reports"));
-        Files.writeString(game.resolve("crash-reports/crash-test.txt"), "Description: Initializing game\n");
+        Files.writeString(game.resolve("crash-reports/crash-test.txt"), crash);
         State third = StripMine.advance(game, mods(), folder(), null);
         assertEquals(next.round() + 1, third.round());
         assertFalse(third.suspects().stream().anyMatch(next.toDisable()::contains),

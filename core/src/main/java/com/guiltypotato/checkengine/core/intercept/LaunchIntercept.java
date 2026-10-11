@@ -211,6 +211,8 @@ public final class LaunchIntercept {
      * the first time, so players can find the switch.
      */
     public static boolean enabled(Path checkEngineFolder) {
+        // During a Strip Mine round the pack is half switched off on purpose: its problems aren't the player's.
+        if (StripMine.running(checkEngineFolder) != null) return false;
         Path file = checkEngineFolder.resolve(SETTINGS_FILE);
         Properties p = new Properties();
         if (Files.isRegularFile(file)) {
