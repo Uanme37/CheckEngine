@@ -49,7 +49,9 @@ public final class HelpBundle {
             }
             Path ce = gameDir.resolve("checkengine");
             for (String name : List.of("boot-report.txt", "early-report.txt", "last-crash.txt", "scan-report.txt",
-                    "startup-report.txt", "join-report.txt", PackSnapshot.FILE)) {
+                    "startup-report.txt", "join-report.txt", PackSnapshot.FILE,
+                    // Strip Mine: which round did what, so a report shows where a search went wrong.
+                    "strip-mine.properties", "strip-mine.log", "strip-mine-result.txt")) {
                 copy(zip, ce.resolve(name), "checkengine/" + name, redact);
             }
             copy(zip, gameDir.resolve("logs").resolve("latest.log"), "logs/latest.log", redact);
