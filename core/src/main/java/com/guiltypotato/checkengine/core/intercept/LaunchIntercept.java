@@ -35,7 +35,7 @@ public final class LaunchIntercept {
         FOUND
     }
 
-    public enum Choice { QUIT, CONTINUE }
+    public enum Choice { QUIT, CONTINUE, STRIP_MINE }
 
     /**
      * What the window says.
@@ -44,10 +44,20 @@ public final class LaunchIntercept {
      * @param details  extra lines under the first problem (what it stops)
      * @param changed  "+ Create Addon X 2.4.0" lines: what changed since the pack last worked
      * @param fixes    what to do, one per problem (same order), duplicates removed
-     * @param report   the full report "Show full error" opens, or null
+     * @param report    the full report "Show full error" opens, or null
+     * @param stripMine starts a Strip Mine search for this crash (the window then offers it), or null
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
-                          List<String> fixes, Path report) {
+                          List<String> fixes, Path report, Runnable stripMine) {
+        public Message(Level level, List<String> problems, List<String> details, List<String> changed,
+                       List<String> fixes, Path report) {
+            this(level, problems, details, changed, fixes, report, null);
+        }
+
+        Message withStripMine(Runnable start) {
+            return new Message(level, problems, details, changed, fixes, report, start);
+        }
+
         public String headline() {
             if (level == Level.FOUND) return problems.size() == 1 ? "STRIP MINE FOUND IT" : "STRIP MINE NARROWED IT DOWN";
             return level == Level.WILL_FAIL ? "STARTUP WILL FAIL" : "STARTUP WILL PROBABLY FAIL AGAIN";
@@ -154,7 +164,18 @@ public final class LaunchIntercept {
         } catch (IOException e) {
             details = crash.file();
         }
-        return mayFail(crash, details);
+        // A pack that crashes while loading never reaches Crash Doctor: offer Strip Mine right here.
+        Path mods = gameDir.resolve("mods");
+        String title = crash.main().title();
+        boolean startup = StripMine.isStartupCrash(crash.explained().description());
+        return mayFail(crash, details).withStripMine(() -> {
+            try {
+                StripMine.start(mods, checkEngineFolder, title, startup, false);
+                StripMineHelper.launch(gameDir, mods, checkEngineFolder);
+            } catch (IOException ignored) {
+                // fewer than 2 mods, or the folder can't be written: nothing to search
+            }
+        });
     }
 
     /**
@@ -216,7 +237,12 @@ public final class LaunchIntercept {
     /** Shows the window and waits for the player. Anything that goes wrong means CONTINUE: never block a launch. */
     public static Choice ask(Message message) {
         try {
-            return Popup.show(message, logo());
+            Choice c = Popup.show(message, logo());
+            if (c == Choice.STRIP_MINE && message.stripMine() != null) {
+                message.stripMine().run(); // the helper sets up round 1 once the game has closed
+                return Choice.QUIT;
+            }
+            return c;
         } catch (Throwable t) {
             try {
                 return Popup.simple(message);

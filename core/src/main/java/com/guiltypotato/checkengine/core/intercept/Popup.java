@@ -132,6 +132,14 @@ final class Popup {
             choice.set(Choice.QUIT);
             d.dispose();
         }));
+        if (m.stripMine() != null) {
+            JButton dig = button("STRIP MINE", new Color(0x8A5A12), () -> {
+                choice.set(Choice.STRIP_MINE);
+                d.dispose();
+            });
+            dig.setToolTipText("Find the mod behind this crash: switches off half the mods each launch. Nothing is deleted.");
+            buttons.add(dig);
+        }
         buttons.add(button("LOAD ANYWAY", new Color(0x3A3D45), d::dispose));
         JButton full = button("SHOW FULL ERROR", new Color(0x3A3D45), () -> openReport(m));
         full.setEnabled(m.report() != null);
