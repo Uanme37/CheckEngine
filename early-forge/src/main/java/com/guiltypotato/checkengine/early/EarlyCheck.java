@@ -13,6 +13,7 @@ import com.guiltypotato.checkengine.core.scan.PackScanner;
 import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.RootProblem;
+import com.guiltypotato.checkengine.core.strip.StripMine;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -93,6 +94,10 @@ public class EarlyCheck implements IDependencyLocator {
             // Another mod in the mods folder can add mods of its own after this check, so Forge might still be fine.
             LOGGER.warn("Check Engine: other mod-finding plugins are installed, so this is only logged");
             return List.of();
+        }
+        if (StripMine.running(folder) != null) {
+            // A Strip Mine round: mods are off on purpose, so advice about them would only mislead.
+            return List.of(new EarlyLoadingException.ExceptionData("{3}", IssueText.STRIP_MINE_ROUND));
         }
         intercept(LaunchIntercept.willFail(problems, scan == null ? null : scan.changes(), report), folder);
         List<EarlyLoadingException.ExceptionData> out = new ArrayList<>();

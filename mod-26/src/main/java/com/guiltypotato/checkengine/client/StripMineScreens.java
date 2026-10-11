@@ -95,11 +95,15 @@ final class StripMineScreens {
 
     private static Screen result(Screen title, StripMine.State s) {
         String found = s.found();
-        Component head = Component.literal(found != null ? "Strip Mine found it!" : "Strip Mine narrowed it down");
+        Component head = Component.literal(found != null ? "Strip Mine found it!"
+                : s.gaveUp() ? "Strip Mine couldn't finish" : "Strip Mine narrowed it down");
         Component text = Component.literal(found != null
                 ? found + " causes the crash" + (s.crash().isEmpty() ? "" : " (" + s.crash() + ")") + ". With it "
                         + "switched off, the pack doesn't crash.\n\nFix: update it, or remove it. If you already have "
                         + "the newest version, send the crash report to its author.\nEvery mod is switched back on."
+                : s.gaveUp() ? "Test rounds kept failing in a different way: switching mods off broke other mods, so "
+                        + "it couldn't narrow anything down.\nEvery mod is switched back on. Make a help file and send "
+                        + "it to the pack's author."
                 : "These mods need each other, so Strip Mine can't split them: " + String.join(", ", s.suspects())
                         + ". The problem is one of them.\nEvery mod is switched back on.");
         return show(new ConfirmScreen(openFolder -> {

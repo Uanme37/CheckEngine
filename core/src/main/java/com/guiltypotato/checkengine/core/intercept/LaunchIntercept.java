@@ -59,7 +59,10 @@ public final class LaunchIntercept {
         }
 
         public String headline() {
-            if (level == Level.FOUND) return problems.size() == 1 ? "STRIP MINE FOUND IT" : "STRIP MINE NARROWED IT DOWN";
+            if (level == Level.FOUND) {
+                if (problems.get(0).startsWith(GAVE_UP)) return "STRIP MINE COULDN'T FINISH";
+                return problems.size() == 1 ? "STRIP MINE FOUND IT" : "STRIP MINE NARROWED IT DOWN";
+            }
             return level == Level.WILL_FAIL ? "STARTUP WILL FAIL" : "STARTUP WILL PROBABLY FAIL AGAIN";
         }
 
@@ -101,10 +104,20 @@ public final class LaunchIntercept {
     }
 
     /** What Strip Mine found, for the window. */
+    static final String GAVE_UP = "Strip Mine couldn't finish the search";
+
     static Message stripMineResult(StripMine.State done, Path report) {
+        if (done.gaveUp()) {
+            List<String> notes = done.notes();
+            return new Message(Level.FOUND, List.of(GAVE_UP), List.of(
+                    "Test rounds kept failing in a different way: switching mods off broke other mods.",
+                    notes.isEmpty() ? "" : notes.get(notes.size() - 1)), List.of(), List.of("Every mod is switched back "
+                    + "on. Make a help file (Crash Doctor's button, or /checkengine export) and send it to the pack's "
+                    + "author, with the crash report."), report);
+        }
         String found = done.found();
         List<String> problems = found != null ? List.of(found + " causes the crash")
-                : done.suspects().stream().map(f -> f + " (one of these)").toList();
+                : done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList();
         List<String> details = new ArrayList<>();
         if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
         details.add("Found in " + done.round() + " rounds. Every mod is switched back on.");

@@ -85,6 +85,11 @@ public final class StripMine {
             return suspects.size() <= 1 ? 0 : 32 - Integer.numberOfLeadingZeros(suspects.size() - 1);
         }
 
+        /** True when test rounds kept failing in other ways and the search stopped without narrowing anything. */
+        public boolean gaveUp() {
+            return status == Status.STUCK && retries > 5;
+        }
+
         /** The answer: the one jar left when FOUND, else null. */
         public String found() {
             return status == Status.FOUND && suspects.size() == 1 ? suspects.get(0) : null;
@@ -270,7 +275,8 @@ public final class StripMine {
             "(?:NoClassDefFoundError|ClassNotFoundException)[:\\s]+([A-Za-z0-9_$./]+)");
     private static final java.util.regex.Pattern MISSING_ID = java.util.regex.Pattern.compile(
             "Mod '([a-z0-9_.-]+)' is not available|Missing mod: ([a-z0-9_.-]+)|Mod didn't load: ([a-z0-9_.-]+)"
-                    + "|Outdated mod: ([a-z0-9_.-]+)|Wrong version of ([a-z0-9_.-]+) for");
+                    + "|Outdated mod: ([a-z0-9_.-]+)|Wrong version of ([a-z0-9_.-]+) for"
+                    + "|Mod [a-z0-9_.-]+ requires ([a-z0-9_.-]+) |Currently, ([a-z0-9_.-]+) is ");
 
     /** The switched-off jars a failure points at: ones holding a class it couldn't find, or a mod it said is missing. */
     static Set<String> neededJars(String evidence, Path modsFolder, List<String> disabled) {
@@ -476,16 +482,31 @@ public final class StripMine {
         boolean changed = true;
         while (changed) {
             changed = false;
-            Set<String> offIds = new HashSet<>();
-            for (String f : out) if (jars.containsKey(f)) offIds.addAll(ids(jars.get(f)));
-            // An id another switched-on jar still provides (a duplicate) doesn't go missing.
-            Set<String> stillOn = new HashSet<>();
-            for (ModJar j : jars.values()) if (!out.contains(j.fileName())) stillOn.addAll(ids(j));
+            // A real mod being switched off is only replaced by another real one: a copy packed inside some other jar is
+            // often older (Beyond the Crank: Architectury 13.0.6 inside another mod took over when 13.0.11 was off,
+            // and its addons refused to load). A library that was only ever packed is fine if any jar still packs it.
+            Set<String> offReal = new HashSet<>();
+            Set<String> offPacked = new HashSet<>();
+            for (String f : out) {
+                ModJar j = jars.get(f);
+                if (j == null) continue;
+                j.mods().forEach(m -> offReal.add(m.modId()));
+                j.nestedMods().forEach(m -> offPacked.add(m.modId()));
+            }
+            offPacked.removeAll(offReal);
+            Set<String> onReal = new HashSet<>();
+            Set<String> onAny = new HashSet<>();
+            for (ModJar j : jars.values()) {
+                if (out.contains(j.fileName())) continue;
+                j.mods().forEach(m -> onReal.add(m.modId()));
+                onAny.addAll(ids(j));
+            }
             for (ModJar j : jars.values()) {
                 if (out.contains(j.fileName()) || isCheckEngine(j)) continue;
                 boolean needs = j.mods().stream().flatMap(m -> m.dependencies().stream())
-                        .anyMatch(d -> d.type() == Dependency.Type.REQUIRED && offIds.contains(d.modId())
-                                && !stillOn.contains(d.modId()));
+                        .filter(d -> d.type() == Dependency.Type.REQUIRED)
+                        .anyMatch(d -> (offReal.contains(d.modId()) && !onReal.contains(d.modId()))
+                                || (offPacked.contains(d.modId()) && !onAny.contains(d.modId())));
                 if (needs) {
                     out.add(j.fileName());
                     changed = true;

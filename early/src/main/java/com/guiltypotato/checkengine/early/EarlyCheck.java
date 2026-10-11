@@ -11,6 +11,7 @@ import com.guiltypotato.checkengine.core.scan.PackScanner;
 import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.RootProblem;
+import com.guiltypotato.checkengine.core.strip.StripMine;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -71,6 +72,12 @@ public class EarlyCheck implements IDependencyLocator {
             List<Finding> roots = problems.stream().map(RootProblem::toFinding).toList();
             LOGGER.error("Check Engine: {} root problem(s) will stop this pack from loading. Details: {}",
                     roots.size(), report);
+            if (StripMine.running(folder) != null) {
+                // A Strip Mine round: mods are off on purpose, so advice about them would only mislead.
+                pipeline.addIssue(ModLoadingIssue.error("{0}", IssueText.STRIP_MINE_ROUND));
+                save(report, roots);
+                return;
+            }
             for (Finding f : roots) {
                 LOGGER.error("  {}", f.title());
                 // "{0}" isn't in NeoForge's language file, so the screen shows the argument as is.

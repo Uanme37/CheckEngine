@@ -16,6 +16,11 @@ public final class IssueText {
 
     private IssueText() {}
 
+    /** On the loader's error screen during a Strip Mine round, instead of advice about mods switched off on purpose. */
+    public static final String STRIP_MINE_ROUND = "§6§lCheck Engine Strip Mine:§r this is a test round, with some mods "
+            + "switched off on purpose, so this error is expected.\n§aWhat to do:§r close the game and press Play. "
+            + "Check Engine sets up the next round by itself.";
+
     /** Something that stops the pack from loading: what, why, and the fix. */
     public static String problem(Finding f) {
         return "§c§lCheck Engine:§r §e" + f.title() + "§r\n" + f.detail() + "\n§aFix:§r " + f.fix();
