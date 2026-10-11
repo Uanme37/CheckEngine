@@ -32,6 +32,8 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 - Nothing is deleted: mods are renamed to .disabled and switched back on at the end. Your own .disabled files are never touched. Stop any time and everything goes back.
 - Just keep pressing Play: Check Engine reads each result by itself (crash or title screen) and sets up the next round when the game closes. At the end a window says which mod it was.
 - Also in Check Pack.bat, for packs that can't start at all: it walks you through each round.
+- Big packs are handled: mods that need a switched-off mod go off with it, hidden old copies of libraries packed inside other mods don't count, and a test round that fails in a different way is recognised and run again with what it needs. Tested on a 394-mod pack: found the faulty mod in 9 rounds.
+- When the pack crashes while loading, the pre-launch window offers Strip Mine and explains how it works before it starts (Back / Start Strip Mine). Stopping a search asks first, so one wrong click doesn't throw it away.
 - Fixed: a bullet in the pre-launch window showed as "2022" when there was more than one fix.
 
 ## What's new in 0.10.0

@@ -133,10 +133,11 @@ final class Popup {
             d.dispose();
         }));
         if (m.stripMine() != null) {
-            JButton dig = button("STRIP MINE", new Color(0x8A5A12), () -> {
+            JPanel explain = stripMinePage(m, logo, () -> {
                 choice.set(Choice.STRIP_MINE);
                 d.dispose();
-            });
+            }, () -> swap(d, root));
+            JButton dig = button("STRIP MINE", new Color(0x8A5A12), () -> swap(d, explain));
             dig.setToolTipText("Find the mod behind this crash: switches off half the mods each launch. Nothing is deleted.");
             buttons.add(dig);
         }
@@ -156,6 +157,71 @@ final class Popup {
         d.setVisible(true); // blocks until closed
         blink.stop();
         return choice.get();
+    }
+
+    /** Shows another page in the same window, sized to fit it and kept centred where it was. */
+    private static void swap(JDialog d, JPanel page) {
+        java.awt.Point centre = new java.awt.Point(d.getX() + d.getWidth() / 2, d.getY() + d.getHeight() / 2);
+        d.setContentPane(page);
+        d.pack();
+        d.setLocation(centre.x - d.getWidth() / 2, centre.y - d.getHeight() / 2);
+        d.repaint();
+    }
+
+    /** What Strip Mine is, before it starts: the window swaps to this page, with Back and Start. */
+    private static JPanel stripMinePage(Message m, Image logo, Runnable start, Runnable back) {
+        JPanel page = new JPanel(new BorderLayout(0, 10)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setPaint(new GradientPaint(0, 0, new Color(0x222225), 0, getHeight(), BG));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(AMBER);
+                g2.fillRect(0, 0, getWidth(), 4);
+            }
+        };
+        page.setBorder(new EmptyBorder(14, 16, 12, 16));
+        JPanel header = new JPanel(new BorderLayout(14, 0));
+        header.setOpaque(false);
+        header.add(new WarningLight(logo, AMBER), BorderLayout.WEST);
+        JPanel titles = column();
+        titles.add(label("CHECK ENGINE", font(Font.BOLD, 21), TEXT));
+        titles.add(label("STRIP MINE: FIND THE FAULTY MOD", font(Font.BOLD, 16), AMBER));
+        titles.add(label(m.stripMineMods() > 1 ? m.stripMineMods() + " mods, about " + m.stripMineRounds() + " launches"
+                : "One launch per round", font(Font.PLAIN, 12), DIM));
+        header.add(titles, BorderLayout.CENTER);
+        page.add(header, BorderLayout.NORTH);
+
+        JPanel body = column();
+        JPanel how = panel(AMBER);
+        how.add(label("HOW IT WORKS", font(Font.BOLD, 12), AMBER));
+        how.add(label("Check Engine switches off half of your mods, and you launch.", font(Font.PLAIN, 14), TEXT));
+        how.add(label("It crashes: the faulty mod is still on. No crash: it's in the half that was off.",
+                font(Font.PLAIN, 14), TEXT));
+        how.add(label("Each round halves the suspects. Just keep pressing Play until it says which mod.",
+                font(Font.PLAIN, 14), TEXT));
+        body.add(how);
+        body.add(Box.createVerticalStrut(6));
+        JPanel safe = panel(GREEN);
+        safe.add(label("SAFE", font(Font.BOLD, 12), GREEN));
+        safe.add(label("Nothing is deleted: mods are renamed to .disabled and switched back on at the end.",
+                font(Font.PLAIN, 14), TEXT));
+        safe.add(label("You can stop any time from the title screen, and every mod goes back.", font(Font.PLAIN, 14),
+                TEXT));
+        body.add(safe);
+        body.add(Box.createVerticalStrut(6));
+        JPanel now = panel(DIM);
+        now.add(label("WHAT HAPPENS NOW", font(Font.BOLD, 12), DIM));
+        now.add(label("The game closes. Press Play again to start round 1.", font(Font.PLAIN, 14), TEXT));
+        body.add(now);
+        page.add(body, BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttons.setOpaque(false);
+        buttons.add(button("BACK", new Color(0x3A3D45), back));
+        buttons.add(button("START STRIP MINE", new Color(0x8A5A12), start));
+        page.add(buttons, BorderLayout.SOUTH);
+        return page;
     }
 
     /** Fallback when the window can't open: the plain system box (TinyFD if it's there), Yes = quit. */

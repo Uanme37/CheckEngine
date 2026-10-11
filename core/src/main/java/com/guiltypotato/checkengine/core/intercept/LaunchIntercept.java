@@ -46,16 +46,22 @@ public final class LaunchIntercept {
      * @param fixes    what to do, one per problem (same order), duplicates removed
      * @param report    the full report "Show full error" opens, or null
      * @param stripMine starts a Strip Mine search for this crash (the window then offers it), or null
+     * @param stripMineMods how many mods a search would go through, for the window's explanation
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
-                          List<String> fixes, Path report, Runnable stripMine) {
+                          List<String> fixes, Path report, Runnable stripMine, int stripMineMods) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null);
+            this(level, problems, details, changed, fixes, report, null, 0);
         }
 
-        Message withStripMine(Runnable start) {
-            return new Message(level, problems, details, changed, fixes, report, start);
+        Message withStripMine(Runnable start, int mods) {
+            return new Message(level, problems, details, changed, fixes, report, start, mods);
+        }
+
+        /** About how many launches a Strip Mine search takes. */
+        public int stripMineRounds() {
+            return stripMineMods <= 1 ? 1 : 32 - Integer.numberOfLeadingZeros(stripMineMods - 1);
         }
 
         public String headline() {
@@ -181,6 +187,13 @@ public final class LaunchIntercept {
         Path mods = gameDir.resolve("mods");
         String title = crash.main().title();
         boolean startup = StripMine.isStartupCrash(crash.explained().description());
+        int modCount = 0;
+        try (java.util.stream.Stream<Path> jars = Files.list(mods)) {
+            modCount = (int) jars.map(p -> p.getFileName().toString().toLowerCase())
+                    .filter(n -> n.endsWith(".jar") && !n.startsWith("checkengine")).count();
+        } catch (IOException ignored) {
+            // the explanation just leaves the numbers out
+        }
         return mayFail(crash, details).withStripMine(() -> {
             try {
                 StripMine.start(mods, checkEngineFolder, title, startup, false);
@@ -188,7 +201,7 @@ public final class LaunchIntercept {
             } catch (IOException ignored) {
                 // fewer than 2 mods, or the folder can't be written: nothing to search
             }
-        });
+        }, modCount);
     }
 
     /**

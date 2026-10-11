@@ -69,14 +69,21 @@ final class StripMineScreens {
         String left = s.suspects().size() + " suspects left, about " + s.roundsLeft() + " rounds to go";
         if (s.startup()) {
             StripMine.markWorked(folder);
-            return show(new ConfirmScreen(quit -> {
+            // No crash: the faulty mod is one of the suspects that were switched off this round.
+            int after = (int) s.suspects().stream().filter(s.toDisable()::contains).count();
+            int roundsAfter = after <= 1 ? 0 : 32 - Integer.numberOfLeadingZeros(after - 1);
+            String next = after <= 1 ? "That's the one. Quit the game and press Play to see which mod it is."
+                    : after + " suspects left, about " + roundsAfter + " rounds to go.\n\nQuit the game and press "
+                            + "Play again for round " + (s.round() + 1) + ".";
+            Screen[] self = new Screen[1];
+            self[0] = new ConfirmScreen(quit -> {
                 open = false;
                 if (quit) Minecraft.getInstance().stop();
-                else stop(title);
+                else askStop(self[0], title);
             }, Component.literal("Strip Mine, round " + s.round() + ": no crash"),
-                    Component.literal("With " + s.disabled().size() + " mods switched off, the pack loads fine. "
-                            + left + ".\n\nQuit the game and press Play again for round " + (s.round() + 1) + "."),
-                    Component.literal("Quit game"), Component.literal("Stop Strip Mine")));
+                    Component.literal("With " + s.disabled().size() + " mods switched off, the pack loads fine. " + next),
+                    Component.literal("Quit game"), Component.literal("Stop Strip Mine"));
+            return show(self[0]);
         }
         return show(new ConfirmScreen(noCrash -> {
             open = false;
@@ -116,6 +123,46 @@ final class StripMineScreens {
             if (openFolder) Util.getPlatform().openFile(mods().toFile());
             Minecraft.getInstance().setScreen(title);
         }, head, text, Component.literal("Open mods folder"), Component.literal("OK")));
+    }
+
+    /** "Stop Strip Mine?": one wrong click shouldn't throw away a search that's rounds in. */
+    private static void askStop(Screen round, Screen title) {
+        Minecraft.getInstance().setScreen(show(new ConfirmScreen(sure -> {
+            open = false;
+            if (sure) {
+                stop(title);
+            } else {
+                Minecraft.getInstance().setScreen(show(round));
+            }
+        }, Component.literal("Stop Strip Mine?"),
+                Component.literal("Every mod goes back on and this search is lost: you'd start again from round 1."),
+                Component.literal("Stop"), Component.literal("Keep going"))));
+    }
+
+    /**
+     * During a search the loader's "warnings while loading" screen only says what the test switched off (a missing
+     * performance mod...). Skip it like Proceed would. Returns true if it did; error screens are never skipped.
+     */
+    static boolean skipWarnings(Screen screen) {
+        if (screen == null || !screen.getClass().getName().endsWith(".LoadingErrorScreen")) return false;
+        if (StripMine.running(BootCheck.outputFolder()) == null) return false;
+        try {
+            java.lang.reflect.Field errors = screen.getClass().getDeclaredField("modLoadErrors");
+            errors.setAccessible(true);
+            if (!((java.util.List<?>) errors.get(screen)).isEmpty()) return false;
+            Runnable next;
+            try {
+                java.lang.reflect.Field task = screen.getClass().getDeclaredField("nextScreenTask");
+                task.setAccessible(true);
+                next = (Runnable) task.get(screen);
+            } catch (NoSuchFieldException e) {
+                next = () -> Minecraft.getInstance().setScreen(null); // Forge 1.20.1's Proceed does this
+            }
+            Minecraft.getInstance().execute(next);
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return false; // the player clicks Proceed themselves
+        }
     }
 
     private static void stop(Screen title) {

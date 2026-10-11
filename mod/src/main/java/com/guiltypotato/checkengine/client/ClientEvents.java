@@ -25,6 +25,11 @@ public final class ClientEvents {
     /** The first time the title screen opens, show the boot check's problems in front of it. */
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
+        // During a Strip Mine round, the loader's warnings screen only lists what the test switched off.
+        if (StripMineScreens.skipWarnings(event.getNewScreen())) {
+            event.setCanceled(true);
+            return;
+        }
         // Kicked for a mod mismatch: say which mods, once (the Details button opens NeoForge's own screen).
         if (event.getNewScreen() instanceof ModMismatchDisconnectedScreen mismatch
                 && !(event.getCurrentScreen() instanceof JoinMismatchScreen)) {
