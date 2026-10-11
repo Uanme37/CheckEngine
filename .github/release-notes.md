@@ -28,6 +28,7 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 **Crash Doctor understands two more kinds of crashes:**
 - **"Registered twice" crashes** (like "Duplicate client extensions registration for Block{create:belt}"): it says which thing was added twice and why that happens: the mod is installed twice, something made its setup run twice, or an addon made for a different version adds the same thing. With the fix.
 - **Mixin clashes:** when two mods patch the same game code, it now names both of them instead of just one, and tells you to update both or remove one.
+- **Random timing crashes:** big packs set mods up in parallel, and sometimes two mods break a shared list at the same moment (like ChillOut with Player Animator). Crash Doctor now says it's random and to just launch again, and the pre-launch window no longer warns "will probably fail again" for it.
 
 ## What's new in 0.9.3
 - **No more false "Startup will probably fail again":** if the game crashed while you were playing (after the title screen), the pre-launch window no longer warns that startup will fail. Startup works, so there's nothing to stop. Crash Doctor still explains that crash.

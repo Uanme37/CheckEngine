@@ -69,6 +69,8 @@ public final class CrashTranslator {
     private static final Pattern MIXIN_FIRST = Pattern.compile(
             "(?:already redirected by|previously written by|merged by) ([A-Za-z0-9_.$-]+)");
     /** The game class a failed patch targets: "LVT in net/minecraft/client/renderer/LevelRenderer::m_109599_". */
+    /** The jar a frame comes from: "~[player-animation-lib-forge-1.0.2-rc1+1.20.jar%23838!/:?]" -> the file name. */
+    private static final Pattern FRAME_JAR = Pattern.compile("~\\[([^\\]%!]+?\\.jar)");
     private static final Pattern MIXIN_TARGET = Pattern.compile("(net/minecraft/[A-Za-z0-9_/$]+)::");
 
     private CrashTranslator() {}
@@ -137,6 +139,8 @@ public final class CrashTranslator {
             }
         }
 
+        Finding race = timingCrash(lines);
+        if (race != null) return new Explanation(description, exception, new ArrayList<>(List.of(race)));
         List<Finding> issues = loadingIssues(lines);
         if (issues.isEmpty()) issues = errorList(lines);
         List<Finding> findings = mergeMissing(issues);
@@ -436,6 +440,56 @@ public final class CrashTranslator {
                         ? updateOrRemove(culprit, "its issue tracker")
                         : "Send this crash report to the pack or mod authors.",
                 List.of());
+    }
+
+    /**
+     * Mods are set up in parallel, and some add to a shared list without locking it. When two do it at the same moment
+     * the list breaks: an ArrayIndexOutOfBoundsException inside ArrayList.add (or a ConcurrentModificationException)
+     * on a loading worker thread. That depends on timing, so the next launch usually works. Null if it isn't one.
+     */
+    static Finding timingCrash(String[] lines) {
+        boolean broken = false, parallel = false;
+        String jar = null;
+        for (int i = 0; i < lines.length; i++) {
+            String l = lines[i];
+            if (l.contains("ConcurrentModificationException")
+                    || (l.contains("ArrayIndexOutOfBoundsException") && nextFrameIsList(lines, i))) {
+                broken = true;
+            }
+            if (broken && jar == null && l.strip().startsWith("at ") && !l.contains("at java.")) {
+                Matcher j = FRAME_JAR.matcher(l);
+                if (j.find()) jar = j.group(1);
+            }
+            if (l.contains("ForkJoinWorkerThread") || l.contains("modloading-worker")) parallel = true;
+        }
+        if (!broken || !parallel) return null;
+        String mod = null;
+        for (String l : lines) {
+            Matcher m = REPORTER.matcher(l.strip().replaceFirst("^Failure message: ", ""));
+            if (m.find()) {
+                mod = m.group(1);
+                break;
+            }
+        }
+        String who = mod != null ? mod : "a mod";
+        String lib = jar != null && (mod == null || !jar.toLowerCase().contains(mod.toLowerCase())) ? jar : null;
+        return new Finding(Severity.ERROR, Finding.TIMING_CRASH, "Random timing crash while loading"
+                + (mod != null ? " (" + mod + ")" : ""),
+                "Mods are set up at the same time to load faster. " + who + " and another mod added to the same list "
+                        + "at the same moment" + (lib != null ? " (in " + lib + ")" : "") + ", and it broke. This "
+                        + "depends on timing, so it happens at random and the next launch usually works.",
+                "Launch again. If it keeps crashing like this, update " + who + (lib != null ? " and " + lib : "")
+                        + ".", List.of());
+    }
+
+    /** Whether the first stack frame after line i (skipping a "Stacktrace:" header) is inside java.util.ArrayList. */
+    private static boolean nextFrameIsList(String[] lines, int i) {
+        for (int j = i + 1; j < lines.length && j <= i + 2; j++) {
+            String l = lines[j].strip();
+            if (l.equals("Stacktrace:")) continue;
+            return l.startsWith("at java.util.ArrayList.");
+        }
+        return false;
     }
 
     /**

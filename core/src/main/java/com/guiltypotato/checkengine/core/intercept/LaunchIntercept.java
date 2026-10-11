@@ -106,6 +106,8 @@ public final class LaunchIntercept {
         if (previousStarted) return null;
         LastCrash crash = CrashDoctor.peek(gameDir, checkEngineFolder);
         if (crash == null) return null;
+        // A random timing crash usually doesn't happen twice: launching again is the fix, so don't warn against it.
+        if (Finding.TIMING_CRASH.equals(crash.main().code())) return null;
         Path details;
         try {
             details = crash.save(checkEngineFolder);

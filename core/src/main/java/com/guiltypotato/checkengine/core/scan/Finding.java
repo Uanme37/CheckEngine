@@ -37,4 +37,6 @@ public record Finding(Severity severity, String code, String title, String detai
     public static final String NO_MODS = "no-mods";
     public static final String ITEMS_FROM_MISSING_MOD = "items-from-missing-mod";
     public static final String BROKEN_QUEST_ITEM = "broken-quest-item";
+    /** A crash that depends on timing (two mods racing during parallel loading): the next launch usually works. */
+    public static final String TIMING_CRASH = "timing-crash";
 }

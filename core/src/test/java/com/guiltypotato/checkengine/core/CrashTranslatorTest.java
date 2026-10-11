@@ -274,6 +274,47 @@ class CrashTranslatorTest {
     }
 
     @Test
+    void listBrokenByTwoModsAtOnceIsARandomTimingCrash() {
+        // Craft to Exile 2 (Forge 1.20.1), 2026-10-11: the next launch loaded fine.
+        List<Finding> f = translate("""
+                Description: Mod loading error has occurred
+
+                java.lang.Exception: Mod Loading has failed
+
+                -- MOD chillout --
+                Details:
+                	Mod File: /C:/Users/Gaming/curseforge/minecraft/Instances/Craft to Exile 2 (VR Support)/mods/SitChill 1.0.3.jar
+                	Failure message: ChillOut (chillout) encountered an error during the sided_setup event phase
+                		java.lang.ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 0
+                	Mod Version: 1.0.0
+                	Exception message: java.lang.ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 0
+                Stacktrace:
+                	at java.util.ArrayList.add(Unknown Source) ~[?:?] {re:mixin}
+                	at java.util.ArrayList.add(Unknown Source) ~[?:?] {re:mixin}
+                	at dev.kosmx.playerAnim.minecraftApi.PlayerAnimationFactory$FactoryHolder.registerFactory(PlayerAnimationFactory.java:38) ~[player-animation-lib-forge-1.0.2-rc1+1.20.jar%23838!/:?] {re:mixin,re:classloading}
+                	at net.mcreator.chillout.procedures.ANIMATIONSProcedure.onClientSetup(ANIMATIONSProcedure.java:21) ~[SitChill%201.0.3.jar%23875!/:?] {re:classloading}
+                	at java.util.concurrent.ForkJoinWorkerThread.run(Unknown Source) ~[?:?] {re:mixin}
+                """);
+        assertEquals(Finding.TIMING_CRASH, f.get(0).code());
+        assertEquals("Random timing crash while loading (ChillOut)", f.get(0).title());
+        assertTrue(f.get(0).detail().contains("player-animation-lib-forge-1.0.2-rc1+1.20.jar"), f.get(0).detail());
+        assertTrue(f.get(0).fix().startsWith("Launch again."), f.get(0).fix());
+    }
+
+    @Test
+    void indexErrorOnTheMainThreadIsNotATimingCrash() {
+        List<Finding> f = translate("""
+                Description: Ticking entity
+
+                java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5
+                	at java.util.ArrayList.add(Unknown Source) ~[?:?]
+                	at com.example.Foo.tick(Foo.java:1) ~[foo-1.0.jar%2312!/:?]
+                	at net.minecraft.server.MinecraftServer.run(MinecraftServer.java:1) ~[?:?]
+                """);
+        assertTrue(!Finding.TIMING_CRASH.equals(f.get(0).code()), f.get(0).code());
+    }
+
+    @Test
     void mixinRefsBecomeModIds() {
         assertEquals("supplementaries", CrashTranslator.modFromMixinRef("supplementaries.mixins.json:LevelChunkMixin->@Redirect"));
         assertEquals("oculus", CrashTranslator.modFromMixinRef("mixins.oculus.vertexformat.json:block_rendering.Foo"));
