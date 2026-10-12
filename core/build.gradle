@@ -16,3 +16,8 @@ test { useJUnitPlatform() }
 
 // The Forge 1.20.1 mod runs on Java 17, so the shared core must too.
 tasks.withType(JavaCompile).configureEach { options.release = 17 }
+
+// Ships "Check Pack.bat" inside core, so the mods can put it in the pack folder (see CheckPackBat).
+tasks.named('processResources', ProcessResources) {
+    from(rootProject.file('Check Pack.bat')) { into 'com/guiltypotato/checkengine/core/launcher' }
+}

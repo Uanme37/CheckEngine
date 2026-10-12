@@ -21,7 +21,9 @@ gradlew :cli:jar           # cli/build/libs/checkengine-cli-*.jar
 In game: problems show on a screen before the title screen (saved to `checkengine/boot-report.txt`).
 Ops can run `/checkengine scan` to check recipes, loot tables and FTB Quests (saved to `checkengine/scan-report.txt`).
 
-Without the game: drag a modpack folder onto `Check Pack.bat` (keep it next to `checkengine-cli-*.jar`).
+Without the game: on Windows the mod puts `Check Pack.bat` in the pack folder the first time the pack starts.
+Double-click it to check that pack before launching; the mod jar in `mods/` is the checker, so nothing else is needed.
+The standalone download works too: drag a modpack folder onto `Check Pack.bat` (keep it next to `checkengine-cli-*.jar`).
 It finds the Java 21 that CurseForge or the Minecraft launcher already installed. Or run it yourself with Java 21:
 ```
 java -jar checkengine-cli.jar scan <pack folder> [--server]    # what's broken in the mods folder

@@ -3,12 +3,14 @@ rem Check Engine: drag a modpack folder (e.g. a CurseForge instance) onto this f
 rem Works on any PC that has played modern modded Minecraft: it borrows the Java 17/21 that the launchers install.
 setlocal EnableExtensions
 
-rem --- Find the Check Engine program: next to this file (download), or in the project's build folder (dev).
+rem --- Find the Check Engine program: next to this file (download), in the pack's mods folder (the mod jar
+rem --- is the checker too, and the mod puts this file in the pack folder), or in the project's build folder (dev).
 set "JAR="
 for %%F in ("%~dp0checkengine-cli*.jar") do set "JAR=%%~fF"
+if not defined JAR for %%F in ("%~dp0mods\checkengine-*.jar") do set "JAR=%%~fF"
 if not defined JAR for %%F in ("%~dp0cli\build\libs\checkengine-cli*.jar") do set "JAR=%%~fF"
 if not defined JAR (
-    echo Can't find checkengine-cli.jar. Keep it in the same folder as this file.
+    echo Can't find the Check Engine checker. Keep checkengine-cli.jar next to this file, or put this file in a pack folder that has the Check Engine mod.
     pause
     exit /b 2
 )
@@ -35,6 +37,8 @@ if not defined JAVA (
 )
 
 set "PACK=%~1"
+rem Double-clicked inside a pack folder (the copy the mod drops there): check this pack.
+if "%PACK%"=="" if exist "%~dp0mods\" set "PACK=%~dp0."
 if "%PACK%"=="" (
     echo Drag a modpack folder onto "Check Pack.bat", or paste its path here.
     set /p "PACK=Pack folder: "
