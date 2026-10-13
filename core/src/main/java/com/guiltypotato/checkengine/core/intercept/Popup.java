@@ -129,7 +129,8 @@ final class Popup {
                     .map(f -> Line.text(m.fixes().size() > 1 ? "• " + f : f)).toList()));
         }
         List<Action> actions = new ArrayList<>();
-        actions.add(new Action("QUIT", Tone.RED, () -> {
+        actions.add(new Action(m.quitFix() != null ? "QUIT AND FIX IT" : "QUIT", m.quitFix() != null ? Tone.GREEN : Tone.RED, () -> {
+            if (m.quitFix() != null) m.quitFix().run();
             choice.set(Choice.QUIT);
             d.dispose();
         }));

@@ -165,6 +165,30 @@ public final class StripMine {
         return applyNow ? apply(modsFolder, checkEngineFolder, s) : s;
     }
 
+    /**
+     * What switching off the faulty jar takes: the jar plus every jar that can't load without it, so the next launch
+     * doesn't stop over a missing mod instead.
+     */
+    public static List<String> switchOffPlan(Path modsFolder, String jar) throws IOException {
+        return new ArrayList<>(withDependents(jar, readJars(modsFolder, List.of())));
+    }
+
+    /**
+     * Switches jars off for good, at the player's request (renamed to .disabled, never deleted). Returns the ones that
+     * couldn't be renamed yet because the game holds them open.
+     */
+    public static List<String> switchOff(Path modsFolder, List<String> jars) {
+        List<String> locked = new ArrayList<>();
+        for (String f : jars) {
+            try {
+                rename(modsFolder.resolve(f), modsFolder.resolve(f + DISABLED));
+            } catch (IOException e) {
+                locked.add(f);
+            }
+        }
+        return locked;
+    }
+
     /** Stops the search and switches everything Strip Mine turned off back on. */
     public static State stop(Path modsFolder, Path checkEngineFolder) throws IOException {
         State s = load(checkEngineFolder);

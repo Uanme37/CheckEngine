@@ -48,17 +48,23 @@ public final class LaunchIntercept {
      * @param stripMine starts a Strip Mine search for this crash (the window then offers it), or null
      * @param stripMineMods how many mods a search would go through, for the window's explanation
      * @param stripMineLocked whether CurseForge has the pack locked right now (checked again on Start), or null
+     * @param quitFix   applies the fix when the player quits ("QUIT AND FIX IT"), or null for a plain Quit
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
-                          java.util.function.BooleanSupplier stripMineLocked) {
+                          java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null, 0, null);
+            this(level, problems, details, changed, fixes, report, null, 0, null, null);
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
-            return new Message(level, problems, details, changed, fixes, report, start, mods, locked);
+            return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix);
+        }
+
+        Message withQuitFix(Runnable fix) {
+            return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
+                    stripMineLocked, fix);
         }
 
         /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
@@ -120,6 +126,11 @@ public final class LaunchIntercept {
     static final String GAVE_UP = "Strip Mine couldn't finish the search";
 
     static Message stripMineResult(StripMine.State done, Path report) {
+        return stripMineResult(done, report, null);
+    }
+
+    /** As above; with the mods folder, "QUIT AND FIX IT" switches the faulty mod off (and what can't run without it). */
+    static Message stripMineResult(StripMine.State done, Path report, Path modsFolder) {
         if (done.gaveUp()) {
             List<String> notes = done.notes();
             return new Message(Level.FOUND, List.of(GAVE_UP), List.of(
@@ -134,10 +145,34 @@ public final class LaunchIntercept {
         List<String> details = new ArrayList<>();
         if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
         details.add("Found in " + done.round() + " rounds. Every mod is switched back on.");
-        String fix = found != null
-                ? "Update " + found + ", or remove it. If you already have the newest version, send the crash report to its author."
-                : "These mods need each other, so Strip Mine can't split them. Update them, or remove them one at a time.";
-        return new Message(Level.FOUND, problems, details, List.of(), List.of(fix), report);
+        if (found == null) {
+            return new Message(Level.FOUND, problems, details, List.of(), List.of("These mods need each other, so Strip "
+                    + "Mine can't split them. Update them, or remove them one at a time."), report);
+        }
+        List<String> off = List.of(found);
+        if (modsFolder != null) {
+            try {
+                off = StripMine.switchOffPlan(modsFolder, found);
+            } catch (IOException ignored) {
+                // just the jar itself
+            }
+        }
+        List<String> others = off.subList(1, off.size());
+        String what = others.isEmpty() ? found : found + " and the " + others.size() + " mod" + (others.size() == 1
+                ? "" : "s") + " that need it (" + String.join(", ", others.stream().limit(4).toList())
+                + (others.size() > 4 ? ", ..." : "") + ")";
+        List<String> fixes = List.of(
+                "QUIT AND FIX IT switches off " + what + " (renamed to .disabled, not deleted).",
+                "Or update it, or send the crash report to its author.");
+        Message m = new Message(Level.FOUND, problems, details, List.of(), fixes, report);
+        if (modsFolder == null) return m;
+        List<String> toSwitch = off;
+        return m.withQuitFix(() -> {
+            List<String> locked = StripMine.switchOff(modsFolder, toSwitch);
+            if (locked.isEmpty()) return;
+            // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> StripMine.switchOff(modsFolder, locked)));
+        });
     }
 
     /** The mods of the latest launch, whether it worked or crashed. */
@@ -160,7 +195,7 @@ public final class LaunchIntercept {
         if (done != null && enabled(checkEngineFolder)) {
             try {
                 Path report = checkEngineFolder.resolve("strip-mine-result.txt");
-                Message m = stripMineResult(done, report);
+                Message m = stripMineResult(done, report, gameDir.resolve("mods"));
                 Files.writeString(report, m.toText() + "\n\n" + String.join("\n", done.notes()) + "\n",
                         StandardCharsets.UTF_8);
                 StripMine.clear(checkEngineFolder);

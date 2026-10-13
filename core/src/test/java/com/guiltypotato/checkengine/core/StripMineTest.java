@@ -262,6 +262,20 @@ class StripMineTest {
         assertTrue(StripMine.lockedOn(mods(), folder()).isEmpty());
     }
 
+    /** "Quit and fix it": the faulty jar goes off with every mod that needs it, renamed, never deleted. */
+    @Test
+    void fixingSwitchesOffTheModAndWhatNeedsIt() throws Exception {
+        pack();
+        List<String> plan = StripMine.switchOffPlan(mods(), "lib-1.0.jar");
+        assertEquals(6, plan.size(), "lib and mod05..mod09: " + plan);
+        assertTrue(StripMine.switchOff(mods(), plan).isEmpty());
+        for (String f : plan) {
+            assertFalse(Files.exists(mods().resolve(f)), f);
+            assertTrue(Files.exists(mods().resolve(f + ".disabled")), f);
+        }
+        assertEquals(List.of("mod00-1.0.jar"), StripMine.switchOffPlan(mods(), "mod00-1.0.jar"));
+    }
+
     @Test
     void stopPutsEverythingBack() throws Exception {
         pack();
