@@ -196,7 +196,7 @@ final class Popup {
             JPanel root = new Dashboard(new BorderLayout());
 
             JPanel top = column();
-            top.add(new Hazard(tone));
+            top.add(new Hazard(tone, p.tone() == Tone.RED || p.tone() == Tone.AMBER));
             JPanel header = new JPanel(new BorderLayout(14, 0));
             header.setOpaque(false);
             header.setBorder(new EmptyBorder(10, 12, 8, 20));
@@ -276,14 +276,17 @@ final class Popup {
         }
     }
 
-    /** The warning stripe across the top, like hazard tape. */
+    /** The stripe across the top: hazard tape for warnings, a plain bar for good news and info. */
     private static final class Hazard extends JComponent {
         private final Color tone;
+        private final boolean warning;
 
-        Hazard(Color tone) {
+        Hazard(Color tone, boolean warning) {
             this.tone = tone;
-            setPreferredSize(new Dimension(WIDTH, 8));
-            setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
+            this.warning = warning;
+            int h = warning ? 6 : 4;
+            setPreferredSize(new Dimension(WIDTH, h));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
             setAlignmentX(0f);
         }
 
@@ -292,11 +295,17 @@ final class Popup {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int h = getHeight();
+            if (!warning) {
+                g2.setColor(tone);
+                g2.fillRect(0, 0, getWidth(), h);
+                g2.dispose();
+                return;
+            }
             g2.setColor(new Color(0x141414));
             g2.fillRect(0, 0, getWidth(), h);
             g2.setColor(tone);
-            for (int x = -h; x < getWidth() + h; x += 24) {
-                g2.fill(new Polygon(new int[] {x, x + 12, x + 12 + h, x + h}, new int[] {h, h, 0, 0}, 4));
+            for (int x = -h; x < getWidth() + h; x += 20) {
+                g2.fill(new Polygon(new int[] {x, x + 10, x + 10 + h, x + h}, new int[] {h, h, 0, 0}, 4));
             }
             g2.dispose();
         }
