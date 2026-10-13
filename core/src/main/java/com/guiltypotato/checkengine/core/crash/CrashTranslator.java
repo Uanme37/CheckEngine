@@ -319,8 +319,13 @@ public final class CrashTranslator {
                     updateOrRemove(m.group(1), "its author"), files);
         }
         return new Finding(Severity.ERROR, "loading-issue", "Mod loading problem", msg,
-                files.isEmpty() ? null : "Update or remove " + files.get(0) + ".", files);
+                files.isEmpty() ? STRIP_MINE_HINT : "Update or remove " + files.get(0) + ".", files);
     }
+
+    /** The fix when Crash Doctor can't name the mod: Strip Mine finds it by switching mods off. */
+    public static final String STRIP_MINE_HINT = "Check Engine couldn't tell which mod did this, but Strip Mine can find "
+            + "it: press Strip Mine (or run Check Pack.bat). About 9 launches on a 400-mod pack, fewer if you changed "
+            + "mods recently.";
 
     /** A crash while playing or starting up: work out which mod, and recognise the common cases. */
     private static Finding runtimeCrash(String[] lines, int exceptionLine, String description, String exception) {
@@ -379,7 +384,7 @@ public final class CrashTranslator {
                             ? culprit : "this mod") + " tried to use a setting or keybind that never got set up. "
                             + "It's usually not that mod's fault.",
                     "Run Check Engine's scan on the pack to find missing, duplicate or wrong-version mods and fix "
-                            + "those first. If it finds nothing, look for the first ERROR in logs/latest.log.",
+                            + "those first. If it finds nothing: " + STRIP_MINE_HINT,
                     List.of());
         }
         if (all.contains("Multiple servers running at once")) {
@@ -438,7 +443,7 @@ public final class CrashTranslator {
                 "Minecraft crashed with: " + exception + where + suspectLine,
                 culprit != null
                         ? updateOrRemove(culprit, "its issue tracker")
-                        : "Send this crash report to the pack or mod authors.",
+                        : STRIP_MINE_HINT + " Or send this crash report to the pack or mod authors.",
                 List.of());
     }
 

@@ -30,6 +30,15 @@ class CrashTranslatorTest {
 
             """;
 
+    /** A crash that names no mod points the player at Strip Mine. */
+    @Test
+    void aCrashWithNoModNamedSuggestsStripMine() {
+        String report = "Description: Rendering overlay\n\njava.lang.NullPointerException: boom\n"
+                + "\tat net.minecraft.client.Minecraft.run(Minecraft.java:1)\n";
+        var f = com.guiltypotato.checkengine.core.crash.CrashTranslator.translate(report).findings().get(0);
+        org.junit.jupiter.api.Assertions.assertTrue(f.fix().contains("Strip Mine"), f.fix());
+    }
+
     @Test
     void missingDependency() {
         List<Finding> f = translate(LOADING_HEAD + """
