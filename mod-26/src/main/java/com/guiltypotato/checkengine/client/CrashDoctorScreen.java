@@ -58,8 +58,9 @@ public final class CrashDoctorScreen extends DashScreen {
                     } catch (IOException e) {
                         CheckEngine.LOGGER.warn("Check Engine: couldn't save the crash details", e);
                     }
-                }, false),
-                new Btn(tr("checkengine.crash.open_crash"), () -> Util.getPlatform().openFile(crash.file().toFile()), false),
+                }, false, "Opens Check Engine's full explanation of this crash in a text file."),
+                new Btn(tr("checkengine.crash.open_crash"), () -> Util.getPlatform().openFile(crash.file().toFile()), false,
+                        "Opens Minecraft's own crash report."),
                 new Btn(tr("checkengine.crash.help"), () -> {
                     try {
                         HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get());
@@ -67,7 +68,8 @@ public final class CrashDoctorScreen extends DashScreen {
                     } catch (IOException e) {
                         CheckEngine.LOGGER.warn("Check Engine: couldn't make the help file", e);
                     }
-                }, false));
+                }, false, "Makes one zip to send when you ask for help on Discord or GitHub. Your name and IP "
+                        + "are blanked out."));
     }
 
     /** 26.1 can open the title screen more than once; the last of our screens to close marks the check done. */

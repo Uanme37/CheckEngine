@@ -6,6 +6,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -41,8 +42,12 @@ public class DashScreen extends Screen {
     /** A panel. {@code icon} is one character drawn in the round badge ("!", "✔"...). */
     record Section(String title, int tone, String icon, List<Line> lines) {}
 
-    /** A button. Primary ones sit on the left, the rest are smaller on the right. */
-    record Btn(String label, Runnable run, boolean primary) {}
+    /** A button. Primary ones sit on the left, the rest are smaller on the right. {@code tip} shows on hover, or null. */
+    record Btn(String label, Runnable run, boolean primary, String tip) {
+        Btn(String label, Runnable run, boolean primary) {
+            this(label, run, primary, null);
+        }
+    }
 
     private final int tone;
     private final String headline;
@@ -52,6 +57,7 @@ public class DashScreen extends Screen {
     private final List<Btn> buttons;
     private final Runnable escape;
     private int cardX, cardY, cardW, cardH, buttonRows = 1, contentHeight, scroll;
+    private boolean moreOpen;
 
     /**
      * @param escape what Esc does (usually the same as the "back" or "continue" button)
@@ -93,8 +99,9 @@ public class DashScreen extends Screen {
         int content = 0;
         for (Section s : sections) content += sectionHeight(s) + 5;
         // Buttons: one row if they fit, else the small ones get a row of their own under the main ones.
+        List<Btn> row = row();
         int total = 0;
-        for (Btn b : buttons) total += buttonWidth(b) + 6;
+        for (Btn b : row) total += buttonWidth(b) + 6;
         buttonRows = total - 6 <= cardW - 24 ? 1 : 2;
         contentHeight = content;
         cardH = Math.min(height - 12, 4 + 46 + content + 28 + 16 + (buttonRows - 1) * 24);
@@ -102,23 +109,52 @@ public class DashScreen extends Screen {
 
         int y = cardY + cardH - 16 - 25 - (buttonRows - 1) * 24;
         int x = cardX + 12;
-        for (Btn b : buttons) {
+        for (Btn b : row) {
             if (!b.primary()) continue;
             int w = buttonWidth(b);
-            addRenderableWidget(Button.builder(label(b), btn -> b.run().run()).bounds(x, y, w, 20).build());
+            addRenderableWidget(button(b, x, y, w));
             x += w + 6;
         }
         y += (buttonRows - 1) * 24;
         int right = cardX + cardW - 12;
-        List<Btn> small = buttons.stream().filter(b -> !b.primary()).toList();
+        List<Btn> small = row.stream().filter(b -> !b.primary()).toList();
         for (int i = small.size() - 1; i >= 0; i--) {
             Btn b = small.get(i);
             int w = buttonWidth(b);
             right -= w;
-            addRenderableWidget(Button.builder(label(b), btn -> b.run().run())
-                    .bounds(right, y, w, 20).build());
+            addRenderableWidget(button(b, right, y, w));
             right -= 5;
         }
+    }
+
+    /**
+     * The buttons on show. With 3 or more small ones, they wait under "More" (which swaps the row to them, plus
+     * "Back"), so the main row stays short.
+     */
+    private List<Btn> row() {
+        List<Btn> small = buttons.stream().filter(b -> !b.primary()).toList();
+        if (small.size() < 3) return buttons;
+        List<Btn> out = new ArrayList<>();
+        if (!moreOpen) {
+            buttons.stream().filter(Btn::primary).forEach(out::add);
+            out.add(new Btn("More...", () -> {
+                moreOpen = true;
+                rebuildWidgets();
+            }, false));
+        } else {
+            small.forEach(b -> out.add(new Btn(b.label(), b.run(), true, b.tip())));
+            out.add(new Btn("Back", () -> {
+                moreOpen = false;
+                rebuildWidgets();
+            }, false));
+        }
+        return out;
+    }
+
+    private Button button(Btn b, int x, int y, int w) {
+        Button.Builder builder = Button.builder(label(b), btn -> b.run().run()).bounds(x, y, w, 20);
+        if (b.tip() != null) builder.tooltip(Tooltip.create(Component.literal(b.tip())));
+        return builder.build();
     }
 
     private Component label(Btn b) {
