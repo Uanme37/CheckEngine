@@ -5,6 +5,7 @@ import com.guiltypotato.checkengine.core.model.Dependency;
 import com.guiltypotato.checkengine.core.model.ModInfo;
 import com.guiltypotato.checkengine.core.model.ModJar;
 import com.guiltypotato.checkengine.core.scan.JarReader;
+import com.guiltypotato.checkengine.core.scan.PackSnapshot;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -153,7 +154,13 @@ public final class StripMine {
         if (!roots.isEmpty()) crash = String.join(", ", roots) + " failed to load"; // the real failure, not a knock-on
         State s = new State(crash, startup, Status.PENDING, 1, suspects, List.of(), List.of(), 0, suspects.size(),
                 List.of(), List.of(), 0, roots);
-        s = s.with(Status.PENDING, 1, suspects, plan(suspects, jars), List.of(), 0, List.of());
+        // Smart start: "it worked yesterday" usually means one of the mods changed since then did it. Test those (and
+        // the mods that failed to load) on their own first: 1 changed mod takes 1-2 rounds instead of 9.
+        Set<String> likely = likelyJars(jars, PackSnapshot.load(checkEngineFolder), roots);
+        List<String> smart = smartPlan(suspects, jars, likely);
+        List<String> notes = smart.isEmpty() ? List.of() : List.of("Smart start: round 1 tests the "
+                + likely.size() + " mods most likely to blame (changed since the pack last worked, or named in the crash)");
+        s = s.with(Status.PENDING, 1, suspects, smart.isEmpty() ? plan(suspects, jars) : smart, List.of(), 0, notes);
         save(checkEngineFolder, s);
         return applyNow ? apply(modsFolder, checkEngineFolder, s) : s;
     }
@@ -491,6 +498,35 @@ public final class StripMine {
             off = next;
         }
         return tested(off, suspectSet) == 0 ? List.of() : new ArrayList<>(off);
+    }
+
+    /**
+     * Jars most likely to hold the bad mod: the ones added or updated since the last launch that worked, and the ones
+     * holding a mod that failed to load in the crash. Never Check Engine.
+     */
+    static Set<String> likelyJars(Map<String, ModJar> jars, PackSnapshot lastGood, List<String> roots) {
+        Set<String> out = new LinkedHashSet<>();
+        for (ModJar j : jars.values()) {
+            if (isCheckEngine(j)) continue;
+            boolean changed = lastGood != null && j.mods().stream().anyMatch(m -> {
+                PackSnapshot.Entry old = lastGood.mods().get(m.modId());
+                return old == null || !java.util.Objects.equals(old.version(), m.version());
+            });
+            if (changed || ids(j).stream().anyMatch(roots::contains)) out.add(j.fileName());
+        }
+        return out;
+    }
+
+    /**
+     * Round 1 of a smart start: switch off just the likely jars (with what needs them). Empty when there's nothing
+     * likely, or it would be more than half the pack anyway (then a normal split is just as good).
+     */
+    static List<String> smartPlan(List<String> suspects, Map<String, ModJar> jars, Set<String> likely) {
+        Set<String> suspectSet = new HashSet<>(suspects);
+        Set<String> off = new LinkedHashSet<>();
+        for (String f : likely) if (suspectSet.contains(f)) off.addAll(withDependents(f, jars));
+        int n = tested(off, suspectSet);
+        return n == 0 || n > suspects.size() / 2 ? List.of() : new ArrayList<>(off);
     }
 
     private static int tested(Set<String> off, Set<String> suspects) {

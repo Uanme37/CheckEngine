@@ -74,6 +74,50 @@ class StripMineTest {
         assertTrue(Files.exists(mods().resolve("old-1.0.jar.disabled")), "the player's own .disabled file is untouched");
     }
 
+    /** Saves a "last good launch" with every mod of {@link #pack()} except {@code newIds} (those were added since). */
+    private void lastGoodWithout(String... newIds) throws Exception {
+        java.util.Map<String, com.guiltypotato.checkengine.core.scan.PackSnapshot.Entry> mods = new java.util.TreeMap<>();
+        for (int i = 0; i < 20; i++) {
+            String id = "mod%02d".formatted(i);
+            mods.put(id, new com.guiltypotato.checkengine.core.scan.PackSnapshot.Entry(id, "1.0", id + "-1.0.jar"));
+        }
+        mods.put("lib", new com.guiltypotato.checkengine.core.scan.PackSnapshot.Entry("lib", "1.0", "lib-1.0.jar"));
+        for (String id : newIds) mods.remove(id);
+        new com.guiltypotato.checkengine.core.scan.PackSnapshot("2026-10-13T12:00", null, null, mods).save(folder());
+    }
+
+    /** "It worked yesterday, then I added one mod": smart start finds it in 1 round instead of about 5. */
+    @Test
+    void smartStartTestsTheChangedModsFirst() throws Exception {
+        pack();
+        lastGoodWithout("mod13");
+        State s = search("mod13-1.0.jar");
+        assertEquals(Status.FOUND, s.status(), s.toString());
+        assertEquals("mod13-1.0.jar", s.found());
+        assertEquals(1, s.round(), String.join("\n", s.notes()));
+        assertTrue(s.notes().get(0).startsWith("Smart start"));
+    }
+
+    /** The changed mod wasn't it: smart start costs one extra round at most, and still finds the right mod. */
+    @Test
+    void smartStartFallsBackWhenTheChangedModIsInnocent() throws Exception {
+        pack();
+        lastGoodWithout("mod02");
+        State s = search("mod17-1.0.jar");
+        assertEquals(Status.FOUND, s.status(), s.toString());
+        assertEquals("mod17-1.0.jar", s.found());
+        assertTrue(s.round() <= 8, "took " + s.round() + " rounds");
+    }
+
+    /** A changed library everything needs would take most of the pack off: that's just a normal split. */
+    @Test
+    void smartStartSkipsAChangeThatTakesHalfThePackDown() throws Exception {
+        pack();
+        lastGoodWithout("lib", "mod00", "mod01", "mod02", "mod03", "mod04", "mod10");
+        State s = StripMine.start(mods(), folder(), "Game crashed", true, false);
+        assertTrue(s.notes().isEmpty(), "no smart start: " + s.notes());
+    }
+
     /**
      * Like Beyond the Crank: "hidden" uses "sneaky"'s code without declaring it, so switching sneaky off alone makes
      * hidden crash differently. Strip Mine must notice that isn't the original crash, keep sneaky on, and still find bad.
