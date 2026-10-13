@@ -3,6 +3,11 @@ package com.guiltypotato.checkengine.core.intercept;
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Choice;
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Level;
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Message;
+import com.guiltypotato.checkengine.core.intercept.Page.Action;
+import com.guiltypotato.checkengine.core.intercept.Page.Line;
+import com.guiltypotato.checkengine.core.intercept.Page.Section;
+import com.guiltypotato.checkengine.core.intercept.Page.Style;
+import com.guiltypotato.checkengine.core.intercept.Page.Tone;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -19,7 +24,9 @@ import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -40,8 +47,9 @@ import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
 
 /**
- * The pre-launch window, styled like a car dashboard: a blinking check-engine light, a fault code and the fix.
- * Plain Swing, so it can open before Minecraft (and its window) exists.
+ * The Check Engine window, styled like a car dashboard: a blinking check-engine light, a fault code and the fix.
+ * Plain Swing, so it can open before Minecraft (and its window) exists. Every page is drawn in the same frame
+ * ({@link Page}): features only decide the panels and buttons.
  */
 final class Popup {
     private static final Color BG = new Color(0x19191B);
@@ -51,9 +59,14 @@ final class Popup {
     private static final Color RED = new Color(0xFF4B3E);
     private static final Color AMBER = new Color(0xFF9A1F);
     private static final Color GREEN = new Color(0x3DDC4A);
+    private static final Color BLUE = new Color(0x3B82F6);
     private static final Color RIVET = new Color(0x5E6168);
+    private static final Color BUTTON = new Color(0x3A3D45);
+    private static final Color STRIP_BUTTON = new Color(0x8A5A12);
     /** Lines a panel shows before it scrolls (the window keeps its size). */
     private static final int VISIBLE_PROBLEMS = 4;
+    /** Buttons shown in a row; more than this and the rest go under MORE. */
+    private static final int MAX_BUTTONS = 3;
 
     private Popup() {}
 
@@ -61,7 +74,6 @@ final class Popup {
         System.setProperty("java.awt.headless", "false");
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        Color level = m.level() == Level.WILL_FAIL ? RED : m.level() == Level.FOUND ? GREEN : AMBER;
         AtomicReference<Choice> choice = new AtomicReference<>(Choice.CONTINUE);
 
         JDialog d = new JDialog((java.awt.Frame) null, "Check Engine", true);
@@ -69,181 +81,235 @@ final class Popup {
         d.setAlwaysOnTop(true);
         Image logo = logoPng == null ? null : ImageIO.read(new ByteArrayInputStream(logoPng));
         if (logo != null) d.setIconImage(logo);
+        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>());
 
-        JPanel root = new JPanel(new BorderLayout(0, 10)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g;
-                g2.setPaint(new GradientPaint(0, 0, new Color(0x222225), 0, getHeight(), BG));
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.setColor(level); // warning stripe across the top, like a dashboard alert bar
-                g2.fillRect(0, 0, getWidth(), 4);
-            }
-        };
-        root.setBorder(new EmptyBorder(14, 16, 12, 16));
+        AtomicReference<JPanel> main = new AtomicReference<>();
+        Runnable back = () -> frame.swap(main.get());
+        main.set(frame.render(mainPage(m, choice, d,
+                () -> frame.swap(frame.render(stripMinePage(m, false, choice, frame, back))))));
 
-        // Header: the check-engine light, the name, and the status lamp.
-        WarningLight light = new WarningLight(logo, level);
-        JPanel header = new JPanel(new BorderLayout(14, 0));
-        header.setOpaque(false);
-        header.add(light, BorderLayout.WEST);
-        JPanel titles = column();
-        titles.add(label("CHECK ENGINE", font(Font.BOLD, 21), TEXT));
-        titles.add(label(m.headline(), font(Font.BOLD, 16), level));
-        titles.add(label("FAULT " + faultCode(m) + "  ·  " + DateTimeNow.now(), font(Font.PLAIN, 12), DIM));
-        header.add(titles, BorderLayout.CENTER);
-        root.add(header, BorderLayout.NORTH);
-
-        // Body: the problem, what changed, the fix, each in its own dashboard panel.
-        JPanel body = column();
-        JPanel problem = panel(level);
-        problem.add(label(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
-                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", font(Font.BOLD, 12), level));
-        JPanel list = column();
-        for (int i = 0; i < m.problems().size(); i++) {
-            list.add(label(m.problems().get(i), font(Font.BOLD, i == 0 ? 15 : 14), TEXT));
-            if (i == 0) m.details().forEach(dl -> list.add(label(dl, font(Font.PLAIN, 14), DIM)));
-        }
-        problem.add(fit(list));
-        body.add(problem);
-        if (!m.changed().isEmpty()) {
-            body.add(Box.createVerticalStrut(6));
-            JPanel changed = panel(AMBER);
-            changed.add(label("CHANGED SINCE IT LAST WORKED", font(Font.BOLD, 12), AMBER));
-            JPanel lines = column();
-            m.changed().forEach(c -> lines.add(label(c, font(Font.PLAIN, 14), TEXT)));
-            changed.add(fit(lines));
-            body.add(changed);
-        }
-        if (!m.fixes().isEmpty()) {
-            body.add(Box.createVerticalStrut(6));
-            JPanel fix = panel(GREEN);
-            fix.add(label("FIX", font(Font.BOLD, 12), GREEN));
-            JPanel lines = column();
-            m.fixes().forEach(f -> lines.add(label(m.fixes().size() > 1 ? "• " + f : f, font(Font.PLAIN, 14), TEXT)));
-            fix.add(fit(lines));
-            body.add(fix);
-        }
-        root.add(body, BorderLayout.CENTER);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        buttons.setOpaque(false);
-        buttons.add(button("QUIT", RED, () -> {
-            choice.set(Choice.QUIT);
-            d.dispose();
-        }));
-        if (m.stripMine() != null) {
-            JPanel explain = stripMinePage(m, logo, () -> {
-                choice.set(Choice.STRIP_MINE);
-                d.dispose();
-            }, () -> swap(d, root));
-            JButton dig = button("STRIP MINE", new Color(0x8A5A12), () -> swap(d, explain));
-            dig.setToolTipText("Find the mod behind this crash: switches off half the mods each launch. Nothing is deleted.");
-            buttons.add(dig);
-        }
-        buttons.add(button("LOAD ANYWAY", new Color(0x3A3D45), d::dispose));
-        JButton full = button("SHOW FULL ERROR", new Color(0x3A3D45), () -> openReport(m));
-        full.setEnabled(m.report() != null);
-        buttons.add(full);
-        root.add(buttons, BorderLayout.SOUTH);
-
-        d.setContentPane(root);
+        d.setContentPane(main.get());
         d.pack();
         d.setMinimumSize(new Dimension(560, d.getHeight()));
         d.setResizable(false);
         d.setLocationRelativeTo(null);
-        Timer blink = new Timer(550, e -> light.toggle());
+        Timer blink = new Timer(550, e -> frame.lights().forEach(WarningLight::toggle));
         blink.start();
         d.setVisible(true); // blocks until closed
         blink.stop();
         return choice.get();
     }
 
-    /** Shows another page in the same window, sized to fit it and kept centred where it was. */
-    private static void swap(JDialog d, JPanel page) {
-        java.awt.Point centre = new java.awt.Point(d.getX() + d.getWidth() / 2, d.getY() + d.getHeight() / 2);
-        d.setContentPane(page);
-        d.pack();
-        d.setLocation(centre.x - d.getWidth() / 2, centre.y - d.getHeight() / 2);
-        d.repaint();
+    /** The first page: what's wrong, what changed, the fix. */
+    static Page mainPage(Message m, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine) {
+        Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND ? Tone.GREEN : Tone.AMBER;
+        List<Section> sections = new ArrayList<>();
+        List<Line> problem = new ArrayList<>();
+        for (int i = 0; i < m.problems().size(); i++) {
+            problem.add(Line.strong(m.problems().get(i)));
+            if (i == 0) m.details().forEach(dl -> problem.add(Line.dim(dl)));
+        }
+        sections.add(new Section(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
+                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", tone, problem));
+        if (!m.changed().isEmpty()) {
+            sections.add(new Section("CHANGED SINCE IT LAST WORKED", Tone.AMBER,
+                    m.changed().stream().map(Line::text).toList()));
+        }
+        if (!m.fixes().isEmpty()) {
+            sections.add(new Section("FIX", Tone.GREEN, m.fixes().stream()
+                    .map(f -> Line.text(m.fixes().size() > 1 ? "• " + f : f)).toList()));
+        }
+        List<Action> actions = new ArrayList<>();
+        actions.add(new Action("QUIT", Tone.RED, () -> {
+            choice.set(Choice.QUIT);
+            d.dispose();
+        }));
+        if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
+        actions.add(new Action("LOAD ANYWAY", Tone.GREY, d::dispose));
+        if (m.report() != null) actions.add(new Action("SHOW FULL ERROR", Tone.GREY, () -> openReport(m)));
+        return new Page(tone, m.headline(), "FAULT " + faultCode(m) + "  ·  " + DateTimeNow.now(), sections,
+                actions, null);
     }
 
-    /** What Strip Mine is, before it starts: the window swaps to this page, with Back and Start. */
-    private static JPanel stripMinePage(Message m, Image logo, Runnable start, Runnable back) {
-        JPanel page = new JPanel(new BorderLayout(0, 10)) {
+    /** What Strip Mine is, before it starts, with Back and Start. */
+    private static Page stripMinePage(Message m, boolean stillLocked, AtomicReference<Choice> choice, Frame frame,
+                                      Runnable back) {
+        List<Section> sections = new ArrayList<>();
+        // CurseForge-installed packs are locked: the app would download the switched-off mods again.
+        if (m.isStripMineLocked()) {
+            List<Line> unlock = new ArrayList<>(List.of(
+                    Line.text("CurseForge has this pack locked, so it would put switched-off mods straight back."),
+                    Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
+                    Line.text("turn on \"Allow content management\". Then press Start.")));
+            if (stillLocked) unlock.add(Line.strong("Still locked: turn on \"Allow content management\" first."));
+            sections.add(new Section("FIRST: LET STRIP MINE CHANGE THIS PACK", Tone.RED, unlock));
+        }
+        sections.add(new Section("HOW IT WORKS", Tone.AMBER, List.of(
+                Line.text("Check Engine switches off half of your mods, and you launch."),
+                Line.text("It crashes: the faulty mod is still on. No crash: it's in the half that was off."),
+                Line.text("Mods you changed lately are tested first. Keep pressing Play until it says which mod."))));
+        sections.add(new Section("SAFE", Tone.GREEN, List.of(
+                Line.text("Nothing is deleted: mods are renamed to .disabled and switched back on at the end."),
+                Line.text("You can stop any time from the title screen, and every mod goes back."))));
+        sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, List.of(
+                Line.text("The game closes. Press Play again to start round 1."))));
+        List<Action> actions = List.of(
+                new Action("BACK", Tone.GREY, back),
+                new Action("START STRIP MINE", Tone.AMBER, () -> {
+                    if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
+                        frame.swap(frame.render(stripMinePage(m, true, choice, frame, back)));
+                        return;
+                    }
+                    choice.set(Choice.STRIP_MINE);
+                    frame.dialog().dispose();
+                }));
+        return new Page(Tone.AMBER, "STRIP MINE: FIND THE FAULTY MOD", m.stripMineMods() > 1
+                ? m.stripMineMods() + " mods, about " + m.stripMineRounds() + " launches (fewer if you changed mods lately)"
+                : "One launch per round", sections, actions, null);
+    }
+
+    /** The window and what every page in it shares: the logos and the blinking lights. */
+    private record Frame(JDialog dialog, Image logo, Image uan, List<WarningLight> lights) {
+        /** Shows another page in the same window, sized to fit it and kept centred where it was. */
+        void swap(JPanel page) {
+            JDialog d = dialog;
+            java.awt.Point centre = new java.awt.Point(d.getX() + d.getWidth() / 2, d.getY() + d.getHeight() / 2);
+            d.setContentPane(page);
+            d.pack();
+            d.setLocation(centre.x - d.getWidth() / 2, centre.y - d.getHeight() / 2);
+            d.repaint();
+        }
+
+        /** Draws a page in the Check Engine frame. */
+        JPanel render(Page p) {
+            Color tone = color(p.tone());
+            JPanel root = new JPanel(new BorderLayout(0, 10)) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g;
+                    g2.setPaint(new GradientPaint(0, 0, new Color(0x222225), 0, getHeight(), BG));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.setColor(tone); // warning stripe across the top, like a dashboard alert bar
+                    g2.fillRect(0, 0, getWidth(), 4);
+                }
+            };
+            root.setBorder(new EmptyBorder(14, 16, 0, 16));
+
+            // Header: the check-engine light, the name, the headline.
+            WarningLight light = new WarningLight(logo, tone);
+            lights.add(light);
+            JPanel header = new JPanel(new BorderLayout(14, 0));
+            header.setOpaque(false);
+            header.add(light, BorderLayout.WEST);
+            JPanel titles = column();
+            titles.add(label("CHECK ENGINE", font(Font.BOLD, 21), TEXT));
+            titles.add(label(p.headline(), font(Font.BOLD, 16), tone));
+            if (p.subline() != null) titles.add(label(p.subline(), font(Font.PLAIN, 12), DIM));
+            header.add(titles, BorderLayout.CENTER);
+            root.add(header, BorderLayout.NORTH);
+
+            // Body: one dashboard panel per section.
+            JPanel body = column();
+            for (int i = 0; i < p.sections().size(); i++) {
+                Section s = p.sections().get(i);
+                if (i > 0) body.add(Box.createVerticalStrut(6));
+                JPanel panel = panel(color(s.tone()));
+                panel.add(label(s.title(), font(Font.BOLD, 12), color(s.tone())));
+                JPanel lines = column();
+                for (Line l : s.lines()) {
+                    lines.add(label(l.text(), font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN, 14),
+                            l.style() == Style.DIM ? DIM : TEXT));
+                }
+                panel.add(fit(lines));
+                body.add(panel);
+            }
+            root.add(body, BorderLayout.CENTER);
+
+            // Bottom: help line, buttons, and the UAN footer.
+            JPanel bottom = column();
+            if (p.help() != null) {
+                JLabel help = label(p.help(), font(Font.PLAIN, 13), DIM);
+                help.setBorder(new EmptyBorder(0, 0, 8, 0));
+                bottom.add(help);
+            }
+            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+            buttons.setOpaque(false);
+            buttons.setAlignmentX(0f);
+            List<Action> shown = p.actions().size() > MAX_BUTTONS ? p.actions().subList(0, MAX_BUTTONS - 1) : p.actions();
+            for (Action a : shown) buttons.add(button(a.label(), buttonColor(a), a.run()));
+            if (shown.size() < p.actions().size()) buttons.add(more(p.actions().subList(shown.size(), p.actions().size())));
+            bottom.add(buttons);
+            bottom.add(footer(uan));
+            root.add(bottom, BorderLayout.SOUTH);
+            return root;
+        }
+    }
+
+    /** "MORE" button: the extra actions in a small menu. */
+    private static JButton more(List<Action> extra) {
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+        menu.setBorder(BorderFactory.createLineBorder(RIVET));
+        for (Action a : extra) {
+            javax.swing.JMenuItem item = new javax.swing.JMenuItem(a.label());
+            item.setFont(font(Font.BOLD, 13));
+            item.setForeground(Color.WHITE);
+            item.setBackground(BUTTON);
+            item.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+            item.addActionListener(e -> a.run().run());
+            menu.add(item);
+        }
+        JButton b = button("MORE ▼", BUTTON, () -> {});
+        b.addActionListener(e -> menu.show(b, 0, b.getHeight()));
+        return b;
+    }
+
+    /** The UAN maker's mark at the bottom: the logo and "Check Engine". */
+    private static JComponent footer(Image uan) {
+        JPanel f = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        f.setOpaque(false);
+        f.setBorder(new EmptyBorder(8, 0, 8, 0));
+        if (uan != null) f.add(new JLabel(new javax.swing.ImageIcon(uan.getScaledInstance(16, 16, Image.SCALE_SMOOTH))));
+        f.add(label("Check Engine", font(Font.PLAIN, 12), DIM));
+        JPanel wrap = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g;
-                g2.setPaint(new GradientPaint(0, 0, new Color(0x222225), 0, getHeight(), BG));
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.setColor(AMBER);
-                g2.fillRect(0, 0, getWidth(), 4);
+                g.setColor(new Color(0x2C2D31));
+                g.fillRect(0, 12, getWidth(), 1); // thin divider line above the mark
             }
         };
-        page.setBorder(new EmptyBorder(14, 16, 12, 16));
-        JPanel header = new JPanel(new BorderLayout(14, 0));
-        header.setOpaque(false);
-        header.add(new WarningLight(logo, AMBER), BorderLayout.WEST);
-        JPanel titles = column();
-        titles.add(label("CHECK ENGINE", font(Font.BOLD, 21), TEXT));
-        titles.add(label("STRIP MINE: FIND THE FAULTY MOD", font(Font.BOLD, 16), AMBER));
-        titles.add(label(m.stripMineMods() > 1 ? m.stripMineMods() + " mods, about " + m.stripMineRounds() + " launches"
-                : "One launch per round", font(Font.PLAIN, 12), DIM));
-        header.add(titles, BorderLayout.CENTER);
-        page.add(header, BorderLayout.NORTH);
+        wrap.setOpaque(false);
+        wrap.setAlignmentX(0f);
+        wrap.setBorder(new EmptyBorder(13, 0, 0, 0));
+        wrap.add(f);
+        return wrap;
+    }
 
-        JPanel body = column();
-        // CurseForge-installed packs are locked: the app would download the switched-off mods again.
-        JLabel lockState = label("", font(Font.BOLD, 13), RED);
-        if (m.isStripMineLocked()) {
-            JPanel unlock = panel(RED);
-            unlock.add(label("FIRST: LET STRIP MINE CHANGE THIS PACK", font(Font.BOLD, 12), RED));
-            unlock.add(label("CurseForge has this pack locked, so it would put switched-off mods straight back.",
-                    font(Font.PLAIN, 14), TEXT));
-            unlock.add(label("In the CurseForge app: three dots next to Play > Profile options >", font(Font.PLAIN, 14),
-                    TEXT));
-            unlock.add(label("turn on \"Allow content management\". Then press Start.", font(Font.PLAIN, 14), TEXT));
-            unlock.add(lockState);
-            body.add(unlock);
-            body.add(Box.createVerticalStrut(6));
+    private static Color color(Tone t) {
+        return switch (t) {
+            case RED -> RED;
+            case AMBER -> AMBER;
+            case GREEN -> GREEN;
+            case BLUE -> BLUE;
+            case GREY -> DIM;
+        };
+    }
+
+    private static Color buttonColor(Action a) {
+        return switch (a.tone()) {
+            case RED -> RED;
+            case AMBER -> STRIP_BUTTON;
+            case GREEN -> new Color(0x1F7A2A);
+            case BLUE -> BLUE;
+            case GREY -> BUTTON;
+        };
+    }
+
+    private static Image image(String resource) {
+        try (java.io.InputStream in = Popup.class.getResourceAsStream(resource)) {
+            return in == null ? null : ImageIO.read(in);
+        } catch (java.io.IOException e) {
+            return null;
         }
-        JPanel how = panel(AMBER);
-        how.add(label("HOW IT WORKS", font(Font.BOLD, 12), AMBER));
-        how.add(label("Check Engine switches off half of your mods, and you launch.", font(Font.PLAIN, 14), TEXT));
-        how.add(label("It crashes: the faulty mod is still on. No crash: it's in the half that was off.",
-                font(Font.PLAIN, 14), TEXT));
-        how.add(label("Each round halves the suspects. Just keep pressing Play until it says which mod.",
-                font(Font.PLAIN, 14), TEXT));
-        body.add(how);
-        body.add(Box.createVerticalStrut(6));
-        JPanel safe = panel(GREEN);
-        safe.add(label("SAFE", font(Font.BOLD, 12), GREEN));
-        safe.add(label("Nothing is deleted: mods are renamed to .disabled and switched back on at the end.",
-                font(Font.PLAIN, 14), TEXT));
-        safe.add(label("You can stop any time from the title screen, and every mod goes back.", font(Font.PLAIN, 14),
-                TEXT));
-        body.add(safe);
-        body.add(Box.createVerticalStrut(6));
-        JPanel now = panel(DIM);
-        now.add(label("WHAT HAPPENS NOW", font(Font.BOLD, 12), DIM));
-        now.add(label("The game closes. Press Play again to start round 1.", font(Font.PLAIN, 14), TEXT));
-        body.add(now);
-        page.add(body, BorderLayout.CENTER);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        buttons.setOpaque(false);
-        buttons.add(button("BACK", new Color(0x3A3D45), back));
-        buttons.add(button("START STRIP MINE", new Color(0x8A5A12), () -> {
-            if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
-                lockState.setText("Still locked: turn on \"Allow content management\" first.");
-                java.awt.Window w = javax.swing.SwingUtilities.getWindowAncestor(lockState);
-                if (w != null) w.pack(); // make room for the line
-                return;
-            }
-            start.run();
-        }));
-        page.add(buttons, BorderLayout.SOUTH);
-        return page;
     }
 
     /** Fallback when the window can't open: the plain system box (TinyFD if it's there), Yes = quit. */
@@ -363,7 +429,8 @@ final class Popup {
 
     private static JButton button(String text, Color color, Runnable action) {
         JButton b = new JButton(text);
-        b.setFont(font(Font.BOLD, 14));
+        Font f = font(Font.BOLD, 14);
+        b.setFont(f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, Font.BOLD, 14));
         b.setForeground(Color.WHITE);
         b.setBackground(color);
         b.setFocusPainted(false);
