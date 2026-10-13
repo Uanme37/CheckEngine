@@ -4,6 +4,7 @@ import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Choice;
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Level;
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept.Message;
 import com.guiltypotato.checkengine.core.intercept.Page.Action;
+import com.guiltypotato.checkengine.core.intercept.Page.Icon;
 import com.guiltypotato.checkengine.core.intercept.Page.Line;
 import com.guiltypotato.checkengine.core.intercept.Page.Section;
 import com.guiltypotato.checkengine.core.intercept.Page.Style;
@@ -15,23 +16,32 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
+import java.awt.Polygon;
 import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
+import java.awt.font.TextAttribute;
+import java.awt.geom.Arc2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
-import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
@@ -40,33 +50,32 @@ import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 
 /**
- * The Check Engine window, styled like a car dashboard: a blinking check-engine light, a fault code and the fix.
- * Plain Swing, so it can open before Minecraft (and its window) exists. Every page is drawn in the same frame
- * ({@link Page}): features only decide the panels and buttons.
+ * The Check Engine window, styled like a car dashboard: a hazard stripe, the check-engine lamp in a metal bezel, the
+ * fault code in a lit readout, screwed-on panels and switch-style buttons. Plain Swing, so it can open before
+ * Minecraft (and its window) exists. Every page is drawn in the same frame ({@link Page}): features only decide the
+ * panels and buttons.
  */
 final class Popup {
-    private static final Color BG = new Color(0x19191B);
-    private static final Color PANEL = new Color(0x2A2B2F);
-    private static final Color TEXT = new Color(0xE6E6E6);
+    private static final Color TEXT = new Color(0xE8E8EA);
     private static final Color DIM = new Color(0x9A9CA3);
+    private static final Color FAINT = new Color(0x6E7077);
     private static final Color RED = new Color(0xFF4B3E);
     private static final Color AMBER = new Color(0xFF9A1F);
     private static final Color GREEN = new Color(0x3DDC4A);
     private static final Color BLUE = new Color(0x3B82F6);
-    private static final Color RIVET = new Color(0x5E6168);
-    private static final Color BUTTON = new Color(0x3A3D45);
-    private static final Color STRIP_BUTTON = new Color(0x8A5A12);
+    private static final Color PANEL_TOP = new Color(0x26272B);
+    private static final Color PANEL_BOTTOM = new Color(0x212226);
+    private static final Color EDGE = new Color(0x34363B);
     /** Lines a panel shows before it scrolls (the window keeps its size). */
-    private static final int VISIBLE_PROBLEMS = 4;
-    /** Buttons shown in a row; more than this and the rest go under MORE. */
-    private static final int MAX_BUTTONS = 3;
+    private static final int VISIBLE_LINES = 4;
+    private static final int WIDTH = 600;
 
     private Popup() {}
 
@@ -90,10 +99,9 @@ final class Popup {
 
         d.setContentPane(main.get());
         d.pack();
-        d.setMinimumSize(new Dimension(560, d.getHeight()));
         d.setResizable(false);
         d.setLocationRelativeTo(null);
-        Timer blink = new Timer(550, e -> frame.lights().forEach(WarningLight::toggle));
+        Timer blink = new Timer(550, e -> frame.lamps().forEach(Bezel::toggle));
         blink.start();
         d.setVisible(true); // blocks until closed
         blink.stop();
@@ -110,13 +118,14 @@ final class Popup {
             if (i == 0) m.details().forEach(dl -> problem.add(Line.dim(dl)));
         }
         sections.add(new Section(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
-                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", tone, problem));
+                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", tone,
+                m.level() == Level.FOUND ? Icon.CHECK : Icon.ALERT, problem));
         if (!m.changed().isEmpty()) {
-            sections.add(new Section("CHANGED SINCE IT LAST WORKED", Tone.AMBER,
+            sections.add(new Section("CHANGED SINCE IT LAST WORKED", Tone.AMBER, Icon.CHANGED,
                     m.changed().stream().map(Line::text).toList()));
         }
         if (!m.fixes().isEmpty()) {
-            sections.add(new Section("FIX", Tone.GREEN, m.fixes().stream()
+            sections.add(new Section("FIX", Tone.GREEN, Icon.CHECK, m.fixes().stream()
                     .map(f -> Line.text(m.fixes().size() > 1 ? "• " + f : f)).toList()));
         }
         List<Action> actions = new ArrayList<>();
@@ -126,12 +135,13 @@ final class Popup {
         }));
         if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
         actions.add(new Action("LOAD ANYWAY", Tone.GREY, d::dispose));
-        if (m.report() != null) actions.add(new Action("SHOW FULL ERROR", Tone.GREY, () -> openReport(m)));
-        return new Page(tone, m.headline(), "FAULT " + faultCode(m) + "  ·  " + DateTimeNow.now(), sections,
-                actions, null);
+        if (m.report() != null) actions.add(new Action("FULL ERROR", Tone.GREY, () -> openReport(m)));
+        String[] fault = faultCode(m).split("·");
+        return new Page(tone, m.headline(), null, fault[0].strip(), fault.length > 1 ? fault[1].strip() : null,
+                sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
     }
 
-    /** What Strip Mine is, before it starts, with Back and Start. */
+    /** What Strip Mine is, before it starts, with Start and Back. */
     private static Page stripMinePage(Message m, boolean stillLocked, AtomicReference<Choice> choice, Frame frame,
                                       Runnable back) {
         List<Section> sections = new ArrayList<>();
@@ -142,19 +152,18 @@ final class Popup {
                     Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
                     Line.text("turn on \"Allow content management\". Then press Start.")));
             if (stillLocked) unlock.add(Line.strong("Still locked: turn on \"Allow content management\" first."));
-            sections.add(new Section("FIRST: LET STRIP MINE CHANGE THIS PACK", Tone.RED, unlock));
+            sections.add(new Section("FIRST: LET STRIP MINE CHANGE THIS PACK", Tone.RED, Icon.ALERT, unlock));
         }
-        sections.add(new Section("HOW IT WORKS", Tone.AMBER, List.of(
+        sections.add(new Section("HOW IT WORKS", Tone.AMBER, Icon.INFO, List.of(
                 Line.text("Check Engine switches off half of your mods, and you launch."),
                 Line.text("It crashes: the faulty mod is still on. No crash: it's in the half that was off."),
                 Line.text("Mods you changed lately are tested first. Keep pressing Play until it says which mod."))));
-        sections.add(new Section("SAFE", Tone.GREEN, List.of(
+        sections.add(new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
                 Line.text("Nothing is deleted: mods are renamed to .disabled and switched back on at the end."),
                 Line.text("You can stop any time from the title screen, and every mod goes back."))));
-        sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, List.of(
+        sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
                 Line.text("The game closes. Press Play again to start round 1."))));
         List<Action> actions = List.of(
-                new Action("BACK", Tone.GREY, back),
                 new Action("START STRIP MINE", Tone.AMBER, () -> {
                     if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
                         frame.swap(frame.render(stripMinePage(m, true, choice, frame, back)));
@@ -162,14 +171,15 @@ final class Popup {
                     }
                     choice.set(Choice.STRIP_MINE);
                     frame.dialog().dispose();
-                }));
+                }),
+                new Action("BACK", Tone.GREY, back));
         return new Page(Tone.AMBER, "STRIP MINE: FIND THE FAULTY MOD", m.stripMineMods() > 1
-                ? m.stripMineMods() + " mods, about " + m.stripMineRounds() + " launches (fewer if you changed mods lately)"
-                : "One launch per round", sections, actions, null);
+                ? "About " + m.stripMineRounds() + " launches, fewer if you changed mods lately" : null, null, null,
+                sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
     }
 
-    /** The window and what every page in it shares: the logos and the blinking lights. */
-    private record Frame(JDialog dialog, Image logo, Image uan, List<WarningLight> lights) {
+    /** The window and what every page in it shares: the logos and the blinking lamps. */
+    private record Frame(JDialog dialog, Image logo, Image uan, List<Bezel> lamps) {
         /** Shows another page in the same window, sized to fit it and kept centred where it was. */
         void swap(JPanel page) {
             JDialog d = dialog;
@@ -183,106 +193,466 @@ final class Popup {
         /** Draws a page in the Check Engine frame. */
         JPanel render(Page p) {
             Color tone = color(p.tone());
-            JPanel root = new JPanel(new BorderLayout(0, 10)) {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g;
-                    g2.setPaint(new GradientPaint(0, 0, new Color(0x222225), 0, getHeight(), BG));
-                    g2.fillRect(0, 0, getWidth(), getHeight());
-                    g2.setColor(tone); // warning stripe across the top, like a dashboard alert bar
-                    g2.fillRect(0, 0, getWidth(), 4);
-                }
-            };
-            root.setBorder(new EmptyBorder(14, 16, 0, 16));
+            JPanel root = new Dashboard(new BorderLayout());
 
-            // Header: the check-engine light, the name, the headline.
-            WarningLight light = new WarningLight(logo, tone);
-            lights.add(light);
+            JPanel top = column();
+            top.add(new Hazard(tone));
             JPanel header = new JPanel(new BorderLayout(14, 0));
             header.setOpaque(false);
-            header.add(light, BorderLayout.WEST);
+            header.setBorder(new EmptyBorder(10, 12, 8, 20));
+            header.setAlignmentX(0f);
+            Bezel lamp = new Bezel(logo, tone);
+            lamps.add(lamp);
+            header.add(lamp, BorderLayout.WEST);
             JPanel titles = column();
-            titles.add(label("CHECK ENGINE", font(Font.BOLD, 21), TEXT));
-            titles.add(label(p.headline(), font(Font.BOLD, 16), tone));
+            titles.add(Box.createVerticalGlue());
+            titles.add(label("CHECK ENGINE", tracked(font(Font.BOLD, 23), 0.1f), TEXT));
+            titles.add(new GlowLabel(p.headline(), tracked(font(Font.BOLD, 16), 0.03f), tone));
             if (p.subline() != null) titles.add(label(p.subline(), font(Font.PLAIN, 12), DIM));
+            titles.add(Box.createVerticalGlue());
             header.add(titles, BorderLayout.CENTER);
-            root.add(header, BorderLayout.NORTH);
+            if (p.code() != null) header.add(readout(p, tone), BorderLayout.EAST);
+            top.add(header);
+            root.add(top, BorderLayout.NORTH);
 
-            // Body: one dashboard panel per section.
             JPanel body = column();
+            body.setBorder(new EmptyBorder(0, 18, 0, 18));
             for (int i = 0; i < p.sections().size(); i++) {
-                Section s = p.sections().get(i);
-                if (i > 0) body.add(Box.createVerticalStrut(6));
-                JPanel panel = panel(color(s.tone()));
-                panel.add(label(s.title(), font(Font.BOLD, 12), color(s.tone())));
-                JPanel lines = column();
-                for (Line l : s.lines()) {
-                    lines.add(label(l.text(), font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN, 14),
-                            l.style() == Style.DIM ? DIM : TEXT));
-                }
-                panel.add(fit(lines));
-                body.add(panel);
+                if (i > 0) body.add(Box.createVerticalStrut(9));
+                body.add(section(p.sections().get(i)));
             }
             root.add(body, BorderLayout.CENTER);
 
-            // Bottom: help line, buttons, and the UAN footer.
             JPanel bottom = column();
             if (p.help() != null) {
                 JLabel help = label(p.help(), font(Font.PLAIN, 13), DIM);
-                help.setBorder(new EmptyBorder(0, 0, 8, 0));
+                help.setBorder(new EmptyBorder(10, 18, 0, 18));
                 bottom.add(help);
             }
-            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+            JPanel buttons = new JPanel();
             buttons.setOpaque(false);
+            buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
+            buttons.setBorder(new EmptyBorder(14, 18, 14, 18));
             buttons.setAlignmentX(0f);
-            List<Action> shown = p.actions().size() > MAX_BUTTONS ? p.actions().subList(0, MAX_BUTTONS - 1) : p.actions();
-            for (Action a : shown) buttons.add(button(a.label(), buttonColor(a), a.run()));
-            if (shown.size() < p.actions().size()) buttons.add(more(p.actions().subList(shown.size(), p.actions().size())));
+            boolean first = true;
+            for (Action a : p.actions()) {
+                if (a.tone() == Tone.GREY) continue;
+                if (!first) buttons.add(Box.createHorizontalStrut(10));
+                buttons.add(new SwitchButton(a));
+                first = false;
+            }
+            buttons.add(Box.createHorizontalGlue());
+            for (Action a : p.actions()) {
+                if (a.tone() != Tone.GREY) continue;
+                buttons.add(Box.createHorizontalStrut(8));
+                buttons.add(new SmallButton(a));
+            }
             bottom.add(buttons);
-            bottom.add(footer(uan));
+            bottom.add(footer(uan, p.note()));
             root.add(bottom, BorderLayout.SOUTH);
+            root.setPreferredSize(new Dimension(Math.max(WIDTH, root.getPreferredSize().width), root.getPreferredSize().height));
             return root;
         }
     }
 
-    /** "MORE" button: the extra actions in a small menu. */
-    private static JButton more(List<Action> extra) {
-        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
-        menu.setBorder(BorderFactory.createLineBorder(RIVET));
-        for (Action a : extra) {
-            javax.swing.JMenuItem item = new javax.swing.JMenuItem(a.label());
-            item.setFont(font(Font.BOLD, 13));
-            item.setForeground(Color.WHITE);
-            item.setBackground(BUTTON);
-            item.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-            item.addActionListener(e -> a.run().run());
-            menu.add(item);
+    // ---- pieces of the frame ----
+
+    /** Dark dashboard background: a soft top light and faint brushed-metal lines. */
+    private static final class Dashboard extends JPanel {
+        Dashboard(java.awt.LayoutManager layout) {
+            super(layout);
         }
-        JButton b = button("MORE ▼", BUTTON, () -> {});
-        b.addActionListener(e -> menu.show(b, 0, b.getHeight()));
-        return b;
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            int w = getWidth(), h = getHeight();
+            g2.setPaint(new RadialGradientPaint(w / 2f, -h * 0.1f, Math.max(w, h) * 0.8f, new float[] {0f, 1f},
+                    new Color[] {new Color(0x2A2B30), new Color(0x131416)}));
+            g2.fillRect(0, 0, w, h);
+            g2.setColor(new Color(255, 255, 255, 7));
+            for (int x = 0; x < w; x += 3) g2.drawLine(x, 0, x, h);
+            g2.dispose();
+        }
     }
 
-    /** The UAN maker's mark at the bottom: the logo and "Check Engine". */
-    private static JComponent footer(Image uan) {
-        JPanel f = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        f.setOpaque(false);
-        f.setBorder(new EmptyBorder(8, 0, 8, 0));
-        if (uan != null) f.add(new JLabel(new javax.swing.ImageIcon(uan.getScaledInstance(16, 16, Image.SCALE_SMOOTH))));
-        f.add(label("Check Engine", font(Font.PLAIN, 12), DIM));
-        JPanel wrap = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                g.setColor(new Color(0x2C2D31));
-                g.fillRect(0, 12, getWidth(), 1); // thin divider line above the mark
+    /** The warning stripe across the top, like hazard tape. */
+    private static final class Hazard extends JComponent {
+        private final Color tone;
+
+        Hazard(Color tone) {
+            this.tone = tone;
+            setPreferredSize(new Dimension(WIDTH, 8));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
+            setAlignmentX(0f);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int h = getHeight();
+            g2.setColor(new Color(0x141414));
+            g2.fillRect(0, 0, getWidth(), h);
+            g2.setColor(tone);
+            for (int x = -h; x < getWidth() + h; x += 24) {
+                g2.fill(new Polygon(new int[] {x, x + 12, x + 12 + h, x + h}, new int[] {h, h, 0, 0}, 4));
             }
-        };
+            g2.dispose();
+        }
+    }
+
+    /** The Check Engine logo in a round metal bezel, with a lamp ring that blinks like the real dashboard light. */
+    private static final class Bezel extends JComponent {
+        private final Image logo;
+        private final Color tone;
+        private boolean on = true;
+
+        Bezel(Image logo, Color tone) {
+            this.logo = logo;
+            this.tone = tone;
+            setPreferredSize(new Dimension(92, 92));
+        }
+
+        void toggle() {
+            on = !on;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            float c = getWidth() / 2f;
+            if (on) { // glow around the bezel
+                g2.setPaint(new RadialGradientPaint(c, c, c, new float[] {0.7f, 1f},
+                        new Color[] {alpha(tone, 110), alpha(tone, 0)}));
+                g2.fill(new Ellipse2D.Float(0, 0, 2 * c, 2 * c));
+            }
+            float r = 37; // metal ring
+            g2.setPaint(new GradientPaint(c - r, c - r, new Color(0x7A7D84), c + r, c + r, new Color(0x222428)));
+            g2.fill(new Ellipse2D.Float(c - r, c - r, 2 * r, 2 * r));
+            g2.setPaint(new GradientPaint(c - r, c + r, new Color(0x5C5F66), c + r, c - r, new Color(0x2A2C30)));
+            g2.fill(new Ellipse2D.Float(c - r + 4, c - r + 4, 2 * r - 8, 2 * r - 8));
+            float l = 30; // the lamp
+            g2.setColor(new Color(0x0D0D0F));
+            g2.fill(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
+            g2.setPaint(new RadialGradientPaint(c, c, l, new float[] {0.6f, 1f},
+                    new Color[] {alpha(tone, 0), alpha(tone, on ? 150 : 50)}));
+            g2.fill(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
+            g2.setColor(on ? tone : tone.darker().darker());
+            g2.setStroke(new BasicStroke(2f));
+            g2.draw(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
+            if (logo != null) {
+                // The logo is square with a dark background: cut it to a circle, zoomed in so the block fills it.
+                int inner = 48;
+                BufferedImage img = new BufferedImage(inner, inner, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D gi = img.createGraphics();
+                gi.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                gi.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                gi.fill(new Ellipse2D.Float(0, 0, inner, inner));
+                gi.setComposite(java.awt.AlphaComposite.SrcIn);
+                int zoom = inner / 8;
+                gi.drawImage(logo, -zoom, -zoom, inner + 2 * zoom, inner + 2 * zoom, null);
+                gi.dispose();
+                g2.drawImage(img, Math.round(c - inner / 2f), Math.round(c - inner / 2f), null);
+            }
+            g2.dispose();
+        }
+    }
+
+    /** The fault code in a lit LCD readout, with what it means and when. */
+    private static JComponent readout(Page p, Color tone) {
+        JPanel col = column();
+        Lcd lcd = new Lcd(p.code(), tone);
+        lcd.setAlignmentX(1f);
+        col.add(lcd);
+        col.add(Box.createVerticalStrut(5));
+        if (p.codeLabel() != null) {
+            JLabel what = label(p.codeLabel(), tracked(font(Font.PLAIN, 11), 0.08f), DIM);
+            what.setAlignmentX(1f);
+            col.add(what);
+        }
+        JLabel when = label(DateTimeNow.now().toUpperCase(), font(Font.PLAIN, 10), FAINT);
+        when.setAlignmentX(1f);
+        col.add(when);
+        JPanel wrap = new JPanel(new BorderLayout());
         wrap.setOpaque(false);
-        wrap.setAlignmentX(0f);
-        wrap.setBorder(new EmptyBorder(13, 0, 0, 0));
-        wrap.add(f);
+        wrap.setBorder(new EmptyBorder(8, 0, 0, 0));
+        wrap.add(col, BorderLayout.NORTH);
         return wrap;
     }
+
+    private static final class Lcd extends JComponent {
+        private final String text;
+        private final Color tone;
+        private final Font font;
+
+        Lcd(String text, Color tone) {
+            this.text = text;
+            this.tone = tone;
+            String mono = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
+                    .contains("Consolas") ? "Consolas" : Font.MONOSPACED;
+            this.font = tracked(new Font(mono, Font.BOLD, 22), 0.12f);
+            FontMetrics fm = getFontMetrics(font);
+            Dimension size = new Dimension(fm.stringWidth(text) + 24, fm.getHeight() + 6);
+            setPreferredSize(size);
+            setMaximumSize(size);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight();
+            g2.setColor(new Color(0x0A0B0C));
+            g2.fill(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, 8, 8));
+            g2.setColor(new Color(0x33353A));
+            g2.draw(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, 8, 8));
+            g2.setFont(font);
+            FontMetrics fm = g2.getFontMetrics();
+            int x = (w - fm.stringWidth(text)) / 2, y = (h - fm.getHeight()) / 2 + fm.getAscent();
+            glow(g2, text, x, y, tone);
+            g2.dispose();
+        }
+    }
+
+    /** A label whose text glows a little in its colour, like a backlit gauge. */
+    private static final class GlowLabel extends JLabel {
+        GlowLabel(String text, Font f, Color c) {
+            super(text);
+            setFont(fit(f, text));
+            setForeground(c);
+            setAlignmentX(0f);
+            setBorder(new EmptyBorder(1, 0, 1, 0));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            glow(g2, getText(), 0, getInsets().top + fm.getAscent(), getForeground());
+            g2.dispose();
+        }
+    }
+
+    /** Text with a soft glow behind it. */
+    private static void glow(Graphics2D g2, String text, int x, int y, Color c) {
+        g2.setColor(alpha(c, 22));
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) if (dx != 0 || dy != 0) g2.drawString(text, x + dx, y + dy);
+        }
+        g2.setColor(c);
+        g2.drawString(text, x, y);
+    }
+
+    /** A screwed-on panel: round icon badge, coloured title, the lines. */
+    private static JComponent section(Section s) {
+        Color tone = color(s.tone());
+        JPanel p = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight();
+                g2.setColor(new Color(0, 0, 0, 90)); // shadow
+                g2.fill(new RoundRectangle2D.Float(0, 2, w, h - 2, 12, 12));
+                g2.setPaint(new GradientPaint(0, 0, PANEL_TOP, 0, h, PANEL_BOTTOM));
+                g2.fill(new RoundRectangle2D.Float(0, 0, w, h - 2, 12, 12));
+                g2.setColor(EDGE);
+                g2.drawLine(6, 0, w - 7, 0);
+                badge(g2, s.icon(), tone, 12, 11);
+                screw(g2, w - 13, 6);
+                screw(g2, w - 13, h - 15);
+                g2.dispose();
+            }
+        };
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setOpaque(false);
+        p.setBorder(new EmptyBorder(10, 46, 12, 24));
+        p.setAlignmentX(0f);
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        p.add(label(s.title(), tracked(font(Font.BOLD, 12), 0.1f), tone));
+        JPanel lines = column();
+        for (Line l : s.lines()) {
+            lines.add(label(l.text(), font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN,
+                    l.style() == Style.STRONG ? 15 : 14), l.style() == Style.DIM ? DIM : TEXT));
+        }
+        p.add(lines.getComponentCount() > VISIBLE_LINES ? scroll(lines) : lines);
+        return p;
+    }
+
+    private static void badge(Graphics2D g2, Icon icon, Color tone, int x, int y) {
+        g2.setColor(tone);
+        g2.fill(new Ellipse2D.Float(x, y, 22, 22));
+        g2.setColor(new Color(0x111111));
+        g2.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        float cx = x + 11, cy = y + 11;
+        switch (icon) {
+            case ALERT -> {
+                g2.draw(new Line2D.Float(cx, cy - 6, cx, cy + 1.5f));
+                g2.fill(new Ellipse2D.Float(cx - 1.7f, cy + 3.8f, 3.4f, 3.4f));
+            }
+            case CHECK -> g2.draw(polyline(cx - 5.5f, cy, cx - 1.5f, cy + 4, cx + 6, cy - 4.5f));
+            case CHANGED -> {
+                g2.draw(new Arc2D.Float(cx - 6, cy - 6, 12, 12, 70, 270, Arc2D.OPEN));
+                g2.fill(new Polygon(new int[] {Math.round(cx + 1), Math.round(cx + 7), Math.round(cx + 2)},
+                        new int[] {Math.round(cy - 9), Math.round(cy - 6), Math.round(cy - 2)}, 3));
+            }
+            case INFO -> {
+                g2.fill(new Ellipse2D.Float(cx - 1.7f, cy - 7.5f, 3.4f, 3.4f));
+                g2.draw(new Line2D.Float(cx, cy - 1, cx, cy + 6));
+            }
+            case NEXT -> {
+                g2.draw(new Line2D.Float(cx - 6, cy, cx + 5, cy));
+                g2.draw(polyline(cx + 1, cy - 4.5f, cx + 5.5f, cy, cx + 1, cy + 4.5f));
+            }
+        }
+    }
+
+    private static Path2D polyline(float... xy) {
+        Path2D.Float path = new Path2D.Float();
+        path.moveTo(xy[0], xy[1]);
+        for (int i = 2; i < xy.length; i += 2) path.lineTo(xy[i], xy[i + 1]);
+        return path;
+    }
+
+    private static void screw(Graphics2D g2, int x, int y) {
+        g2.setPaint(new RadialGradientPaint(x + 2.5f, y + 2.5f, 5, new float[] {0f, 1f},
+                new Color[] {new Color(0x8A8D94), new Color(0x3A3C41)}));
+        g2.fill(new Ellipse2D.Float(x, y, 7, 7));
+        g2.setColor(new Color(0x26282C));
+        g2.setStroke(new BasicStroke(1f));
+        g2.drawLine(x + 2, y + 5, x + 5, y + 2); // the slot
+    }
+
+    /** A chunky dashboard switch with an LED, for the main actions. */
+    private static final class SwitchButton extends JButton {
+        private final Color top, bottom, shade, led;
+
+        SwitchButton(Action a) {
+            super(a.label());
+            Color[] c = switch (a.tone()) {
+                case RED -> new Color[] {new Color(0xFF5F52), new Color(0xD93A2E), new Color(0x8E2119), new Color(0xFFD9D6)};
+                case GREEN -> new Color[] {new Color(0x34B045), new Color(0x1F7A2A), new Color(0x0F4416), new Color(0xC8FFD0)};
+                case BLUE -> new Color[] {new Color(0x5B97F7), new Color(0x2F6FE0), new Color(0x1B3F86), new Color(0xD6E6FF)};
+                default -> new Color[] {new Color(0xC98420), new Color(0x8A5A12), new Color(0x4F3309), new Color(0xFFCF86)};
+            };
+            top = c[0];
+            bottom = c[1];
+            shade = c[2];
+            led = c[3];
+            setFont(fit(tracked(font(Font.BOLD, 14), 0.06f), a.label()));
+            setForeground(Color.WHITE);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setOpaque(false);
+            setBorder(new EmptyBorder(10, 32, 13, 18));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setMaximumSize(getPreferredSize());
+            addActionListener(e -> a.run().run());
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight() - 3;
+            int dy = getModel().isPressed() ? 2 : 0;
+            g2.setColor(shade);
+            g2.fill(new RoundRectangle2D.Float(0, 3, w, h, 12, 12));
+            Color t = getModel().isRollover() ? top.brighter() : top;
+            g2.setPaint(new GradientPaint(0, dy, t, 0, h + dy, bottom));
+            g2.fill(new RoundRectangle2D.Float(0, dy, w, h, 12, 12));
+            g2.setColor(new Color(255, 255, 255, 70));
+            g2.drawLine(6, dy + 1, w - 7, dy + 1);
+            float lx = 15, ly = h / 2f + dy;
+            g2.setPaint(new RadialGradientPaint(lx, ly, 8, new float[] {0f, 1f},
+                    new Color[] {alpha(led, 200), alpha(led, 0)}));
+            g2.fill(new Ellipse2D.Float(lx - 8, ly - 8, 16, 16));
+            g2.setColor(led);
+            g2.fill(new Ellipse2D.Float(lx - 4, ly - 4, 8, 8));
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            int ty = dy + (h - fm.getHeight()) / 2 + fm.getAscent();
+            g2.setColor(new Color(0, 0, 0, 80));
+            g2.drawString(getText(), 32, ty + 1);
+            g2.setColor(Color.WHITE);
+            g2.drawString(getText(), 32, ty);
+            g2.dispose();
+        }
+    }
+
+    /** A small outlined button, for the less common actions. */
+    private static final class SmallButton extends JButton {
+        SmallButton(Action a) {
+            super(a.label());
+            setFont(fit(tracked(font(Font.BOLD, 12), 0.05f), a.label()));
+            setForeground(new Color(0xC9CBD1));
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setOpaque(false);
+            setBorder(new EmptyBorder(8, 12, 8, 12));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setMaximumSize(getPreferredSize());
+            addActionListener(e -> a.run().run());
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            if (getModel().isRollover()) {
+                g2.setColor(new Color(255, 255, 255, 14));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 9, 9));
+            }
+            g2.setColor(getModel().isRollover() ? new Color(0x6A6D74) : new Color(0x3D4046));
+            g2.draw(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 9, 9));
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            g2.setColor(getForeground());
+            g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2,
+                    (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            g2.dispose();
+        }
+    }
+
+    /** The bottom strip: the UAN mark and "Check Engine", and a small note on the right. */
+    private static JComponent footer(Image uan, String note) {
+        JPanel f = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                g.setColor(new Color(0x0F1012));
+                g.fillRect(0, 0, getWidth(), getHeight());
+                g.setColor(new Color(0x2A2C30));
+                g.drawLine(0, 0, getWidth(), 0);
+            }
+        };
+        f.setBorder(new EmptyBorder(8, 12, 8, 18));
+        f.setAlignmentX(0f);
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        left.setOpaque(false);
+        if (uan != null) left.add(new JLabel(new ImageIcon(uan.getScaledInstance(20, 20, Image.SCALE_SMOOTH))));
+        left.add(label("Check Engine", font(Font.BOLD, 12), new Color(0x9A9CA3)));
+        f.add(left, BorderLayout.WEST);
+        if (note != null) {
+            String mono = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
+                    .contains("Consolas") ? "Consolas" : Font.MONOSPACED;
+            f.add(label(note, tracked(new Font(mono, Font.PLAIN, 11), 0.05f), new Color(0x5F6168)), BorderLayout.EAST);
+        }
+        f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        return f;
+    }
+
+    // ---- helpers ----
 
     private static Color color(Tone t) {
         return switch (t) {
@@ -294,14 +664,8 @@ final class Popup {
         };
     }
 
-    private static Color buttonColor(Action a) {
-        return switch (a.tone()) {
-            case RED -> RED;
-            case AMBER -> STRIP_BUTTON;
-            case GREEN -> new Color(0x1F7A2A);
-            case BLUE -> BLUE;
-            case GREY -> BUTTON;
-        };
+    private static Color alpha(Color c, int a) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(0, Math.min(255, a)));
     }
 
     private static Image image(String resource) {
@@ -344,29 +708,25 @@ final class Popup {
         return "CE-01  ·  MISSING MOD";
     }
 
-    /** The list as is, or scrolling once it has more than {@link #VISIBLE_PROBLEMS} lines. */
-    private static JComponent fit(JPanel list) {
-        return list.getComponentCount() > VISIBLE_PROBLEMS ? scroll(list) : list;
-    }
-
-    /** A scrolling list that shows about {@link #VISIBLE_PROBLEMS} lines, with a thin dashboard-style scrollbar. */
+    /** A scrolling list that shows about {@link #VISIBLE_LINES} lines, with a thin dashboard-style scrollbar. */
     private static JComponent scroll(JPanel list) {
         JScrollPane sp = new JScrollPane(list, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS,
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         sp.setBorder(null);
         sp.setOpaque(false);
-        sp.getViewport().setBackground(PANEL);
+        sp.getViewport().setOpaque(false);
         sp.setAlignmentX(0f);
         int row = list.getComponent(0).getPreferredSize().height;
-        sp.setPreferredSize(new Dimension(list.getPreferredSize().width + 14, row * (VISIBLE_PROBLEMS + 1) + row / 2));
+        sp.setPreferredSize(new Dimension(list.getPreferredSize().width + 14, row * (VISIBLE_LINES + 1) + row / 2));
         JScrollBar bar = sp.getVerticalScrollBar();
+        bar.setOpaque(false);
         bar.setPreferredSize(new Dimension(8, 0));
         bar.setUnitIncrement(row);
         bar.setUI(new BasicScrollBarUI() {
             @Override
             protected void configureScrollBarColors() {
-                thumbColor = RIVET;
-                trackColor = PANEL;
+                thumbColor = new Color(0x5E6168);
+                trackColor = PANEL_BOTTOM;
             }
 
             @Override
@@ -392,52 +752,22 @@ final class Popup {
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        return p;
-    }
-
-    /** A dark panel with a colored stripe on the left, like a gauge cluster readout. */
-    private static JPanel panel(Color accent) {
-        JPanel p = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                g.setColor(PANEL);
-                g.fillRect(0, 0, getWidth(), getHeight());
-                g.setColor(accent);
-                g.fillRect(0, 0, 4, getHeight());
-                // Rivets in the corners, like the steel plates of the Check Engine block.
-                g.setColor(RIVET);
-                int w = getWidth(), h = getHeight();
-                for (int[] r : new int[][] {{8, 4}, {w - 8, 4}, {8, h - 8}, {w - 8, h - 8}}) g.fillRect(r[0], r[1], 4, 4);
-            }
-        };
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setBorder(new EmptyBorder(7, 13, 7, 12));
-        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE)); // full width, like a gauge readout
         p.setAlignmentX(0f);
         return p;
     }
 
     private static JLabel label(String text, Font f, Color c) {
         JLabel l = new JLabel(text);
-        // Bahnschrift has no arrows; anything it can't draw falls back to a font that can.
-        l.setFont(f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, f.getStyle(), f.getSize()));
+        l.setFont(fit(f, text));
         l.setForeground(c);
         l.setAlignmentX(0f);
         l.setBorder(new EmptyBorder(1, 0, 1, 0));
         return l;
     }
 
-    private static JButton button(String text, Color color, Runnable action) {
-        JButton b = new JButton(text);
-        Font f = font(Font.BOLD, 14);
-        b.setFont(f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, Font.BOLD, 14));
-        b.setForeground(Color.WHITE);
-        b.setBackground(color);
-        b.setFocusPainted(false);
-        b.setBorder(BorderFactory.createEmptyBorder(7, 16, 7, 16));
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addActionListener(e -> action.run());
-        return b;
+    /** Bahnschrift has no arrows; anything it can't draw falls back to a font that can. */
+    private static Font fit(Font f, String text) {
+        return f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, f.getStyle(), f.getSize());
     }
 
     /** Bahnschrift is Windows' dashboard-style font; anything else falls back to the system sans-serif. */
@@ -447,61 +777,15 @@ final class Popup {
         return new Font(name, style, size);
     }
 
-    /** The Check Engine logo with a glowing light behind it that blinks, like the real dashboard lamp. */
-    private static final class WarningLight extends JComponent {
-        private final Image logo;
-        private final Color color;
-        private boolean on = true;
-
-        WarningLight(Image logo, Color color) {
-            this.logo = logo;
-            this.color = color;
-            setPreferredSize(new Dimension(66, 66));
-        }
-
-        void toggle() {
-            on = !on;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            int s = Math.min(getWidth(), getHeight());
-            if (on) {
-                Color glow = new Color(color.getRed(), color.getGreen(), color.getBlue(), 150);
-                g2.setPaint(new RadialGradientPaint(s / 2f, s / 2f, s / 2f, new float[] {0f, 1f},
-                        new Color[] {glow, new Color(0, 0, 0, 0)}));
-                g2.fillOval(0, 0, s, s);
-            }
-            g2.setColor(on ? color : color.darker().darker());
-            g2.setStroke(new BasicStroke(2.5f));
-            g2.drawOval(6, 6, s - 12, s - 12);
-            if (logo != null) {
-                // The logo is square with a dark background: cut it to a circle just inside the ring, so no corners
-                // show, and zoom in a little so the block fills it.
-                int inner = s - 18;
-                BufferedImage img = new BufferedImage(inner, inner, BufferedImage.TYPE_INT_ARGB);
-                Graphics2D gi = img.createGraphics();
-                gi.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                gi.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                gi.fill(new java.awt.geom.Ellipse2D.Float(0, 0, inner, inner));
-                gi.setComposite(java.awt.AlphaComposite.SrcIn);
-                int zoom = inner / 8;
-                gi.drawImage(logo, -zoom, -zoom, inner + 2 * zoom, inner + 2 * zoom, null);
-                gi.dispose();
-                g2.drawImage(img, 9, 9, null);
-            }
-            g2.dispose();
-        }
+    /** The font with wider letter spacing. */
+    private static Font tracked(Font f, float amount) {
+        return f.deriveFont(Map.of(TextAttribute.TRACKING, amount));
     }
 
-    /** "08 Oct 2026 16:42", for the fault line. */
+    /** "14 Oct 21:05", for the fault readout. */
     private static final class DateTimeNow {
         static String now() {
-            return java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm"));
+            return java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM HH:mm"));
         }
     }
 }
