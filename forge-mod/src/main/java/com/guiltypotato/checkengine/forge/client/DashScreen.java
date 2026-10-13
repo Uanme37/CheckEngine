@@ -51,7 +51,7 @@ public class DashScreen extends Screen {
     private final List<Section> sections;
     private final List<Btn> buttons;
     private final Runnable escape;
-    private int cardX, cardY, cardW, cardH;
+    private int cardX, cardY, cardW, cardH, buttonRows = 1, contentHeight, scroll;
 
     /**
      * @param escape what Esc does (usually the same as the "back" or "continue" button)
@@ -88,32 +88,60 @@ public class DashScreen extends Screen {
 
     @Override
     protected void init() {
-        cardW = Math.min(440, width - 16);
+        cardW = Math.min(width - 16, Math.max(320, Math.min(400, (int) (width * 0.72))));
         cardX = (width - cardW) / 2;
         int content = 0;
         for (Section s : sections) content += sectionHeight(s) + 5;
-        cardH = Math.min(height - 12, 4 + 46 + content + 28 + 16);
+        // Buttons: one row if they fit, else the small ones get a row of their own under the main ones.
+        int total = 0;
+        for (Btn b : buttons) total += buttonWidth(b) + 6;
+        buttonRows = total - 6 <= cardW - 24 ? 1 : 2;
+        contentHeight = content;
+        cardH = Math.min(height - 12, 4 + 46 + content + 28 + 16 + (buttonRows - 1) * 24);
         cardY = Math.max(6, (height - cardH) / 2);
 
-        int y = cardY + cardH - 16 - 25;
+        int y = cardY + cardH - 16 - 25 - (buttonRows - 1) * 24;
         int x = cardX + 12;
         for (Btn b : buttons) {
             if (!b.primary()) continue;
-            Component label = Component.literal(b.label()).withStyle(ChatFormatting.BOLD);
-            int w = Math.max(70, font.width(label) + 20);
-            addRenderableWidget(Button.builder(label, btn -> b.run().run()).bounds(x, y, w, 20).build());
+            int w = buttonWidth(b);
+            addRenderableWidget(Button.builder(label(b), btn -> b.run().run()).bounds(x, y, w, 20).build());
             x += w + 6;
         }
+        y += (buttonRows - 1) * 24;
         int right = cardX + cardW - 12;
         List<Btn> small = buttons.stream().filter(b -> !b.primary()).toList();
         for (int i = small.size() - 1; i >= 0; i--) {
             Btn b = small.get(i);
-            int w = Math.max(50, font.width(b.label()) + 14);
+            int w = buttonWidth(b);
             right -= w;
-            addRenderableWidget(Button.builder(Component.literal(b.label()), btn -> b.run().run())
+            addRenderableWidget(Button.builder(label(b), btn -> b.run().run())
                     .bounds(right, y, w, 20).build());
             right -= 5;
         }
+    }
+
+    private Component label(Btn b) {
+        return b.primary() ? Component.literal(b.label()).withStyle(ChatFormatting.BOLD) : Component.literal(b.label());
+    }
+
+    private int buttonWidth(Btn b) {
+        return b.primary() ? Math.max(70, font.width(label(b)) + 20) : Math.max(50, font.width(label(b)) + 14);
+    }
+
+    private int panelsBottom() {
+        return cardY + cardH - 16 - 30 - (buttonRows - 1) * 24;
+    }
+
+    private int maxScroll() {
+        return Math.max(0, contentHeight + 2 - (panelsBottom() - (cardY + 48)));
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+        if (maxScroll() == 0) return super.mouseScrolled(mouseX, mouseY, scrollY);
+        scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) (scrollY * LINE * 2)));
+        return true;
     }
 
     // ---- drawing ----
@@ -163,30 +191,38 @@ public class DashScreen extends Screen {
             if (codeLabel != null) small(g, codeLabel, x + w - 12, y + 30, GREY, true);
         }
 
-        int sy = y + 50;
-        int limit = y + h - 16 - 30;
+        // Panels: they scroll with the mouse wheel when they don't all fit.
+        int top = y + 48, limit = panelsBottom();
+        scroll = Math.max(0, Math.min(scroll, maxScroll()));
+        g.enableScissor(x, top, x + w, limit);
+        int sy = top + 2 - scroll;
         for (Section s : sections) {
-            int sh = sectionHeight(s);
-            int bottom = Math.min(sy + sh, limit);
-            if (bottom - sy < 20) break;
-            g.fill(x + 10, sy + 1, x + w - 10, bottom + 1, 0x60000000);
-            g.fillGradient(x + 10, sy, x + w - 10, bottom, 0xFF26272B, 0xFF212226);
-            g.fill(x + 13, sy, x + w - 13, sy + 1, 0xFF34363B);
-            badge(g, x + 16, sy + 6, s.tone(), s.icon());
-            screw(g, x + w - 16, sy + 3);
-            screw(g, x + w - 16, bottom - 5);
-            g.drawString(font, Component.literal(s.title()).withStyle(ChatFormatting.BOLD), x + 30, sy + 7, s.tone());
-            int ty = sy + 8 + LINE + 2;
-            outer:
-            for (Line l : s.lines()) {
-                int color = l.style() == Style.DIM ? GREY : 0xFFE8E8EA;
-                for (FormattedCharSequence part : wrap(l)) {
-                    if (ty + LINE > bottom - 2) break outer;
-                    g.drawString(font, part, x + 30, ty, color);
-                    ty += LINE;
+            int sh = sectionHeight(s), bottom = sy + sh;
+            if (bottom > top && sy < limit) {
+                g.fill(x + 10, sy + 1, x + w - 10, bottom + 1, 0x60000000);
+                g.fillGradient(x + 10, sy, x + w - 10, bottom, 0xFF26272B, 0xFF212226);
+                g.fill(x + 13, sy, x + w - 13, sy + 1, 0xFF34363B);
+                badge(g, x + 16, sy + 6, s.tone(), s.icon());
+                screw(g, x + w - 16, sy + 3);
+                screw(g, x + w - 16, bottom - 5);
+                g.drawString(font, Component.literal(s.title()).withStyle(ChatFormatting.BOLD), x + 30, sy + 7, s.tone());
+                int ty = sy + 8 + LINE + 2;
+                for (Line l : s.lines()) {
+                    int color = l.style() == Style.DIM ? GREY : 0xFFE8E8EA;
+                    for (FormattedCharSequence part : wrap(l)) {
+                        g.drawString(font, part, x + 30, ty, color);
+                        ty += LINE;
+                    }
                 }
             }
             sy = bottom + 5;
+        }
+        g.disableScissor();
+        if (maxScroll() > 0) { // thin scrollbar on the right edge
+            int track = limit - top, thumb = Math.max(12, track * track / (track + maxScroll()));
+            int ty = top + (track - thumb) * scroll / maxScroll();
+            g.fill(x + w - 6, top, x + w - 4, limit, 0xFF26272B);
+            g.fill(x + w - 6, ty, x + w - 4, ty + thumb, 0xFF6A6D74);
         }
 
         // Footer: the UAN mark and "Check Engine".
