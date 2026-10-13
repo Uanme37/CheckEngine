@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine.early;
 
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept;
+import com.guiltypotato.checkengine.core.intercept.SetupCheck;
 import com.guiltypotato.checkengine.core.model.ModInfo;
 import com.guiltypotato.checkengine.core.model.ModJar;
 import com.guiltypotato.checkengine.core.model.Side;
@@ -79,7 +80,8 @@ public class EarlyCheck implements IDependencyLocator {
                 // missing. Not sure means not saying "won't start": never be the reason a pack doesn't load.
                 LOGGER.warn("Check Engine: the mods folder scan didn't finish in time, so possible problems are only logged: {}",
                         rules.stream().map(LoadBlockers.Blocker::toString).toList());
-                intercept(repeat, folder);
+                if (repeat != null) intercept(repeat, folder);
+                else settings(folder, 17);
                 return List.of();
             }
             rules = DependencyRules.check(mods, nestedMods(scan));
@@ -87,7 +89,8 @@ public class EarlyCheck implements IDependencyLocator {
         if (rules.isEmpty()) {
             LOGGER.info("Check Engine: nothing will stop loading");
             Files.deleteIfExists(report);
-            intercept(repeat, folder); // the last launch crashed and nothing changed: it will again
+            if (repeat != null) intercept(repeat, folder); // the last launch crashed and nothing changed: it will again
+            else settings(folder, 17);
             return List.of();
         }
         List<RootProblem> problems = LoadBlockers.analyze(rules, DependencyRules.coreMods(mods),
@@ -224,5 +227,17 @@ public class EarlyCheck implements IDependencyLocator {
     @Override
     public boolean isValid(IModFile modFile) {
         return true;
+    }
+
+    /** Launcher settings that will hurt this pack (too little memory, a much newer Java): a blue window. */
+    private static void settings(Path folder, int expectedJava) {
+        if (FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
+        SetupCheck.Warning w = SetupCheck.first(FMLPaths.GAMEDIR.get(), folder, expectedJava);
+        if (w == null) return;
+        LOGGER.warn("Check Engine: {}", w.toText());
+        if (LaunchIntercept.askSetting(w, folder) == LaunchIntercept.Choice.QUIT) {
+            LOGGER.info("Check Engine: the player chose Quit before loading");
+            System.exit(0);
+        }
     }
 }

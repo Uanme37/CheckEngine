@@ -34,6 +34,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -109,6 +110,46 @@ final class Popup {
         Timer blink = new Timer(550, e -> frame.lamps().forEach(Bezel::toggle));
         blink.start();
         d.setVisible(true); // blocks until closed
+        blink.stop();
+        return choice.get();
+    }
+
+    /** A launcher setting that will hurt the pack (memory, Java): a blue window with the fix and "Don't ask again". */
+    static Choice showSetting(SetupCheck.Warning w, byte[] logoPng, Path checkEngineFolder) throws Exception {
+        System.setProperty("java.awt.headless", "false");
+        if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
+        UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        AtomicReference<Choice> choice = new AtomicReference<>(Choice.CONTINUE);
+        JDialog d = new JDialog((java.awt.Frame) null, "Check Engine", true);
+        d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        d.setAlwaysOnTop(true);
+        Image logo = logoPng == null ? null : ImageIO.read(new ByteArrayInputStream(logoPng));
+        if (logo != null) d.setIconImage(logo);
+        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>());
+
+        Action quit = new Action("QUIT", w.quitFirst() ? Tone.BLUE : Tone.GREY, () -> {
+            choice.set(Choice.QUIT);
+            d.dispose();
+        });
+        Action go = new Action(w.quitFirst() ? "LOAD ANYWAY" : "CONTINUE", w.quitFirst() ? Tone.GREY : Tone.BLUE,
+                d::dispose);
+        Action never = new Action("DON'T ASK AGAIN", Tone.GREY, () -> {
+            SetupCheck.ignore(checkEngineFolder, w.key());
+            d.dispose();
+        });
+        List<Section> sections = List.of(
+                new Section(w.panel(), Tone.BLUE, Icon.INFO, List.of(Line.strong(w.problem()), Line.dim(w.detail()))),
+                new Section("FIX", Tone.GREEN, Icon.CHECK, w.fixNote() == null ? List.of(Line.text(w.fix()))
+                        : List.of(Line.text(w.fix()), Line.dim(w.fixNote()))));
+        Page page = new Page(Tone.BLUE, w.headline(), null, w.code(), w.codeLabel(), sections,
+                w.quitFirst() ? List.of(quit, go, never) : List.of(go, quit, never), null, null);
+        d.setContentPane(frame.render(page));
+        d.pack();
+        d.setResizable(false);
+        d.setLocationRelativeTo(null);
+        Timer blink = new Timer(550, e -> frame.lamps().forEach(Bezel::toggle));
+        blink.start();
+        d.setVisible(true);
         blink.stop();
         return choice.get();
     }

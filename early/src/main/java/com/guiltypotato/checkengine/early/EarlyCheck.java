@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine.early;
 
 import com.guiltypotato.checkengine.core.intercept.LaunchIntercept;
+import com.guiltypotato.checkengine.core.intercept.SetupCheck;
 import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.EarlyHandoff;
 import com.guiltypotato.checkengine.core.scan.Finding;
@@ -60,7 +61,8 @@ public class EarlyCheck implements IDependencyLocator {
             if (rules.isEmpty()) {
                 LOGGER.info("Check Engine: {} mod files, nothing will stop loading", mods.size());
                 Files.deleteIfExists(report);
-                intercept(repeat, folder); // the last launch crashed and nothing changed: it will again
+                if (repeat != null) intercept(repeat, folder); // the last launch crashed and nothing changed: it will again
+                else settings(folder, 21);
                 return;
             }
             // The pack is failing anyway, so wait for the full scan: it shows why a mod looks missing (a Fabric
@@ -102,6 +104,18 @@ public class EarlyCheck implements IDependencyLocator {
         if (message == null || FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
         LOGGER.warn("Check Engine: {}", message.toText().replace('\n', ' '));
         if (LaunchIntercept.ask(message, FMLPaths.GAMEDIR.get()) == LaunchIntercept.Choice.QUIT) {
+            LOGGER.info("Check Engine: the player chose Quit before loading");
+            System.exit(0);
+        }
+    }
+
+    /** Launcher settings that will hurt this pack (too little memory, a much newer Java): a blue window. */
+    private static void settings(Path folder, int expectedJava) {
+        if (FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
+        SetupCheck.Warning w = SetupCheck.first(FMLPaths.GAMEDIR.get(), folder, expectedJava);
+        if (w == null) return;
+        LOGGER.warn("Check Engine: {}", w.toText());
+        if (LaunchIntercept.askSetting(w, folder) == LaunchIntercept.Choice.QUIT) {
             LOGGER.info("Check Engine: the player chose Quit before loading");
             System.exit(0);
         }

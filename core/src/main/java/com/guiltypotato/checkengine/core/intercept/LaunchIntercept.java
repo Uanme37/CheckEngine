@@ -327,6 +327,15 @@ public final class LaunchIntercept {
         }
     }
 
+    /** Shows a settings window (memory, Java). Anything that goes wrong means CONTINUE. */
+    public static Choice askSetting(SetupCheck.Warning warning, Path checkEngineFolder) {
+        try {
+            return Popup.showSetting(warning, logo(), checkEngineFolder);
+        } catch (Throwable t) {
+            return Choice.CONTINUE;
+        }
+    }
+
     private static byte[] logo() {
         try (InputStream in = LaunchIntercept.class.getResourceAsStream("/checkengine_logo.png")) {
             return in == null ? null : in.readAllBytes();
