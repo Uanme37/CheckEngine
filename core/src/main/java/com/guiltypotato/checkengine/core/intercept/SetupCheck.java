@@ -53,21 +53,26 @@ public final class SetupCheck {
         long authors = curseForgeRecommendedMb(gameDir);
         long need = authors > 0 ? authors : RamAdvisor.recommendedMb(facts);
         if (maxHeapMb <= 0 || maxHeapMb >= need * 60 / 100 || need - maxHeapMb < 1536) return null;
+        // The recommendation is what plays best, not a must: not every PC has that much. The least that should load
+        // is about 60% of it, so that's what the fix asks for first.
         long pc = facts.systemMb();
-        long target = pc > 0 ? Math.min(need, Math.max(maxHeapMb, pc - 3072)) : need;
+        long spare = pc > 0 ? Math.max(maxHeapMb, (pc - 3072) / 1024 * 1024) : Long.MAX_VALUE;
+        long least = Math.min((need * 60 / 100 + 1023) / 1024 * 1024, spare);
         PackInfo pack = PackInfo.load(gameDir);
         String name = pack.name() != null ? pack.name() : "This pack";
         String headName = pack.headlineName();
-        String fix = launcherSteps(gameDir, "memory", gb(target));
+        String fix = least >= need ? "Give it " + gb(need) + "." : "Give it more if your PC can spare it: even about "
+                + gb(least) + " helps, " + gb(need) + " is best.";
         long pcGb = Math.round(pc / 1024.0);
-        String note = pc <= 0 ? null : target >= need ? "Your PC has " + pcGb + " GB, so that's fine."
-                : "Your PC has " + pcGb + " GB, so " + gb(target) + " is the most it can spare. Close other programs "
-                        + "while playing.";
+        String note = launcherSteps(gameDir, "memory", null) + (pc <= 0 ? "" : spare >= need
+                ? "\nYour PC has " + pcGb + " GB, so " + gb(need) + " is fine."
+                : "\nYour PC has " + pcGb + " GB: give it about " + gb(spare) + " and close other programs while playing.");
         return new Warning("ignore_memory", "CE-08", "LOW MEMORY",
                 headName != null ? "LOW MEMORY FOR " + headName : "NOT ENOUGH MEMORY",
-                "MEMORY", "The game has " + gb(maxHeapMb) + ". " + name + (authors > 0 ? " recommends " : " needs about ")
+                "MEMORY", "The game has " + gb(maxHeapMb) + ". " + name + (authors > 0 ? " recommends " : " plays best with ")
                         + gb(need) + ".",
-                "With " + facts.modCount() + " mods it will probably freeze or crash while loading.", fix, note, true);
+                "It can run on less, but with " + facts.modCount() + " mods " + gb(maxHeapMb) + " will probably freeze "
+                        + "or crash.", fix, note, true);
     }
 
     /**
@@ -82,18 +87,19 @@ public final class SetupCheck {
                 "If it crashes: " + launcherSteps(gameDir, "java", "Java " + expected), null, false);
     }
 
-    /** How to change memory or Java in the launcher this pack runs in. */
+    /** How to change memory or Java in the launcher this pack runs in ({@code value} may be null: just where). */
     private static String launcherSteps(Path gameDir, String what, String value) {
         boolean memory = what.equals("memory");
+        String to = value == null ? "." : " > " + value + ".";
         if (Files.isRegularFile(gameDir.resolve("minecraftinstance.json"))) {
-            return "CurseForge: three dots next to Play > Profile options > " + (memory ? "Allocated memory" : "Java")
-                    + " > " + value + ".";
+            return "CurseForge: three dots next to Play > Profile options > " + (memory ? "Allocated memory" : "Java") + to;
         }
         Path parent = gameDir.toAbsolutePath().getParent();
         if (parent != null && Files.isRegularFile(parent.resolve("instance.cfg"))) {
             return "Prism: Edit instance > Settings > Java > " + (memory ? "Maximum memory allocation" : "Java installation")
-                    + " > " + value + ".";
+                    + to;
         }
+        if (value == null) return memory ? "It's the memory setting (-Xmx) in your launcher." : "It's in your launcher's settings.";
         return memory ? "In your launcher's settings, give the game " + value + " of memory (-Xmx)."
                 : "In your launcher's settings, pick " + value + ".";
     }

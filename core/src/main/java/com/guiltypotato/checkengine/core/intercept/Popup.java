@@ -140,7 +140,8 @@ final class Popup {
         List<Section> sections = List.of(
                 new Section(w.panel(), Tone.BLUE, Icon.INFO, List.of(Line.strong(w.problem()), Line.dim(w.detail()))),
                 new Section("FIX", Tone.GREEN, Icon.CHECK, w.fixNote() == null ? List.of(Line.text(w.fix()))
-                        : List.of(Line.text(w.fix()), Line.dim(w.fixNote()))));
+                        : java.util.stream.Stream.concat(java.util.stream.Stream.of(Line.text(w.fix())),
+                                java.util.Arrays.stream(w.fixNote().split("\n")).map(Line::dim)).toList()));
         Page page = new Page(Tone.BLUE, w.headline(), null, w.code(), w.codeLabel(), sections,
                 w.quitFirst() ? List.of(quit, go, never) : List.of(go, quit, never), null, null);
         d.setContentPane(frame.render(page));

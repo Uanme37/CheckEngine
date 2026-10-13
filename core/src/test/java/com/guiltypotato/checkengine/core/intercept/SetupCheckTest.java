@@ -25,7 +25,8 @@ class SetupCheckTest {
         assertNotNull(w);
         assertEquals("LOW MEMORY FOR BEYOND THE CRANK", w.headline());
         assertTrue(w.problem().contains("4 GB") && w.problem().contains("11.5 GB"), w.problem());
-        assertTrue(w.fix().startsWith("CurseForge:"), w.fix());
+        assertTrue(w.fixNote().startsWith("CurseForge:"), w.fixNote());
+        assertTrue(w.fix().contains("helps") && w.detail().contains("can run on less"), w.fix());
         assertTrue(w.quitFirst());
     }
 
