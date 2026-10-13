@@ -30,8 +30,8 @@ import java.util.stream.Stream;
  * reaches the title screen means it's in the switched-off half. About log2(mods) rounds; 400 mods take about 9.
  *
  * <p>Mods a switched-on mod needs stay on, so a test launch doesn't fail for a different reason. Progress lives in
- * checkengine/strip-mine.properties, so the game, Check Pack.bat and the helper that runs after the game closes can
- * all carry on the same search. Only files Strip Mine renamed itself are ever renamed back.
+ * checkengine/strip-mine.properties, so the game (as it closes) and Check Pack.bat can both carry on the same search.
+ * Only files Strip Mine renamed itself are ever renamed back.
  */
 public final class StripMine {
     public static final String STATE_FILE = "strip-mine.properties";
@@ -131,8 +131,8 @@ public final class StripMine {
 
     /**
      * Starts a search over every mod in {@code modsFolder} except Check Engine. With {@code applyNow} the files are
-     * renamed straight away (Check Pack.bat, game closed); without it the plan waits for {@link #advance} after the
-     * game closes, because a running game keeps its jars open.
+     * renamed straight away (Check Pack.bat, game closed); without it the plan waits for {@link #advance} as the
+     * game closes ({@link StripMineHelper#launch}).
      */
     public static State start(Path modsFolder, Path checkEngineFolder, String crash, boolean startup,
                               boolean applyNow)
@@ -196,7 +196,7 @@ public final class StripMine {
     // ---- rounds ----
 
     /**
-     * Call while the game is closed (the helper after it exits, or Check Pack.bat). Puts a pending plan in place, or
+     * Call as the game closes, or while it's closed (Check Pack.bat). Puts a pending plan in place, or
      * reads how the last round went and sets up the next one. {@code override} replaces the automatic result (Check
      * Pack.bat asks the player when it can't tell); pass null to detect it.
      */
@@ -541,7 +541,11 @@ public final class StripMine {
 
     // ---- files ----
 
-    /** Renames this round's jars to .disabled and switches back on the ones Strip Mine had off but no longer needs. */
+    /**
+     * Renames this round's jars to .disabled and switches back on the ones Strip Mine had off but no longer needs.
+     * A file Windows keeps locked (NeoForge 26.1 holds its mod jars open while the game runs) is left as it is: the
+     * next launch has the loader skip it instead ({@link #lockedOn}).
+     */
     static State apply(Path modsFolder, Path checkEngineFolder, State s) throws IOException {
         Set<String> want = new LinkedHashSet<>(s.toDisable());
         List<String> nowOff = new ArrayList<>();
@@ -549,14 +553,24 @@ public final class StripMine {
             if (want.contains(f)) {
                 nowOff.add(f);
             } else {
-                rename(modsFolder.resolve(f + DISABLED), modsFolder.resolve(f));
+                try {
+                    rename(modsFolder.resolve(f + DISABLED), modsFolder.resolve(f));
+                } catch (IOException e) {
+                    nowOff.add(f); // still off: keep track of it so it's switched back on later
+                    StripMineHelper.log(checkEngineFolder, "couldn't switch " + f + " back on yet: " + e);
+                }
             }
         }
         for (String f : want) {
             if (nowOff.contains(f)) continue;
             Path jar = modsFolder.resolve(f);
             if (!Files.isRegularFile(jar)) continue; // moved or deleted by the player: nothing to switch off
-            rename(jar, modsFolder.resolve(f + DISABLED));
+            try {
+                rename(jar, modsFolder.resolve(f + DISABLED));
+            } catch (IOException e) {
+                StripMineHelper.log(checkEngineFolder, "couldn't rename " + f + " (in use), the loader skips it: " + e);
+                continue;
+            }
             nowOff.add(f);
             // Save after every rename, so a crash halfway can still put everything back.
             save(checkEngineFolder, s.with(Status.PENDING, s.round(), s.suspects(), s.toDisable(), nowOff, 0, s.notes()));
@@ -565,6 +579,20 @@ public final class StripMine {
                 System.currentTimeMillis(), s.notes());
         save(checkEngineFolder, running);
         return running;
+    }
+
+    /**
+     * The jars this round should have off that are still switched on because they couldn't be renamed (locked).
+     * The loader is told to skip them, so the round still tests the right mods.
+     */
+    public static List<String> lockedOn(Path modsFolder, Path checkEngineFolder) {
+        State s = running(checkEngineFolder);
+        if (s == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String f : s.toDisable()) {
+            if (!s.disabled().contains(f) && Files.isRegularFile(modsFolder.resolve(f))) out.add(f);
+        }
+        return out;
     }
 
     private static State finish(Path modsFolder, Path checkEngineFolder, State s, Status status, List<String> left,

@@ -1,29 +1,34 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.11.1.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.11.2.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.11.1.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.11.2.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.11.1.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.11.1.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.11.1.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.11.1.jar compare <pack folder> <server folder or server pack .zip>
-java -jar checkengine-cli-0.11.1.jar export <pack folder>
-java -jar checkengine-cli-0.11.1.jar stripmine <pack folder>
+java -jar checkengine-cli-0.11.2.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.11.2.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.11.2.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.11.2.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.11.2.jar export <pack folder>
+java -jar checkengine-cli-0.11.2.jar stripmine <pack folder>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.11.1.jar** for NeoForge 26.1.2 and newer 26.1.x
-- **checkengine-neoforge-1.21.1-0.11.1.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.11.1.jar** for Forge 1.20.1
+- **checkengine-neoforge-26.1-0.11.2.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-1.21.1-0.11.2.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.11.2.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
+
+## What's new in 0.11.2
+- **Strip Mine no longer starts a separate program.** Check Engine now sets up the next round itself as the game closes (after a crash, or when you quit), on all three versions. Nothing runs in the background, and there's no PowerShell.
+- If the game is force-closed, the same round simply runs again on the next launch.
+- The help file now includes the Strip Mine log and result.
 
 ## What's new in 0.11.1
 - **Fixed (Forge 1.20.1):** on a big pack with a slow disk, the startup check could think libraries packed inside other mods (Kotlin for Forge, Puzzles Access API...) were missing and stop the pack from starting. It now waits longer for its scan, and if the scan isn't done it never blocks, it only logs.

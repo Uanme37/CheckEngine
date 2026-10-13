@@ -197,6 +197,27 @@ class StripMineTest {
         assertEquals(Status.RUNNING, StripMine.start(mods(), folder(), "Game crashed", true, true).status());
     }
 
+    /** NeoForge 26.1 keeps mod jars locked while the game runs: a locked jar stays put and the loader skips it. */
+    @Test
+    void aLockedJarIsSkippedInsteadOfRenamed() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("win"),
+                "only Windows refuses to rename an open file");
+        pack();
+        State plan = StripMine.start(mods(), folder(), "Game crashed", true, false);
+        String locked = plan.toDisable().get(0);
+        State s;
+        try (var open = new java.io.RandomAccessFile(mods().resolve(locked).toFile(), "r")) {
+            s = StripMine.advance(game, mods(), folder(), null);
+        }
+        assertEquals(Status.RUNNING, s.status());
+        assertFalse(s.disabled().contains(locked));
+        assertTrue(Files.exists(mods().resolve(locked)), "still a .jar");
+        assertEquals(List.of(locked), StripMine.lockedOn(mods(), folder()));
+        assertEquals(plan.toDisable().size() - 1, s.disabled().size(), "the rest were switched off");
+        StripMine.stop(mods(), folder());
+        assertTrue(StripMine.lockedOn(mods(), folder()).isEmpty());
+    }
+
     @Test
     void stopPutsEverythingBack() throws Exception {
         pack();

@@ -4,133 +4,79 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A small separate program the game starts during a Strip Mine search. A running game keeps its mod jars open, so
- * Windows won't let them be renamed; this waits for the game to close, then reads how the round went and switches
- * the next round's mods off ({@link StripMine#advance}). It never runs any game code.
- *
- * <p>Usage: {@code java -cp <check engine jar> ...StripMineHelper <game pid> <game dir> <mods dir> <checkengine dir>}
+ * Sets up the next Strip Mine round as the game closes. Nothing runs outside the game: when it exits (closed, quit
+ * from the error screen, or crashed), Check Engine reads how the round went and switches the next round's mods off
+ * ({@link StripMine#advance}). NeoForge 1.21.1 and Forge 1.20.1 let a running game's mod jars be renamed; NeoForge
+ * 26.1 keeps them locked, so those stay as they are and the next launch has the loader skip them
+ * ({@link StripMine#lockedOn}). If the game is killed instead, the hook doesn't run and the same round simply runs
+ * again on the next launch.
  */
 public final class StripMineHelper {
     static final String LOG_FILE = "strip-mine.log";
-    static final String LOCK_FILE = "strip-mine-helper.pid";
+    private static final AtomicBoolean ARMED = new AtomicBoolean();
 
     private StripMineHelper() {}
 
-    public static void main(String[] args) throws Exception {
-        Path folder = Path.of(args[3]);
-        try {
-            run(Long.parseLong(args[0]), Path.of(args[1]), Path.of(args[2]), folder);
-        } catch (Throwable t) {
-            log(folder, "helper failed: " + t);
-        }
-    }
-
-    private static void run(long pid, Path gameDir, Path mods, Path folder) throws Exception {
-        log(folder, "waiting for game " + pid + " to close");
-        Optional<ProcessHandle> game = ProcessHandle.of(pid);
-        if (game.isPresent()) game.get().onExit().join();
-        // Windows can take a moment to let go of the files after the process is gone.
-        for (int attempt = 0; attempt < 10; attempt++) {
-            try {
-                StripMine.State s = StripMine.advance(gameDir, mods, folder, null);
-                log(folder, s == null ? "no search running" : "round " + s.round() + ": " + s.status() + ", "
-                        + s.suspects().size() + " suspects, " + s.disabled().size() + " switched off");
-                return;
-            } catch (IOException e) {
-                log(folder, "attempt " + (attempt + 1) + " failed: " + e);
-                Thread.sleep(1000);
-            }
-        }
-    }
-
-    /**
-     * Starts the helper for this game: it outlives the game and sets up the next round when it closes. Returns false
-     * if it couldn't be started (the next round is then set up by Check Pack.bat, or on the next launch's check).
-     */
+    /** Arranges for the next round to be set up when this game closes. Safe to call more than once. */
     public static boolean launch(Path gameDir, Path modsFolder, Path checkEngineFolder) {
+        if (!ARMED.compareAndSet(false, true)) return true;
+        preloadCore();
         try {
-            // One helper per game: a second one would count the same round twice.
-            Path lock = checkEngineFolder.resolve(LOCK_FILE);
-            String me = Long.toString(ProcessHandle.current().pid());
-            if (Files.isRegularFile(lock) && Files.readString(lock).strip().equals(me)) return true;
-            String java = ProcessHandle.current().info().command().orElse(null);
-            Path jar = checkEngineJar(modsFolder);
-            if (java == null || jar == null) return false;
-            // Copy the jar out of the mods folder, so the helper doesn't hold a file the search might look at.
-            Path copy = checkEngineFolder.resolve("strip-mine-helper.jar");
-            Files.createDirectories(checkEngineFolder);
-            Files.copy(jar, copy, StandardCopyOption.REPLACE_EXISTING);
-            List<String> command = List.of(java, "-Xmx64m", "-cp", copy.toString(), StripMineHelper.class.getName(),
-                    me, gameDir.toString(), modsFolder.toString(), checkEngineFolder.toString());
-            boolean started = isWindows() ? startOutsideGame(command, checkEngineFolder) : false;
-            if (!started) {
-                new ProcessBuilder(command).redirectErrorStream(true)
-                        .redirectOutput(ProcessBuilder.Redirect.appendTo(checkEngineFolder.resolve(LOG_FILE).toFile()))
-                        .start();
-            }
-            Files.writeString(lock, me);
-            log(checkEngineFolder, "helper started for game " + me + (started ? " (outside the game's job)" : ""));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> onExit(gameDir, modsFolder, checkEngineFolder),
+                    "Check Engine Strip Mine"));
+            log(checkEngineFolder, "next round is set up when this game closes");
             return true;
-        } catch (IOException | RuntimeException e) {
+        } catch (RuntimeException e) { // already shutting down
+            ARMED.set(false);
             return false;
         }
     }
 
-    private static boolean isWindows() {
-        return System.getProperty("os.name", "").toLowerCase().contains("win");
+    private static synchronized void onExit(Path gameDir, Path modsFolder, Path checkEngineFolder) {
+        try {
+            StripMine.State s = StripMine.advance(gameDir, modsFolder, checkEngineFolder, null);
+            log(checkEngineFolder, s == null ? "no search running" : "round " + s.round() + ": " + s.status() + ", "
+                    + s.suspects().size() + " suspects, " + s.disabled().size() + " switched off");
+        } catch (IOException | RuntimeException e) {
+            log(checkEngineFolder, "couldn't set up the next round: " + e);
+        }
     }
 
     /**
-     * Launchers (and Gradle) put the game in a Windows job that closes every process it started when the game exits,
-     * which would take the helper down with it. Windows' own process service (WMI) starts it outside that job.
+     * NeoForge 26.1 closes the class loader Check Engine's plugin code comes from before the game exits, so the exit
+     * hook could no longer load anything new. Load every core class now, while it still can.
      */
-    private static boolean startOutsideGame(List<String> command, Path checkEngineFolder) {
+    private static void preloadCore() {
+        ClassLoader loader = StripMineHelper.class.getClassLoader();
         try {
-            List<String> cmd = new java.util.ArrayList<>(command);
-            Path javaw = Path.of(cmd.get(0)).resolveSibling("javaw.exe");
-            if (Files.isRegularFile(javaw)) cmd.set(0, javaw.toString()); // no console window
-            StringBuilder line = new StringBuilder();
-            for (String part : cmd) line.append('"').append(part.replace("\"", "")).append("\" ");
-            ProcessBuilder pb = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command",
-                    "$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
-                            + "@{CommandLine=$env:CE_HELPER_CMD; CurrentDirectory=$env:CE_HELPER_DIR}; "
-                            + "exit $r.ReturnValue");
-            pb.environment().put("CE_HELPER_CMD", line.toString().strip());
-            pb.environment().put("CE_HELPER_DIR", checkEngineFolder.toString());
-            pb.redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.appendTo(checkEngineFolder.resolve(LOG_FILE).toFile()));
-            Process p = pb.start();
-            return p.waitFor(20, java.util.concurrent.TimeUnit.SECONDS) && p.exitValue() == 0;
-        } catch (IOException | RuntimeException e) {
-            return false;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
-
-    /** The Check Engine jar in the mods folder: the one that holds this class. */
-    static Path checkEngineJar(Path modsFolder) throws IOException {
-        String entry = StripMineHelper.class.getName().replace('.', '/') + ".class";
-        try (Stream<Path> files = Files.list(modsFolder)) {
-            for (Path p : files.filter(f -> f.getFileName().toString().toLowerCase().startsWith("checkengine")
-                    && f.getFileName().toString().endsWith(".jar")).toList()) {
-                try (var zip = new java.util.zip.ZipFile(p.toFile())) {
-                    if (zip.getEntry(entry) != null) return p;
-                } catch (IOException ignored) {
-                    // not ours
+            Path source = Path.of(StripMineHelper.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            String prefix = "com/guiltypotato/checkengine/core/";
+            java.util.List<String> names = new java.util.ArrayList<>();
+            if (Files.isDirectory(source)) { // dev and tests: plain class folders
+                try (java.util.stream.Stream<Path> files = Files.walk(source.resolve(prefix))) {
+                    files.map(p -> source.relativize(p).toString().replace('\\', '/')).forEach(names::add);
+                }
+            } else {
+                try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(source.toFile())) {
+                    zip.stream().map(java.util.zip.ZipEntry::getName).forEach(names::add);
                 }
             }
+            for (String n : names) {
+                if (!n.startsWith(prefix) || !n.endsWith(".class")) continue;
+                try {
+                    Class.forName(n.substring(0, n.length() - 6).replace('/', '.'), false, loader);
+                } catch (Throwable ignored) {
+                    // not needed by Strip Mine
+                }
+            }
+        } catch (Exception | LinkageError e) {
+            // unknown layout: the hook still works wherever the class loader stays open
         }
-        return null;
     }
 
     static void log(Path folder, String line) {
