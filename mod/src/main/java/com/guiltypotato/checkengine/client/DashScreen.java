@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.client;
 
+import com.guiltypotato.checkengine.core.scan.PackInfo;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.ChatFormatting;
@@ -11,6 +12,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import net.neoforged.fml.loading.FMLPaths;
 
 /**
  * Check Engine's in-game screens, in the same dashboard style as the pre-launch window: a hazard stripe for warnings,
@@ -132,6 +134,10 @@ public class DashScreen extends Screen {
      * "Back"), so the main row stays short.
      */
     private List<Btn> row() {
+        List<Btn> buttons = new ArrayList<>(this.buttons);
+        // The pack maker's help link (config/checkengine-pack.properties), when there is one.
+        String help = PackInfo.load(FMLPaths.GAMEDIR.get()).supportLink();
+        if (help != null) buttons.add(new Btn("Get help", () -> Util.getPlatform().openUri(help), false, help));
         List<Btn> small = buttons.stream().filter(b -> !b.primary()).toList();
         if (small.size() < 3) return buttons;
         List<Btn> out = new ArrayList<>();

@@ -306,8 +306,13 @@ public final class LaunchIntercept {
 
     /** Shows the window and waits for the player. Anything that goes wrong means CONTINUE: never block a launch. */
     public static Choice ask(Message message) {
+        return ask(message, null);
+    }
+
+    /** As {@link #ask(Message)}, with the pack's name and help link from {@code gameDir} (see PackInfo). */
+    public static Choice ask(Message message, Path gameDir) {
         try {
-            Choice c = Popup.show(message, logo());
+            Choice c = Popup.show(message, logo(), com.guiltypotato.checkengine.core.scan.PackInfo.load(gameDir));
             if (c == Choice.STRIP_MINE && message.stripMine() != null) {
                 message.stripMine().run(); // the helper sets up round 1 once the game has closed
                 return Choice.QUIT;

@@ -9,6 +9,7 @@ import com.guiltypotato.checkengine.core.intercept.Page.Line;
 import com.guiltypotato.checkengine.core.intercept.Page.Section;
 import com.guiltypotato.checkengine.core.intercept.Page.Style;
 import com.guiltypotato.checkengine.core.intercept.Page.Tone;
+import com.guiltypotato.checkengine.core.scan.PackInfo;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -80,6 +81,10 @@ final class Popup {
     private Popup() {}
 
     static Choice show(Message m, byte[] logoPng) throws Exception {
+        return show(m, logoPng, new PackInfo(null, null));
+    }
+
+    static Choice show(Message m, byte[] logoPng, PackInfo pack) throws Exception {
         System.setProperty("java.awt.headless", "false");
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
@@ -94,7 +99,7 @@ final class Popup {
 
         AtomicReference<JPanel> main = new AtomicReference<>();
         Runnable back = () -> frame.swap(main.get());
-        main.set(frame.render(mainPage(m, choice, d,
+        main.set(frame.render(mainPage(m, pack, choice, d,
                 () -> frame.swap(frame.render(stripMinePage(m, false, choice, frame, back))))));
 
         d.setContentPane(main.get());
@@ -109,7 +114,7 @@ final class Popup {
     }
 
     /** The first page: what's wrong, what changed, the fix. */
-    static Page mainPage(Message m, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine) {
+    static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine) {
         Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND ? Tone.GREEN : Tone.AMBER;
         List<Section> sections = new ArrayList<>();
         List<Line> problem = new ArrayList<>();
@@ -137,9 +142,29 @@ final class Popup {
         if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
         actions.add(new Action("LOAD ANYWAY", Tone.GREY, d::dispose));
         if (m.report() != null) actions.add(new Action("FULL ERROR", Tone.GREY, () -> openReport(m)));
+        if (pack.supportLink() != null) actions.add(new Action("GET HELP", Tone.GREY, () -> browse(pack.supportLink())));
         String[] fault = faultCode(m).split("·");
-        return new Page(tone, m.headline(), null, fault[0].strip(), fault.length > 1 ? fault[1].strip() : null,
+        return new Page(tone, headline(m, pack), null, fault[0].strip(), fault.length > 1 ? fault[1].strip() : null,
                 sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
+    }
+
+    /** "BEYOND THE CRANK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
+    static String headline(Message m, PackInfo pack) {
+        String name = pack.headlineName();
+        if (name == null) return m.headline();
+        return switch (m.level()) {
+            case WILL_FAIL -> name + " WON'T START";
+            case MAY_FAIL -> name + " WILL PROBABLY CRASH AGAIN";
+            default -> m.headline();
+        };
+    }
+
+    private static void browse(String link) {
+        try {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(link));
+        } catch (Exception ignored) {
+            // no browser: the link is in the pack's config file
+        }
     }
 
     /** What Strip Mine is, before it starts, with Start and Back. */

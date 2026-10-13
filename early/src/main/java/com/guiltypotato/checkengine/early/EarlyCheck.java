@@ -101,7 +101,7 @@ public class EarlyCheck implements IDependencyLocator {
     private static void intercept(LaunchIntercept.Message message, Path folder) {
         if (message == null || FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
         LOGGER.warn("Check Engine: {}", message.toText().replace('\n', ' '));
-        if (LaunchIntercept.ask(message) == LaunchIntercept.Choice.QUIT) {
+        if (LaunchIntercept.ask(message, FMLPaths.GAMEDIR.get()) == LaunchIntercept.Choice.QUIT) {
             LOGGER.info("Check Engine: the player chose Quit before loading");
             System.exit(0);
         }
