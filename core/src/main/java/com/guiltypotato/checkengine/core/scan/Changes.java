@@ -37,7 +37,8 @@ public record Changes(String since, List<Change> changes) {
 
         /** An "update" to an older version: worlds saved with the newer one may not load right. */
         public boolean downgrade() {
-            return type == Type.UPDATED && from != null && to != null && !id.equals("loader")
+            // not Check Engine itself: putting an older test build back is no risk to worlds
+            return type == Type.UPDATED && from != null && to != null && !id.equals("loader") && !id.equals("checkengine")
                     && com.guiltypotato.checkengine.core.version.ModVersion.parse(to)
                             .compareTo(com.guiltypotato.checkengine.core.version.ModVersion.parse(from)) < 0;
         }
