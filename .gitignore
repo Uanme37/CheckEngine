@@ -46,3 +46,6 @@ test-packs/**/*.zip
 curseforge-upload/
 demo/
 mod-26/runs/
+
+# Public crash reports from other people (local test data, never committed)
+crash-library/

@@ -121,7 +121,7 @@ public final class CrashTranslator {
     }
 
     public static Explanation translate(String report) {
-        String[] lines = report.replace("\r", "").split("\n");
+        String[] lines = tidy(report).split("\n");
         String description = null;
         String exception = null;
         int exceptionLine = -1;
@@ -311,6 +311,8 @@ public final class CrashTranslator {
                 ? duplicateRegistration(msg, reporter.group(1), reporter.group(2), files)
                 : duplicateRegistration(msg, null, null, files);
         if (duplicate != null) return duplicate;
+        Finding more = moreLoadingIssues(msg, files);
+        if (more != null) return more;
         if ((m = FAILED_TO_LOAD.matcher(msg)).find()) {
             String error = m.group(3) == null ? "" : " Its error: " + m.group(3);
             return new Finding(Severity.ERROR, "mod-crashed", m.group(1) + " crashed while loading",
@@ -320,6 +322,98 @@ public final class CrashTranslator {
         }
         return new Finding(Severity.ERROR, "loading-issue", "Mod loading problem", msg,
                 files.isEmpty() ? STRIP_MINE_HINT : "Update or remove " + files.get(0) + ".", files);
+    }
+
+    /** "Create (create) encountered an error while dispatching the ... event" / "during the common_setup event phase". */
+    private static final Pattern EVENT_ERROR = Pattern.compile(
+            "^(.+?) \\(([a-z0-9_.-]+)\\) encountered an error (?:while dispatching the \\S+?([A-Za-z]+Event) event"
+                    + "|during the (\\S+) event phase)(?: (?:[a-z0-9_]+\\.)*([A-Za-z0-9_$]+(?:Exception|Error)\\b.*))?");
+    /** "KubeUI (kubeui) has class loading errors java.lang.UnsupportedClassVersionError: ... (class file version 65.0)" */
+    private static final Pattern NEWER_JAVA = Pattern.compile(
+            "^(.+?)(?: \\(([a-z0-9_.-]+)\\))? has class loading errors.*UnsupportedClassVersionError.*?class file version (\\d+)");
+    /** "Attempted to load class net/minecraft/client/... for invalid dist DEDICATED_SERVER", or a missing client class. */
+    private static final Pattern SERVER_DIST = Pattern.compile(
+            "invalid dist DEDICATED_SERVER|NoClassDefFoundError: net/minecraft/client/");
+    private static final Pattern MOD_NAME = Pattern.compile("^(.+?)(?: \\(([a-z0-9_.-]+)\\))? (?:has|encountered)");
+    /** "File mods\Textile-0.12.0+1.21.1-neoforge.jar is not a valid mod file" */
+    private static final Pattern NOT_A_MOD = Pattern.compile("File (.+?) is not a valid mod file");
+    /** "An uncaught parallel processing error has occurred. java.lang.NoClassDefFoundError: net/x/y/Z" */
+    private static final Pattern PARALLEL_CLASS = Pattern.compile(
+            "parallel processing error.*?(?:NoClassDefFoundError|ClassNotFoundException): (\\S+)");
+    /** Sinytra Connector running a Fabric mod: "... due to errors, provided by 'paradise_lost'" */
+    private static final Pattern CONNECTOR = Pattern.compile("\\[Connector\\].*?provided by '([a-z0-9_.-]+)'");
+
+    /** Loading errors seen in real crash reports (the crash library) that the rules above don't cover. */
+    private static Finding moreLoadingIssues(String msg, List<String> files) {
+        Matcher m;
+        if ((m = NEWER_JAVA.matcher(msg)).find()) {
+            int java = Integer.parseInt(m.group(3)) - 44; // class file 65 = Java 21
+            return new Finding(Severity.ERROR, "wrong-java", m.group(1) + " needs Java " + java,
+                    m.group(1) + " was built for Java " + java + ", but the game runs an older Java.",
+                    "In the launcher, pick Java " + java + " for this pack. Or get a version of " + m.group(1)
+                            + " made for your Minecraft version.", files);
+        }
+        if (SERVER_DIST.matcher(msg).find()) {
+            Matcher n = MOD_NAME.matcher(msg);
+            String mod = n.find() ? n.group(1) : null;
+            return new Finding(Severity.ERROR, Finding.CLIENT_ONLY_ON_SERVER,
+                    mod != null ? "Client-only mod on the server: " + mod : "Client-only mod on the server",
+                    (mod != null ? mod : "A mod") + " uses game code that only exists on the player's side (graphics, "
+                            + "screens), so it can't run on a server.",
+                    "Remove " + (mod != null ? mod : "it") + " from the server. Players keep it in their own pack. "
+                            + "Check Pack.bat's serverpack command builds a server copy without these mods.", files);
+        }
+        if ((m = EVENT_ERROR.matcher(msg)).find()) {
+            String when = m.group(3) != null ? m.group(3) : m.group(4).replace('_', ' ');
+            String error = m.group(5) == null ? "" : " Its error: " + m.group(5);
+            return new Finding(Severity.ERROR, "mod-crashed", m.group(1) + " crashed while loading",
+                    m.group(1) + " (" + m.group(2) + ") hit an error while setting up (" + when + "), so loading "
+                            + "stopped." + error, updateOrRemove(m.group(1), "its author"), files);
+        }
+        if ((m = NOT_A_MOD.matcher(msg)).find()) {
+            String f = fileName(m.group(1));
+            return new Finding(Severity.ERROR, Finding.BROKEN_JAR, f + " isn't a valid mod file",
+                    "The loader can't read " + f + ": the download is broken, or it's made for another loader "
+                            + "(Fabric, Forge) or another Minecraft version.",
+                    "Download " + f + " again, picking the file for your loader and Minecraft version, or remove it.",
+                    List.of(f));
+        }
+        if ((m = CONNECTOR.matcher(msg)).find()) {
+            return new Finding(Severity.ERROR, "mod-crashed", "Fabric mod " + m.group(1) + " crashed (through Connector)",
+                    m.group(1) + " is a Fabric mod running through Sinytra Connector, and it failed while starting.",
+                    "Remove " + m.group(1) + ", or look for a NeoForge version of it. Fabric mods through Connector "
+                            + "don't always work.", files);
+        }
+        if ((m = PARALLEL_CLASS.matcher(msg)).find()) {
+            String cls = m.group(1).replace('.', '/');
+            String needs = HiddenDependencies.modForClass(cls);
+            String pkg = cls.contains("/") ? cls.substring(0, cls.lastIndexOf('/')).replace('/', '.') : cls;
+            return new Finding(Severity.ERROR, needs != null ? Finding.MISSING_DEPENDENCY : "loading-issue",
+                    needs != null ? "A mod needs " + needs + ", which isn't installed" : "A mod is missing code it needs",
+                    "While loading, a mod tried to use " + cls + " (from " + pkg + "), which isn't in the pack.",
+                    needs != null ? "Install " + needs + "." : "Install the mod that " + pkg + " belongs to, or update "
+                            + "the mods that need it. " + STRIP_MINE_HINT, files);
+        }
+        return null;
+    }
+
+    /**
+     * Crash reports people paste get mangled: every line quoted ("| ", "> ", non-breaking spaces from chat apps), or the
+     * whole report squashed onto one line by a web form. Put the lines back so the rules can read them.
+     */
+    static String tidy(String report) {
+        String text = report.replace("\r", "").replace(' ', ' ');
+        String[] lines = text.split("\n");
+        if (lines.length < 5 && text.length() > 200 && text.contains("Description:")) {
+            // Squashed: the line breaks became double spaces. Stack frames are "at ..." after a space.
+            text = text.replaceAll(" {2,}", "\n").replaceAll(" (at [\\w$.]+[.(])", "\n\t$1")
+                    .replaceAll(" (Caused by: )", "\n$1").replaceAll(" (-- .+? --)", "\n$1");
+            lines = text.split("\n");
+        }
+        StringBuilder out = new StringBuilder(text.length());
+        for (String l : lines) out.append(l.replaceFirst("^ *(?:[|>] ?)? *", "")).append('\n');
+        // Half-squashed: "Time: ... Description: ..." on one line.
+        return out.toString().replaceAll("(\\S) +(Description: )", "$1\n$2");
     }
 
     /** The fix when Crash Doctor can't name the mod: Strip Mine finds it by switching mods off. */

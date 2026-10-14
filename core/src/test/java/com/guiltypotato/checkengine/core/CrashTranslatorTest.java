@@ -30,6 +30,52 @@ class CrashTranslatorTest {
 
             """;
 
+    private static com.guiltypotato.checkengine.core.scan.Finding first(String report) {
+        return com.guiltypotato.checkengine.core.crash.CrashTranslator.translate(report).findings().get(0);
+    }
+
+    private static String loadingIssue(String failure) {
+        return "---- Minecraft Crash Report ----\nDescription: Mod loading failures have occurred; consult the issue "
+                + "messages for more details\n\nnet.neoforged.neoforge.logging.CrashReportExtender$ModLoadingCrashException: "
+                + "Mod loading has failed\n\n-- Mod loading issue for: x --\nDetails:\n\tFailure message: " + failure
+                + "\n\tMod version: 1.0\n";
+    }
+
+    /** Wordings from the crash library: each now names the mod and the real problem. */
+    @Test
+    void loadingErrorsFromTheCrashLibrary() {
+        var event = first(loadingIssue("Ender's Delight (endersdelight) encountered an error while dispatching the "
+                + "net.neoforged.neoforge.registries.RegisterEvent event java.lang.NullPointerException: boom"));
+        org.junit.jupiter.api.Assertions.assertEquals("Ender's Delight crashed while loading", event.title());
+
+        var java = first(loadingIssue("KubeUI (kubeui) has class loading errors java.lang.UnsupportedClassVersionError: "
+                + "dev/kubeui/KubeUI has been compiled by a more recent version of the Java Runtime (class file version "
+                + "69.0), this version of the Java Runtime only recognizes class file versions up to 65.0"));
+        org.junit.jupiter.api.Assertions.assertEquals("KubeUI needs Java 25", java.title());
+
+        var server = first(loadingIssue("Divine Relics (divinerelics) encountered an error during the common_setup "
+                + "event phase java.lang.BootstrapMethodError: java.lang.RuntimeException: Attempted to load class "
+                + "net/minecraft/client/multiplayer/ClientLevel for invalid dist DEDICATED_SERVER"));
+        org.junit.jupiter.api.Assertions.assertEquals("Client-only mod on the server: Divine Relics", server.title());
+
+        var file = first(loadingIssue("File mods\\Textile-0.12.0+1.21.1-neoforge.jar is not a valid mod file"));
+        org.junit.jupiter.api.Assertions.assertEquals("Textile-0.12.0+1.21.1-neoforge.jar isn't a valid mod file",
+                file.title());
+    }
+
+    /** Pasted from chat or a web form: quoted lines, or everything on one line. Still read. */
+    @Test
+    void mangledPastesAreStillRead() {
+        String quoted = "| ---- Minecraft Crash Report ----\n| Time: 2026-06-09\n| Description: Mod loading error has "
+                + "occurred\n|\n| java.lang.Exception: Mod Loading has failed\n";
+        org.junit.jupiter.api.Assertions.assertNotEquals("unknown-crash", first(quoted).code());
+        String squashed = "---- Minecraft Crash Report ----  // Shall we play a game?  Time: 2026-05-10 12:26:13 "
+                + "Description: Ticking entity  java.lang.NullPointerException: Cannot invoke \"x\" because \"y\" is "
+                + "null at com.example.Mod.tick(Mod.java:1) at net.minecraft.world.entity.Entity.tick(Entity.java:2)"
+                + "  -- Head --  Thread: Server thread";
+        org.junit.jupiter.api.Assertions.assertNotEquals("unknown-crash", first(squashed).code());
+    }
+
     /** A crash that names no mod points the player at Strip Mine. */
     @Test
     void aCrashWithNoModNamedSuggestsStripMine() {
