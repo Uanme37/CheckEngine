@@ -34,7 +34,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
                    java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
-                   java -jar checkengine-cli.jar logs <pack folder>   (which mods flood the game log with warnings)
+                   java -jar checkengine-cli.jar logs <pack folder>   (log flooding, config typos, missing textures)
                    java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
                    java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
@@ -239,7 +239,10 @@ public final class CheckEngineCli {
             return 0;
         }
         System.out.print(result.toText());
-        return result.isEmpty() ? 0 : 1;
+        // Config values the loader threw away, and missing textures and models
+        var problems = com.guiltypotato.checkengine.core.scan.LogProblems.check(game);
+        System.out.print(problems.toText());
+        return result.isEmpty() && problems.isEmpty() ? 0 : 1;
     }
 
     /** journal <pack>: the pack journal, what changed between launches that worked (newest first). */

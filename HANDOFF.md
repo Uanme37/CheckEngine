@@ -5,8 +5,8 @@ Read this instead of re-exploring. Plan and history: `Check Engine - Overview.md
 ## State (2026-10-14)
 - GitHub: v0.12.0 released (tag). Commits after it are local only: push only when A3 asks.
 - CurseForge: nothing new until all of 0.13 is done (A3's call), then one Craft to Exile 2 launch, upload, outreach.
-- 0.13 done: silent crash explainer, config changes + checkpoint/undo, export check, world rescue, round in-game lamp, Crash Doctor reads the game log, undo new mods (window + Crash Doctor + Check Pack.bat + CLI `newmods`), downgrade warning, log spam finder (CLI `logs`, Check Pack.bat, help file), same-job mods (scan warning, SameJob.JOBS list), Pack Journal (checkengine/pack-journal.txt, CLI `journal`), duplicate materials (CLI `materials`, Check Pack.bat; reads item model file names).
-- 0.13 next, in order: config typo catcher (+ missing textures/models), Strip Mine for configs, Pack Update Notes, Safe Remove, quiet mode, "Works with Check Engine" badge.
+- 0.13 done: silent crash explainer, config changes + checkpoint/undo, export check, world rescue, round in-game lamp, Crash Doctor reads the game log, undo new mods (window + Crash Doctor + Check Pack.bat + CLI `newmods`), downgrade warning, log spam finder (CLI `logs`, Check Pack.bat, help file), same-job mods (scan warning, SameJob.JOBS list), Pack Journal (checkengine/pack-journal.txt, CLI `journal`), duplicate materials (CLI `materials`, Check Pack.bat; reads item model file names), config typo catcher + missing textures (LogProblems, in CLI `logs`).
+- 0.13 next, in order: Strip Mine for configs, Pack Update Notes, Safe Remove, quiet mode, "Works with Check Engine" badge.
 - Still in the old style: boot warning (heads-up) screen and join mismatch screen.
 - BTC help link (support_link) stays empty: A3 has no Discord.
 - A3 installed more CurseForge packs (2026-10-14: 1.20.1, 1.21.1, 26.2.1) for false-alarm checks: loop the CLI over all instances after each feature. The 26.1 jar only allows MC [26.1.2,26.2): check 26.2.1 support.

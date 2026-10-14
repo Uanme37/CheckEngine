@@ -31,7 +31,7 @@ public final class LogSpam {
     /** A resource location in the message: 'createhaven:block/x' or createhaven:block/x. */
     private static final Pattern RESOURCE = Pattern.compile("(?<![A-Za-z0-9_.-])([a-z0-9_.-]{2,}):[a-z0-9_./-]+");
     /** "\t\tCreate 6.0.4 (create)" in the mod list at the top of a log. */
-    private static final Pattern MOD_LIST = Pattern.compile("(?m)^\\t\\t(.+?) \\S+ \\(([a-z0-9_.-]+)\\)\\s*$");
+    static final Pattern MOD_LIST = Pattern.compile("(?m)^\\t\\t(.+?) \\S+ \\(([a-z0-9_.-]+)\\)\\s*$");
     private static final List<String> NOT_A_MOD = List.of("minecraft", "neoforge", "forge", "c", "java", "http",
             "https", "file", "jar", "union");
 

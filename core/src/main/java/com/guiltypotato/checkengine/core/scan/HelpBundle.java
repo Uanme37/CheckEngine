@@ -57,7 +57,8 @@ public final class HelpBundle {
             copy(zip, gameDir.resolve("logs").resolve("latest.log"), "logs/latest.log", redact);
             // Which mods flood the log over the last launches: often the same mods behind odd bugs.
             try {
-                put(zip, "log-check.txt", redact.apply(LogSpam.check(gameDir).toText()));
+                put(zip, "log-check.txt", redact.apply(LogSpam.check(gameDir).toText()
+                        + LogProblems.check(gameDir).toText()));
             } catch (RuntimeException ignored) {
                 // the help file is still useful without it
             }
