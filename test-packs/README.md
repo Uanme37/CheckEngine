@@ -4,7 +4,7 @@ Notes only. Never copy whole packs in here (jars/zips are gitignored anyway).
 
 | Pack | Why |
 | --- | --- |
-| TheCreate | ~450 mods, FTB Quests, loot mods, BisectHosting server |
+| Beyond the Crank (formerly TheCreate) | ~394 mods, FTB Quests, loot mods, BisectHosting server |
 | ATM10 | biggest 1.21.1 kitchen-sink pack |
 | Techopolis 3 | KubeJS + LootJS scripts |
 | FTB Skies 2 | quest-heavy, custom loot tables |

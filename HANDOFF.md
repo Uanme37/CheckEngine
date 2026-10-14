@@ -9,6 +9,7 @@ Read this instead of re-exploring. Plan and history: `Check Engine - Overview.md
 - 0.13 next, in order: duplicate materials, config typo catcher (+ missing textures/models), Strip Mine for configs, Pack Update Notes, Safe Remove, quiet mode, "Works with Check Engine" badge.
 - Still in the old style: boot warning (heads-up) screen and join mismatch screen.
 - BTC help link (support_link) stays empty: A3 has no Discord.
+- A3 installed more CurseForge packs (2026-10-14: 1.20.1, 1.21.1, 26.2.1) for false-alarm checks: loop the CLI over all instances after each feature. The 26.1 jar only allows MC [26.1.2,26.2): check 26.2.1 support.
 
 ## Build and test
 ```bash

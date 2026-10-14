@@ -1,5 +1,7 @@
 # Check Engine (formerly Pack Doctor)
 
+**Start with `HANDOFF.md`** (current state, build, layout, tools). The sections below are the original plan.
+
 Renamed from Pack Doctor on 2026-10-06 (the CurseForge name was taken). Mod id, command, report folder and Java packages are all `checkengine`. The GitHub repo was renamed to Uanme37/CheckEngine the same day. This folder was Projects\PackDoctor until 2026-10-06.
 
 A NeoForge 1.21.1 mod plus a standalone CLI that tells pack makers what's broken in their pack, in plain English. No gameplay changes.
@@ -30,7 +32,7 @@ CheckEngine/
 | Polish | 9 on | join mismatch, RAM report, 1.20.1 Forge port |
 
 ## Test packs
-TheCreate (main), ATM10, Techopolis 3, FTB Skies 2. Break a copy on purpose:
+Beyond the Crank (main, formerly TheCreate), ATM10, Techopolis 3, FTB Skies 2. Break a copy on purpose:
 - two versions of one mod (Alex's Caves 2.0.2 + 2.0.10)
 - a mod missing its dependency (Continuity without Connector)
 - a client-only mod on the server
