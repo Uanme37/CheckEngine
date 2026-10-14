@@ -36,18 +36,33 @@ import net.minecraftforge.network.NetworkRegistry;
 import org.apache.commons.lang3.tuple.Pair;
 
 /** Replaces Forge's "mod mismatch" kick screen with which mods to add, remove or update. */
-public final class JoinMismatchScreen extends Screen {
-    private static final int LINE = 11;
+public final class JoinMismatchScreen extends DashScreen {
 
-    private final ModMismatchDisconnectedScreen original;
-    private final Screen back;
-    private final List<Finding> findings;
 
     private JoinMismatchScreen(ModMismatchDisconnectedScreen original, Screen back, List<Finding> findings) {
-        super(Component.translatable("checkengine.join.title"));
-        this.original = original;
-        this.back = back;
-        this.findings = findings;
+        super(RED, "CAN'T JOIN: MODS DON'T MATCH", null, null, sections(findings), buttons(original, back),
+                () -> Minecraft.getInstance().setScreen(back));
+    }
+
+    /** What to add, remove or update, each with its fix. */
+    private static List<Section> sections(List<Finding> findings) {
+        List<Line> lines = new ArrayList<>();
+        for (Finding f : findings.subList(0, Math.min(10, findings.size()))) {
+            lines.add(Line.strong(f.title()));
+            if (f.fix() != null && !f.fix().isBlank()) lines.add(Line.dim(f.fix()));
+        }
+        if (findings.size() > 10) lines.add(Line.dim("...and " + (findings.size() - 10) + " more in the report"));
+        return List.of(new Section("YOUR MODS VS THE SERVER'S", RED, "!", lines));
+    }
+
+    private static List<Btn> buttons(ModMismatchDisconnectedScreen original, Screen back) {
+        return List.of(
+                new Btn("Back", () -> Minecraft.getInstance().setScreen(back), true),
+                new Btn("Open mods folder", () -> Util.getPlatform().openFile(FMLPaths.MODSDIR.get().toFile()), false),
+                new Btn("Open report", () -> Util.getPlatform().openFile(reportFile().toFile()), false,
+                        "The full list, with the server's address, in a text file."),
+                new Btn("Details", () -> Minecraft.getInstance().setScreen(original), false,
+                        "The loader's own list of the channels that didn't match."));
     }
 
     static Path reportFile() {
@@ -101,55 +116,5 @@ public final class JoinMismatchScreen extends Screen {
         Field f = o.getClass().getDeclaredField(field);
         f.setAccessible(true);
         return (T) f.get(o);
-    }
-
-    @Override
-    protected void init() {
-        int w = 100;
-        int y = height - 30;
-        int x = width / 2 - (w * 4 + 15) / 2;
-        addRenderableWidget(Button.builder(Component.translatable("checkengine.screen.open_report"),
-                b -> Util.getPlatform().openFile(reportFile().toFile())).bounds(x, y, w, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("checkengine.join.mods_folder"),
-                b -> Util.getPlatform().openFile(FMLPaths.MODSDIR.get().toFile())).bounds(x + w + 5, y, w, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("checkengine.join.details"),
-                b -> minecraft.setScreen(original)).bounds(x + (w + 5) * 2, y, w, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.back"), b -> onClose())
-                .bounds(x + (w + 5) * 3, y, w, 20).build());
-    }
-
-    @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g);
-        super.render(g, mouseX, mouseY, partialTick);
-        g.drawCenteredString(font, title, width / 2, 15, 0xFFFFFF);
-        g.drawCenteredString(font, Component.translatable("checkengine.join.summary"), width / 2, 30, 0xAAAAAA);
-
-        int left = Math.max(10, width / 2 - 200);
-        int maxWidth = Math.min(400, width - 20);
-        int y = 50;
-        int bottom = height - 40 - LINE;
-        int shown = 0;
-        for (Finding f : findings) {
-            ChatFormatting color = f.severity() == Finding.Severity.ERROR ? ChatFormatting.RED : ChatFormatting.YELLOW;
-            List<FormattedCharSequence> lines = new ArrayList<>(font.split(Component.literal(f.title()).withStyle(color), maxWidth));
-            lines.addAll(font.split(Component.literal("  " + f.fix()).withStyle(ChatFormatting.GRAY), maxWidth));
-            if (y + lines.size() * LINE > bottom) break;
-            for (FormattedCharSequence part : lines) {
-                g.drawString(font, part, left, y, 0xFFFFFF);
-                y += LINE;
-            }
-            y += 3;
-            shown++;
-        }
-        if (shown < findings.size()) {
-            g.drawString(font, Component.translatable("checkengine.screen.more", findings.size() - shown)
-                    .withStyle(ChatFormatting.GRAY), left, y, 0xFFFFFF);
-        }
-    }
-
-    @Override
-    public void onClose() {
-        minecraft.setScreen(back);
     }
 }

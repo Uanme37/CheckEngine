@@ -42,6 +42,11 @@ function rep(s, a, b) { must(s, a); return s.split(a).join(b); }
   fs.writeFileSync(out + "StripMineScreens.java", m);
   fs.writeFileSync(out + "PackUpdatedScreen.java", read("PackUpdatedScreen.java"));
   fs.writeFileSync(out + "SafeRemoveScreen.java", read("SafeRemoveScreen.java"));
+  let w = read("BootWarningScreen.java");
+  w = rep(w, "import net.minecraft.Util;", "import net.minecraft.util.Util;");
+  // 26.1 can open the title screen more than once: leaving the heads-up marks the check done
+  w = rep(w, "    private static void leave(Screen next) {\n", "    private static void leave(Screen next) {\n        ClientEvents.done = true;\n");
+  fs.writeFileSync(out + "BootWarningScreen.java", w);
 }
 
 // ---- Forge 1.20.1 ----
@@ -75,6 +80,7 @@ function rep(s, a, b) { must(s, a); return s.split(a).join(b); }
   fs.writeFileSync(out + "DashScreen.java", d);
   fs.writeFileSync(out + "CrashDoctorScreen.java", forge(read("CrashDoctorScreen.java")));
   fs.writeFileSync(out + "StripMineScreens.java", forge(read("StripMineScreens.java")));
+  fs.writeFileSync(out + "BootWarningScreen.java", forge(read("BootWarningScreen.java")));
   fs.writeFileSync(out + "SafeRemoveScreen.java", forge(read("SafeRemoveScreen.java")).split("import net.neoforged.fml.loading.FMLPaths;").join("import net.minecraftforge.fml.loading.FMLPaths;"));
   fs.writeFileSync(out + "PackUpdatedScreen.java", forge(read("PackUpdatedScreen.java")).split("import net.neoforged.fml.loading.FMLPaths;").join("import net.minecraftforge.fml.loading.FMLPaths;"));
 }
