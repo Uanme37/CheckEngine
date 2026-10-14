@@ -198,12 +198,18 @@ public final class CrashDoctorScreen extends DashScreen {
                 new Btn(tr("checkengine.crash.open_crash"), () -> Util.getPlatform().openFile(crash.file().toFile()), false,
                         "Opens Minecraft's own crash report."),
                 new Btn(tr("checkengine.crash.help"), () -> {
-                    try {
-                        HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get());
-                        Util.getPlatform().openFile(BootCheck.outputFolder().toFile());
-                    } catch (IOException e) {
-                        CheckEngine.LOGGER.warn("Check Engine: couldn't make the help file", e);
-                    }
+                    // In the background: reading a big pack's logs takes a few seconds, the screen shouldn't freeze
+                    Thread t = new Thread(() -> {
+                        try {
+                            HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get());
+                            Minecraft.getInstance().execute(() ->
+                                    Util.getPlatform().openFile(BootCheck.outputFolder().toFile()));
+                        } catch (IOException | RuntimeException e) {
+                            CheckEngine.LOGGER.warn("Check Engine: couldn't make the help file", e);
+                        }
+                    }, "Check Engine help file");
+                    t.setDaemon(true);
+                    t.start();
                 }, false, "Makes one zip to send when you ask for help on Discord or GitHub. Your name and IP "
                         + "are blanked out."));
     }

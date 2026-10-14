@@ -65,16 +65,34 @@ public final class SafeRemove {
         return out;
     }
 
-    /** saves/* with a level.dat, most recently played first. */
+    /** saves/* with a level.dat, most recently played first; on a server, its world folder (level-name). */
     static List<Path> worlds(Path gameDir) {
+        List<Path> out = new ArrayList<>();
+        Path server = gameDir.resolve(serverWorldName(gameDir));
+        if (Files.isRegularFile(server.resolve("level.dat"))) out.add(server);
         Path saves = gameDir.resolve("saves");
-        if (!Files.isDirectory(saves)) return List.of();
+        if (!Files.isDirectory(saves)) return out;
         try (Stream<Path> s = Files.list(saves)) {
-            return s.filter(w -> Files.isRegularFile(w.resolve("level.dat")))
-                    .sorted(Comparator.comparingLong(SafeRemove::played).reversed()).limit(MAX_WORLDS).toList();
+            s.filter(w -> Files.isRegularFile(w.resolve("level.dat")))
+                    .sorted(Comparator.comparingLong(SafeRemove::played).reversed()).limit(MAX_WORLDS).forEach(out::add);
         } catch (IOException e) {
-            return List.of();
+            // no saves to read
         }
+        return out;
+    }
+
+    /** server.properties' level-name, or "world". */
+    private static String serverWorldName(Path gameDir) {
+        Path props = gameDir.resolve("server.properties");
+        if (!Files.isRegularFile(props)) return "world";
+        java.util.Properties p = new java.util.Properties();
+        try (java.io.Reader in = Files.newBufferedReader(props, java.nio.charset.StandardCharsets.UTF_8)) {
+            p.load(in);
+        } catch (IOException | IllegalArgumentException e) {
+            return "world";
+        }
+        String name = p.getProperty("level-name", "world").strip();
+        return name.isEmpty() || name.contains("..") ? "world" : name;
     }
 
     private static long played(Path world) {
