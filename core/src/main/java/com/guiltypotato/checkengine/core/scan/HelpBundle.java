@@ -103,15 +103,10 @@ public final class HelpBundle {
         return sb.toString();
     }
 
+    /** The newest crash report, or hs_err_pid file when the game closed without one. */
     private static Path newestCrash(Path gameDir) {
-        Path dir = gameDir.resolve("crash-reports");
-        if (!Files.isDirectory(dir)) return null;
-        try (Stream<Path> files = Files.list(dir)) {
-            return files.filter(p -> p.getFileName().toString().endsWith(".txt"))
-                    .max(Comparator.comparingLong(p -> p.toFile().lastModified())).orElse(null);
-        } catch (IOException e) {
-            return null;
-        }
+        return com.guiltypotato.checkengine.core.crash.CrashDoctor.crashFiles(gameDir).stream()
+                .max(Comparator.comparingLong(p -> p.toFile().lastModified())).orElse(null);
     }
 
     private static void copy(ZipOutputStream zip, Path file, String name, Redactor redact) throws IOException {

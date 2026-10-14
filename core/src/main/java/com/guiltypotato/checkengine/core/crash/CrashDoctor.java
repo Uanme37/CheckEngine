@@ -105,16 +105,8 @@ public final class CrashDoctor {
 
     /** The newest crash report written since {@code sessionStart} that isn't {@code lastShown}, explained. */
     static LastCrash find(Path gameDir, long sessionStart, String lastShown) {
-        Path dir = gameDir.resolve("crash-reports");
-        if (!Files.isDirectory(dir)) return null;
-        Path newest;
-        try (Stream<Path> files = Files.list(dir)) {
-            newest = files.filter(p -> p.getFileName().toString().endsWith(".txt"))
-                    .filter(p -> modified(p) >= sessionStart)
-                    .max(Comparator.comparingLong(CrashDoctor::modified)).orElse(null);
-        } catch (IOException e) {
-            return null;
-        }
+        Path newest = crashFiles(gameDir).stream().filter(p -> modified(p) >= sessionStart)
+                .max(Comparator.comparingLong(CrashDoctor::modified)).orElse(null);
         if (newest == null || newest.getFileName().toString().equals(lastShown)) return null;
         String text;
         try {
@@ -127,6 +119,28 @@ public final class CrashDoctor {
         String when = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(newest)), ZoneId.systemDefault())
                 .withSecond(0).withNano(0).toString().replace('T', ' ');
         return new LastCrash(newest, when, explained, null);
+    }
+
+    /**
+     * Every crash file of a pack: crash reports, and the hs_err_pid*.log Java writes in the game folder when the game
+     * dies without one (a silent crash, "exit code -1073741819").
+     */
+    public static java.util.List<Path> crashFiles(Path gameDir) {
+        java.util.List<Path> out = new java.util.ArrayList<>();
+        Path dir = gameDir.resolve("crash-reports");
+        if (Files.isDirectory(dir)) {
+            try (Stream<Path> files = Files.list(dir)) {
+                files.filter(p -> p.getFileName().toString().endsWith(".txt")).forEach(out::add);
+            } catch (IOException ignored) {
+                // none from here
+            }
+        }
+        try (Stream<Path> files = Files.list(gameDir)) {
+            files.filter(p -> p.getFileName().toString().matches("hs_err_pid\\d+\\.log")).forEach(out::add);
+        } catch (IOException ignored) {
+            // none from here
+        }
+        return out;
     }
 
     private static long modified(Path p) {

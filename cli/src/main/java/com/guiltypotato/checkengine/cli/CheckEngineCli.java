@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine.cli;
 
 import com.guiltypotato.checkengine.core.CheckEngineCore;
+import com.guiltypotato.checkengine.core.crash.CrashDoctor;
 import com.guiltypotato.checkengine.core.crash.CrashTranslator;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.HelpBundle;
@@ -166,12 +167,16 @@ public final class CheckEngineCli {
             if (Files.isDirectory(target)) {
                 Path dir = Files.isDirectory(target.resolve("crash-reports")) ? target.resolve("crash-reports") : target;
                 List<Path> reports;
-                try (Stream<Path> s = Files.list(dir)) {
-                    reports = s.filter(p -> p.getFileName().toString().startsWith("crash-")
-                                    && p.getFileName().toString().endsWith(".txt"))
-                            .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
-                            .toList();
+                // Crash reports, plus hs_err_pid files: the game closed without a report (a silent crash).
+                List<Path> all = new java.util.ArrayList<>(CrashDoctor.crashFiles(target));
+                if (!dir.equals(target.resolve("crash-reports"))) {
+                    try (Stream<Path> s = Files.list(dir)) {
+                        s.filter(p -> p.getFileName().toString().startsWith("crash-")
+                                && p.getFileName().toString().endsWith(".txt")).forEach(all::add);
+                    }
                 }
+                reports = all.stream().distinct()
+                        .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed()).toList();
                 // Forge 1.20.1 and older stop on missing mods without a crash report; only latest.log says why.
                 Path log = target.resolve("logs").resolve("latest.log");
                 if (Files.isRegularFile(log) && (reports.isEmpty()

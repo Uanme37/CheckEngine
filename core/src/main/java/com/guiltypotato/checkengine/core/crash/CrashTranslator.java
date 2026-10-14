@@ -121,6 +121,8 @@ public final class CrashTranslator {
     }
 
     public static Explanation translate(String report) {
+        // A silent crash (no crash report): Java's hs_err_pid file instead.
+        if (NativeCrash.isNativeCrash(report)) return NativeCrash.explain(report);
         String[] lines = tidy(report).split("\n");
         String description = null;
         String exception = null;
