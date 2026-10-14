@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.client;
 
+import com.guiltypotato.checkengine.CheckEngine;
 import com.guiltypotato.checkengine.core.scan.PackInfo;
 import java.util.ArrayList;
 import java.util.List;
@@ -172,7 +173,7 @@ public class DashScreen extends Screen {
     }
 
     private Button button(Btn b, int x, int y, int w) {
-        Button.Builder builder = Button.builder(label(b), btn -> b.run().run()).bounds(x, y, w, 20);
+        Button.Builder builder = Button.builder(label(b), btn -> safely(b.run())).bounds(x, y, w, 20);
         if (b.tip() != null) builder.tooltip(Tooltip.create(Component.literal(b.tip())));
         return builder.build();
     }
@@ -322,7 +323,7 @@ public class DashScreen extends Screen {
 
     @Override
     public void onClose() {
-        escape.run();
+        safely(escape);
     }
 
     @Override
@@ -335,5 +336,14 @@ public class DashScreen extends Screen {
         List<Line> out = new ArrayList<>();
         for (String t : texts) out.add(Line.text(t));
         return out;
+    }
+
+    /** A button that fails (a file gone, a folder that can't open) is logged, never a crash. */
+    private static void safely(Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException e) {
+            CheckEngine.LOGGER.warn("Check Engine: that button didn't work", e);
+        }
     }
 }

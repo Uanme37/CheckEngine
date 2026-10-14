@@ -28,6 +28,15 @@ public final class ClientEvents {
     /** The first time the title screen opens, show the boot check's problems in front of it. */
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
+        // Never be the reason the game crashes: anything unexpected is logged and the game goes on as normal.
+        try {
+            opening(event);
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: couldn't show its screen, carrying on without it", t);
+        }
+    }
+
+    private static void opening(ScreenEvent.Opening event) {
         // During a Strip Mine round, the loader's warnings screen only lists what the test switched off.
         if (StripMineScreens.skipWarnings(event.getNewScreen())) {
             event.setCanceled(true);

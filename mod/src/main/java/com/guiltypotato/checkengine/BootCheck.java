@@ -48,6 +48,15 @@ public final class BootCheck {
     }
 
     static void start() {
+        // Never be the reason a pack doesn't start: anything unexpected is logged and loading goes on.
+        try {
+            startChecks();
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: startup check failed, carrying on without it", t);
+        }
+    }
+
+    private static void startChecks() {
         // A world rescue ran last session: the world loaded, so turn the remove-erroring setting off again.
         String rescued = com.guiltypotato.checkengine.core.crash.WorldRescue.finish(outputFolder());
         if (rescued != null) CheckEngine.LOGGER.info("Check Engine: {}", rescued);
@@ -106,6 +115,14 @@ public final class BootCheck {
      * (checkengine/last-good-launch.properties), so if the pack breaks later Check Engine can say what changed.
      */
     public static void launchSucceeded() {
+        try {
+            recordGoodLaunch();
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: couldn't record the launch", t);
+        }
+    }
+
+    private static void recordGoodLaunch() {
         recordMemory();
         Report report = get();
         if (report == null) return;
