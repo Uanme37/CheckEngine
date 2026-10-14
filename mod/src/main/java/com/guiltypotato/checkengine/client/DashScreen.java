@@ -106,7 +106,7 @@ public class DashScreen extends Screen {
         for (Btn b : row) total += buttonWidth(b) + 6;
         buttonRows = total - 6 <= cardW - 24 ? 1 : 2;
         contentHeight = content;
-        cardH = Math.min(height - 12, 4 + 46 + content + 28 + 16 + (buttonRows - 1) * 24);
+        cardH = Math.min(height - 12, 4 + 46 + content + 2 + 28 + 16 + (buttonRows - 1) * 24);
         cardY = Math.max(6, (height - cardH) / 2);
 
         int y = cardY + cardH - 16 - 25 - (buttonRows - 1) * 24;
@@ -138,11 +138,19 @@ public class DashScreen extends Screen {
         // The pack maker's help link (config/checkengine-pack.properties), when there is one.
         String help = PackInfo.load(FMLPaths.GAMEDIR.get()).supportLink();
         if (help != null) buttons.add(new Btn("Get help", () -> Util.getPlatform().openUri(help), false, help));
-        List<Btn> small = buttons.stream().filter(b -> !b.primary()).toList();
-        if (small.size() < 3) return buttons;
+        List<Btn> primary = new ArrayList<>(buttons.stream().filter(Btn::primary).toList());
+        List<Btn> small = new ArrayList<>(buttons.stream().filter(b -> !b.primary()).toList());
+        // Main buttons that don't fit in one row wait under More too (the first ones are the most important).
+        Btn moreButton = new Btn("More...", () -> {}, false);
+        while (primary.size() > 1 && rowWidth(primary) + 6 + buttonWidth(moreButton) > cardW - 24) {
+            Btn last = primary.remove(primary.size() - 1);
+            small.add(0, new Btn(last.label(), last.run(), false, last.tip()));
+        }
+        boolean moved = primary.size() < buttons.stream().filter(Btn::primary).count();
+        if (small.size() < 3 && !moved) return buttons;
         List<Btn> out = new ArrayList<>();
         if (!moreOpen) {
-            buttons.stream().filter(Btn::primary).forEach(out::add);
+            out.addAll(primary);
             out.add(new Btn("More...", () -> {
                 moreOpen = true;
                 rebuildWidgets();
@@ -155,6 +163,12 @@ public class DashScreen extends Screen {
             }, false));
         }
         return out;
+    }
+
+    private int rowWidth(List<Btn> row) {
+        int w = 0;
+        for (Btn b : row) w += buttonWidth(b) + 6;
+        return Math.max(0, w - 6);
     }
 
     private Button button(Btn b, int x, int y, int w) {

@@ -51,12 +51,66 @@ public final class CrashDoctorScreen extends DashScreen {
         // A config edit since the pack last worked is often the whole story: offer to put the old ones back.
         boolean configs = crash.changes() != null && crash.changes().changes().stream()
                 .anyMatch(c -> c.type() == com.guiltypotato.checkengine.core.scan.Changes.Type.CONFIG);
+        // A broken mob or machine crashes the world every time it loads: offer to remove it, safely.
+        Path world = com.guiltypotato.checkengine.core.crash.WorldRescue.newestWorld(FMLPaths.GAMEDIR.get());
+        if (com.guiltypotato.checkengine.core.crash.WorldRescue.fits(crash.main()) && world != null) {
+            out.add(1, new Btn("Rescue world", () -> Minecraft.getInstance().setScreen(rescue(self[0], next, crash,
+                    world)), true, "Backs the world up, then removes the broken mob or machine the next time it loads."));
+        }
         if (configs) {
             out.add(2, new Btn("Undo config changes", () -> undoConfigs(next), true,
                     "Puts back the configs from the last launch that worked. Your current ones are kept in "
                             + "checkengine/config-undo-<date>, nothing is deleted."));
         }
         return out;
+    }
+
+    /** "Rescue world?": what happens, what it costs, then back up and switch the setting on. */
+    private static Screen rescue(Screen back, Screen next, LastCrash crash, Path world) {
+        String name = world.getFileName().toString();
+        return new DashScreen(AMBER, "RESCUE WORLD: " + name.toUpperCase(), null, null, List.of(
+                new Section("WHAT HAPPENS", AMBER, "?", List.of(
+                        Line.text("1. Check Engine copies \"" + name + "\" first (it shows in your world list)."),
+                        Line.text("2. Open the world: the loader removes " + com.guiltypotato.checkengine.core.crash
+                                .WorldRescue.what(crash.main()) + " instead of crashing."),
+                        Line.text("3. Next time you start the game, the setting turns itself off again."))),
+                new Section("GOOD TO KNOW", RED, "!", List.of(
+                        Line.text("The broken mob or machine is gone for good, with what was inside it."),
+                        Line.dim("Anything else that errors while the world is open is removed too. The backup has "
+                                + "everything as it was.")))),
+                List.of(new Btn("Back up and rescue", () -> {
+                    Minecraft.getInstance().setScreen(working());
+                    Thread t = new Thread(() -> {
+                        String text;
+                        boolean ok;
+                        try {
+                            Path backup = com.guiltypotato.checkengine.core.crash.WorldRescue.start(
+                                    FMLPaths.GAMEDIR.get(), BootCheck.outputFolder(), world);
+                            text = "Backup made: \"" + backup.getFileName() + "\". Now open \"" + name + "\".";
+                            ok = true;
+                        } catch (IOException | RuntimeException e) {
+                            CheckEngine.LOGGER.warn("Check Engine: world rescue failed", e);
+                            text = "Couldn't set it up: " + e.getMessage() + ". Nothing was changed in the world.";
+                            ok = false;
+                        }
+                        String msg = text;
+                        boolean done = ok;
+                        Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(new DashScreen(
+                                done ? GREEN : RED, done ? "WORLD READY TO RESCUE" : "WORLD RESCUE FAILED", null, null,
+                                List.of(new Section(done ? "NEXT" : "WHAT HAPPENED", done ? GREEN : RED,
+                                        done ? "✔" : "!", List.of(Line.text(msg)))),
+                                List.of(new Btn("Continue", () -> leave(next), true)),
+                                () -> leave(next))));
+                    }, "Check Engine world rescue");
+                    t.setDaemon(true);
+                    t.start();
+                }, true), new Btn("Back", () -> Minecraft.getInstance().setScreen(back), false)),
+                () -> Minecraft.getInstance().setScreen(back));
+    }
+
+    private static Screen working() {
+        return new DashScreen(AMBER, "BACKING UP THE WORLD...", null, null, List.of(new Section("PLEASE WAIT", AMBER,
+                "»", List.of(Line.text("Copying the world. Big worlds take a minute.")))), List.of(), () -> {});
     }
 
     private static void undoConfigs(Screen next) {

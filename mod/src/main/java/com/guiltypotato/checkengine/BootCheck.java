@@ -46,6 +46,9 @@ public final class BootCheck {
     }
 
     static void start() {
+        // A world rescue ran last session: the world loaded, so turn the remove-erroring setting off again.
+        String rescued = com.guiltypotato.checkengine.core.crash.WorldRescue.finish(outputFolder());
+        if (rescued != null) CheckEngine.LOGGER.info("Check Engine: {}", rescued);
         lastCrash = CrashDoctor.checkAndStartSession(FMLPaths.GAMEDIR.get(), outputFolder());
         if (lastCrash != null) {
             Finding f = lastCrash.main();
