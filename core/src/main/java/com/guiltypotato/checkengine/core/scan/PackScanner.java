@@ -178,6 +178,11 @@ public final class PackScanner {
         installed.addAll(nested.keySet());
         findings.addAll(HiddenDependencies.check(loaded, installed));
         if (options.side() == Side.SERVER) checkClientOnly(topLevel, options, findings);
+        // Two mods doing the same job (two minimaps, two recipe viewers...): only real installs, not bundled copies.
+        Map<String, SameJob.Installed> installedMods = new LinkedHashMap<>();
+        topLevel.forEach((id, list) -> installedMods.put(id, new SameJob.Installed(list.get(0).mod().name(),
+                list.get(0).jar().fileName())));
+        findings.addAll(SameJob.check(installedMods));
         List<ModInfo> loadedMods = dependents.stream().map(Provider::mod).toList();
         List<RootProblem> roots = new ArrayList<>(LoadBlockers.analyze(blockers, loadedMods, jars, modsFolder));
         addOtherProblems(roots, findings, explainedByRoots);
