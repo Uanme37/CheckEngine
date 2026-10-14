@@ -32,6 +32,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
+                   java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -57,6 +58,7 @@ public final class CheckEngineCli {
         if (args[0].equals("export")) return export(args);
         if (args[0].equals("stripmine")) return StripMineCli.run(args);
         if (args[0].equals("undo-configs")) return undoConfigs(args);
+        if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -152,6 +154,24 @@ public final class CheckEngineCli {
             return 0;
         } catch (IOException e) {
             System.err.println(CheckEngineCore.NAME + " couldn't make a help file for " + args[1] + ": " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Checks a pack export for the pack maker's own files and other mistakes before it's uploaded. */
+    static int exportCheck(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path zip = Path.of(args[1]).toAbsolutePath();
+            var findings = com.guiltypotato.checkengine.core.scan.ExportCheck.check(zip);
+            System.out.print(com.guiltypotato.checkengine.core.scan.ExportCheck.toText(zip, findings));
+            return findings.stream().anyMatch(x -> x.severity()
+                    != com.guiltypotato.checkengine.core.scan.Finding.Severity.INFO) ? 1 : 0;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't read that export: " + e.getMessage());
             return 2;
         }
     }

@@ -41,10 +41,13 @@ if "%PACK%"=="" (
 )
 set "PACK=%PACK:"=%"
 
-if /i "%PACK:~-4%"==".zip" (
+rem --- A pack export (.zip / .mrpack): check it before uploading.
+set "EXPORT="
+if /i "%PACK:~-4%"==".zip" set "EXPORT=1"
+if /i "%PACK:~-7%"==".mrpack" set "EXPORT=1"
+if defined EXPORT (
     echo.
-    echo That's a zip. A CurseForge export zip only lists which mods to download, the mods aren't inside it.
-    echo Drag the pack's folder instead. In CurseForge: right-click the pack, then "Open Folder".
+    "%JAVA%" -jar "%JAR%" exportcheck "%PACK%"
     echo.
     pause
     exit /b
