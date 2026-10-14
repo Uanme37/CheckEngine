@@ -22,7 +22,7 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 public class DashScreen extends Screen {
     static final int RED = 0xFFFF4B3E, AMBER = 0xFFFF9A1F, GREEN = 0xFF3DDC4A, BLUE = 0xFF3B82F6, GREY = 0xFF9A9CA3;
-    private static final Identifier LOGO = Identifier.fromNamespaceAndPath("checkengine", "textures/gui/logo_round.png");
+    private static final Identifier LOGO = Identifier.fromNamespaceAndPath("checkengine", "textures/gui/lamp.png");
     private static final Identifier UAN = Identifier.fromNamespaceAndPath("checkengine", "textures/gui/uan.png");
     private static final int LINE = 10;
 
@@ -227,13 +227,9 @@ public class DashScreen extends Screen {
         // Lamp: the logo in a bezel whose ring blinks.
         int lx = x + 12, ly = y + 12;
         boolean on = (Util.getMillis() / 550) % 2 == 0;
-        int lcx = lx + 16, lcy = ly + 16;
-        if (on) disc(g, lcx, lcy, 22.5, (tone & 0x00FFFFFF) | 0x30000000); // glow
-        disc(g, lcx, lcy, 19.5, 0xFF6A6D74); // metal bezel
-        disc(g, lcx, lcy, 18.5, 0xFF3A3C41);
-        disc(g, lcx, lcy, 17.5, on ? tone : dim(tone)); // the lamp ring
-        disc(g, lcx, lcy, 16.5, 0xFF0D0D0F);
-        g.blit(RenderPipelines.GUI_TEXTURED, LOGO, lx, ly, 0, 0, 32, 32, 64, 64, 64, 64);
+        // Drawn once, smooth, like the window's lamp (lamp.png: each colour lit and unlit, 128 px each).
+        int cell = (tone == RED ? 0 : tone == AMBER ? 1 : tone == GREEN ? 2 : tone == BLUE ? 3 : 4) * 2 + (on ? 0 : 1);
+        g.blit(RenderPipelines.GUI_TEXTURED, LOGO, lx - 6, ly - 6, cell * 128, 0, 44, 44, 128, 128, 1280, 128);
 
         g.text(font, Component.literal("CHECK ENGINE").withStyle(ChatFormatting.BOLD), x + 54, y + 14, 0xFFE8E8EA);
         g.text(font, Component.literal(headline).withStyle(ChatFormatting.BOLD), x + 54, y + 27, tone);
