@@ -49,7 +49,22 @@ public final class GameLog {
         return null;
     }
 
-    private static String read(Path f) {
+    /** The newest {@code max} game logs (latest.log and .log.gz, not debug logs), newest first. */
+    public static List<Path> recent(Path gameDir, int max) {
+        Path logs = gameDir.resolve("logs");
+        if (!Files.isDirectory(logs)) return List.of();
+        try (Stream<Path> s = Files.list(logs)) {
+            return s.filter(p -> {
+                String f = p.getFileName().toString();
+                return f.equals("latest.log") || f.endsWith(".log.gz") && !f.startsWith("debug");
+            }).sorted(Comparator.comparingLong(GameLog::modified).reversed()).limit(max).toList();
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    /** A log's text (.gz unpacked), cut at 40 MB; null if it can't be read. */
+    public static String read(Path f) {
         try (InputStream raw = Files.newInputStream(f);
                 InputStream in = f.getFileName().toString().endsWith(".gz") ? new GZIPInputStream(raw) : raw) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();

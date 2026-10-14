@@ -69,6 +69,13 @@ if errorlevel 2 (
     echo Looks good to launch.
 )
 
+rem --- Mods that flood the game log (only shown when some do).
+"%JAVA%" -jar "%JAR%" logs "%PACK%" > "%TEMP%\checkengine-logs.txt" 2>nul
+if errorlevel 1 (
+    echo.
+    type "%TEMP%\checkengine-logs.txt"
+)
+
 echo.
 echo Want to check it against a server? Drag the server's folder or its server pack .zip into this window,
 set /p "SERVER=then press Enter (or just press Enter to skip): "

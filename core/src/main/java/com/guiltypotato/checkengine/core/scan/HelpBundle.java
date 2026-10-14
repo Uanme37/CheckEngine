@@ -55,6 +55,12 @@ public final class HelpBundle {
                 copy(zip, ce.resolve(name), "checkengine/" + name, redact);
             }
             copy(zip, gameDir.resolve("logs").resolve("latest.log"), "logs/latest.log", redact);
+            // Which mods flood the log over the last launches: often the same mods behind odd bugs.
+            try {
+                put(zip, "log-check.txt", redact.apply(LogSpam.check(gameDir).toText()));
+            } catch (RuntimeException ignored) {
+                // the help file is still useful without it
+            }
             Path crash = newestCrash(gameDir);
             if (crash != null) copy(zip, crash, "crash-reports/" + crash.getFileName(), redact);
             copy(zip, gameDir.resolve("config").resolve("fml.toml"), "config/fml.toml", redact);

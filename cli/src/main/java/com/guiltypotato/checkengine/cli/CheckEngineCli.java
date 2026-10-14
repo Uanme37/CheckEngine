@@ -34,6 +34,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
                    java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
+                   java -jar checkengine-cli.jar logs <pack folder>   (which mods flood the game log with warnings)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -61,6 +62,7 @@ public final class CheckEngineCli {
         if (args[0].equals("stripmine")) return StripMineCli.run(args);
         if (args[0].equals("undo-configs")) return undoConfigs(args);
         if (args[0].equals("newmods")) return newMods(args);
+        if (args[0].equals("logs")) return logs(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -215,6 +217,25 @@ public final class CheckEngineCli {
             System.err.println("Couldn't switch the new mods: " + e.getMessage());
             return 2;
         }
+    }
+
+    /** logs <pack>: which mods write the most warnings and errors over the last launches. Exit 1 if some flood it. */
+    static int logs(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        Path game = Path.of(args[1]).toAbsolutePath();
+        if (Files.isDirectory(game.resolve("minecraft")) && !Files.isDirectory(game.resolve("logs"))) {
+            game = game.resolve("minecraft"); // Prism / MultiMC instance folder
+        }
+        var result = com.guiltypotato.checkengine.core.scan.LogSpam.check(game);
+        if (result.launches() == 0) {
+            System.out.println("No game logs in " + game.resolve("logs") + " yet.");
+            return 0;
+        }
+        System.out.print(result.toText());
+        return result.isEmpty() ? 0 : 1;
     }
 
     static int undoConfigs(String[] args) {
