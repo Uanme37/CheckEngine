@@ -26,6 +26,26 @@ public final class IssueText {
         return "§c§lCheck Engine:§r §e" + f.title() + "§r\n" + f.detail() + "\n§aFix:§r " + f.fix();
     }
 
+    /** Where the loader's screen sends players for everything else. */
+    public static final String REPORT_HINT = "§7Full details: checkengine/early-report.txt§r";
+
+    /**
+     * The loader's error screen, short: per problem one line (what, and how many mods it stops) and the fix, in the
+     * same words as the Check Engine window. The last one says where the full report is.
+     */
+    public static List<String> problems(List<RootProblem> roots) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < roots.size(); i++) {
+            RootProblem r = roots.get(i);
+            int stopped = r.affected().size();
+            String line = "§c§lCheck Engine:§r §e" + r.title() + "§r"
+                    + (stopped > 0 ? " §7(" + stopped + (stopped == 1 ? " mod can't load)" : " mods can't load)") + "§r" : "")
+                    + (r.fix() == null ? "" : "\n§aFix:§r " + r.fix());
+            out.add(i == roots.size() - 1 ? line + "\n" + REPORT_HINT : line);
+        }
+        return out;
+    }
+
     /** A warning that might explain a failure: kept short, the report file has the details. */
     public static String clue(Finding f) {
         // The list of changes is the clue itself, so it's shown in full.

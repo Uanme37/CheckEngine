@@ -80,11 +80,9 @@ public class EarlyCheck implements IDependencyLocator {
                 save(report, roots);
                 return;
             }
-            for (Finding f : roots) {
-                LOGGER.error("  {}", f.title());
-                // "{0}" isn't in NeoForge's language file, so the screen shows the argument as is.
-                pipeline.addIssue(ModLoadingIssue.error("{0}", IssueText.problem(f)));
-            }
+            roots.forEach(f -> LOGGER.error("  {}", f.title()));
+            // "{0}" isn't in NeoForge's language file, so the screen shows the argument as is.
+            for (String text : IssueText.problems(problems)) pipeline.addIssue(ModLoadingIssue.error("{0}", text));
             for (Finding f : IssueText.clues(scan, problems)) {
                 pipeline.addIssue(ModLoadingIssue.warning("{0}", IssueText.clue(f)));
             }

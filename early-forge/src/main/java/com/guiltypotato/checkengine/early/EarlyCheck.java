@@ -114,7 +114,7 @@ public class EarlyCheck implements IDependencyLocator {
         List<EarlyLoadingException.ExceptionData> out = new ArrayList<>();
         // "{3}" isn't in Forge's language file, so the screen shows the argument as is ({0} to {2} are Forge's own
         // slots: mod info, loading stage, exception).
-        for (Finding f : roots) out.add(new EarlyLoadingException.ExceptionData("{3}", IssueText.problem(f)));
+        for (String text : IssueText.problems(problems)) out.add(new EarlyLoadingException.ExceptionData("{3}", text));
         if (scan != null && scan.changes() != null && !scan.changes().isEmpty()) {
             out.add(new EarlyLoadingException.ExceptionData("{3}", IssueText.clue(scan.changes().toFinding())));
         }
