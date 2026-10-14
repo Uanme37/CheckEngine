@@ -278,7 +278,7 @@ public final class LaunchIntercept {
                 case ADDED -> "+ " + c.name() + " " + c.to();
                 case CONFIG -> "* " + c.to() + " config " + c.name();
                 case REMOVED -> "- " + c.name() + " " + c.from();
-                case UPDATED -> "~ " + c.name() + " " + c.from() + " → " + c.to();
+                case UPDATED -> (c.downgrade() ? "↓ " : "~ ") + c.name() + " " + c.from() + " → " + c.to();
             });
         }
         return out;

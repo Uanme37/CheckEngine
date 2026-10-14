@@ -11,6 +11,7 @@ import java.util.List;
  */
 public record Changes(String since, List<Change> changes) {
     public static final String CODE = "pack-changed";
+    public static final String DOWNGRADE_CODE = "downgraded-mod";
     /** How many changes to name per kind before saying "and N more". */
     private static final int LIST_LIMIT = 10;
 
@@ -29,9 +30,16 @@ public record Changes(String since, List<Change> changes) {
             return switch (type) {
                 case ADDED -> "added " + name + " " + to;
                 case REMOVED -> "removed " + name + " " + from;
-                case UPDATED -> "updated " + name + " " + from + " -> " + to;
+                case UPDATED -> (downgrade() ? "downgraded " : "updated ") + name + " " + from + " -> " + to;
                 case CONFIG -> to + " config " + name;
             };
+        }
+
+        /** An "update" to an older version: worlds saved with the newer one may not load right. */
+        public boolean downgrade() {
+            return type == Type.UPDATED && from != null && to != null && !id.equals("loader")
+                    && com.guiltypotato.checkengine.core.version.ModVersion.parse(to)
+                            .compareTo(com.guiltypotato.checkengine.core.version.ModVersion.parse(from)) < 0;
         }
     }
 
@@ -47,15 +55,16 @@ public record Changes(String since, List<Change> changes) {
     /** Lines like "Added: A 1.0, B 2.0" for each kind that has something. */
     public String summary() {
         StringBuilder sb = new StringBuilder();
-        line(sb, "Added", Type.ADDED);
-        line(sb, "Removed", Type.REMOVED);
-        line(sb, "Updated", Type.UPDATED);
-        line(sb, "Configs", Type.CONFIG);
+        line(sb, "Added", Type.ADDED, false);
+        line(sb, "Removed", Type.REMOVED, false);
+        line(sb, "Updated", Type.UPDATED, false);
+        line(sb, "Downgraded", Type.UPDATED, true);
+        line(sb, "Configs", Type.CONFIG, false);
         return sb.toString().strip();
     }
 
-    private void line(StringBuilder sb, String label, Type type) {
-        List<Change> list = changes.stream().filter(c -> c.type() == type).toList();
+    private void line(StringBuilder sb, String label, Type type, boolean downgrades) {
+        List<Change> list = changes.stream().filter(c -> c.type() == type && c.downgrade() == downgrades).toList();
         if (list.isEmpty()) return;
         sb.append(label).append(": ");
         for (int i = 0; i < list.size(); i++) {
@@ -73,6 +82,19 @@ public record Changes(String since, List<Change> changes) {
                     : type == Type.ADDED ? c.to() : c.from());
         }
         sb.append('\n');
+    }
+
+    /**
+     * One warning per mod (or Minecraft) that went back to an older version since the pack last worked: a world saved
+     * with the newer one can lose blocks and items, or not open.
+     */
+    public List<Finding> downgradeFindings() {
+        return changes.stream().filter(Change::downgrade).map(c -> new Finding(Finding.Severity.WARNING,
+                DOWNGRADE_CODE, c.name() + " went back to an older version",
+                c.name() + " is now " + c.to() + ", but the pack last worked with " + c.from() + " (" + when() + "). "
+                        + "Worlds saved with the newer version can lose blocks and items from it, or crash.",
+                "If that was on purpose, back up your worlds before opening them. If not, put " + c.name() + " "
+                        + c.from() + " back.", c.file() == null ? List.of() : List.of(c.file()))).toList();
     }
 
     /** For reports and screens: a heads-up listing the changes. */

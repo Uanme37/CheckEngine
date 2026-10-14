@@ -87,4 +87,23 @@ class ChangesTest {
         assertEquals("create is missing", r.roots().get(0).title(), r.toText());
         assertTrue(r.roots().get(0).detail().contains("you added Addona 1.0"), r.roots().get(0).detail());
     }
+
+    /** Going back to an older version is a warning of its own: worlds saved with the newer one can break. */
+    @Test
+    void aDowngradeIsWarnedAbout() throws IOException {
+        neoMod("create", "6.0.4", null).writeTo(mods, "create-6.0.4.jar");
+        neoMod("jei", "19.0", null).writeTo(mods, "jei-19.0.jar");
+        launchWorks();
+        Files.delete(mods.resolve("create-6.0.4.jar"));
+        neoMod("create", "6.0.2", null).writeTo(mods, "create-6.0.2.jar");
+        Files.delete(mods.resolve("jei-19.0.jar"));
+        neoMod("jei", "19.1", null).writeTo(mods, "jei-19.1.jar");
+
+        Report r = PackScanner.scan(mods, CLIENT_1211);
+        var down = r.findings().stream().filter(f -> f.code().equals(Changes.DOWNGRADE_CODE)).toList();
+        assertEquals(1, down.size(), r.findings().toString());
+        assertEquals("Create went back to an older version", down.get(0).title());
+        assertTrue(r.changes().summary().contains("Downgraded: Create 6.0.4 -> 6.0.2"), r.changes().summary());
+        assertTrue(r.changes().summary().contains("Updated: Jei 19.0 -> 19.1"), r.changes().summary());
+    }
 }

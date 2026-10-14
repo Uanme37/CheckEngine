@@ -183,6 +183,7 @@ public final class PackScanner {
         addOtherProblems(roots, findings, explainedByRoots);
         Changes changes = changesSinceLastGoodLaunch(modsFolder, jars, options);
         List<RootProblem> linked = changes == null ? roots : changes.annotate(roots);
+        if (changes != null) findings.addAll(changes.downgradeFindings());
 
         // Two copies of one mod would report its dependency problems twice.
         List<Finding> unique = new ArrayList<>(new java.util.LinkedHashSet<>(findings));
