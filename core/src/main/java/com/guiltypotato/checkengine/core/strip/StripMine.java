@@ -73,10 +73,12 @@ public final class StripMine {
      * @param retries     how many times this round had to be set up again after a different crash
      * @param roots       mod ids that failed to load in the original crash (from the game log). Some packs hide every
      *                    loading failure behind the same knock-on crash, so this is what tells crashes apart
+     * @param configs     a search over changed config files instead of mods: suspects are paths like
+     *                    "config/create-server.toml", and "off" means put back as it was when the pack last worked
      */
     public record State(String crash, boolean startup, Status status, int round, List<String> suspects, List<String> toDisable,
                         List<String> disabled, long roundStart, int startCount, List<String> notes,
-                        List<String> keepOn, int retries, List<String> roots) {
+                        List<String> keepOn, int retries, List<String> roots, boolean configs) {
         public boolean active() {
             return status == Status.PENDING || status == Status.RUNNING;
         }
@@ -97,12 +99,13 @@ public final class StripMine {
         }
 
         State with(Status s, int r, List<String> sus, List<String> off, List<String> dis, long start, List<String> n) {
-            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n, keepOn, retries, roots);
+            return new State(crash, startup, s, r, sus, off, dis, start, startCount, n, keepOn, retries, roots,
+                    configs);
         }
 
         State retry(List<String> keep, int tries) {
             return new State(crash, startup, status, round, suspects, toDisable, disabled, roundStart, startCount, notes,
-                    keep, tries, roots);
+                    keep, tries, roots, configs);
         }
     }
 
@@ -153,7 +156,7 @@ public final class StripMine {
         List<String> roots = new ArrayList<>(crashRoots(modsFolder.getParent()));
         if (!roots.isEmpty()) crash = String.join(", ", roots) + " failed to load"; // the real failure, not a knock-on
         State s = new State(crash, startup, Status.PENDING, 1, suspects, List.of(), List.of(), 0, suspects.size(),
-                List.of(), List.of(), 0, roots);
+                List.of(), List.of(), 0, roots, false);
         // Smart start: "it worked yesterday" usually means one of the mods changed since then did it. Test those (and
         // the mods that failed to load) on their own first: 1 changed mod takes 1-2 rounds instead of 9.
         Set<String> likely = likelyJars(jars, PackSnapshot.load(checkEngineFolder), roots);
@@ -193,7 +196,7 @@ public final class StripMine {
     public static State stop(Path modsFolder, Path checkEngineFolder) throws IOException {
         State s = load(checkEngineFolder);
         if (s == null) return null;
-        restore(modsFolder, s.disabled());
+        restore(modsFolder, checkEngineFolder, s);
         s = s.with(Status.STOPPED, s.round(), s.suspects(), List.of(), List.of(), s.roundStart(), s.notes());
         save(checkEngineFolder, s);
         return s;
@@ -238,7 +241,8 @@ public final class StripMine {
         if (s.status() == Status.PENDING) return apply(modsFolder, checkEngineFolder, s);
 
         Outcome outcome = override != null ? override : outcome(gameDir, checkEngineFolder, s.roundStart());
-        if (override == null && outcome != Outcome.WORKED) {
+        // Configs can't make another mod's class go missing: every crash in a config round counts as "still crashes".
+        if (override == null && outcome != Outcome.WORKED && !s.configs()) {
             // Did the test launch fail the same way as the original crash? Switching mods off can break others in
             // new ways (a mod that uses a library without saying so): that round tells nothing about the original.
             Path report = newestCrash(gameDir, s.roundStart());
@@ -279,8 +283,8 @@ public final class StripMine {
         if (next.isEmpty()) next = s.suspects(); // can't happen with a real split; never lose the suspects
 
         if (next.size() == 1) return finish(modsFolder, checkEngineFolder, s, Status.FOUND, next, notes);
-        Map<String, ModJar> jars = readJars(modsFolder, s.disabled());
-        List<String> plan = plan(next, jars, new HashSet<>(s.keepOn()), next.size() / 2);
+        List<String> plan = s.configs() ? new ArrayList<>(next.subList(0, next.size() / 2))
+                : plan(next, readJars(modsFolder, s.disabled()), new HashSet<>(s.keepOn()), next.size() / 2);
         if (plan.isEmpty()) return finish(modsFolder, checkEngineFolder, s, Status.STUCK, next, notes);
         State pending = s.retry(s.keepOn(), 0).with(Status.PENDING, s.round() + 1, next, plan, s.disabled(), 0, notes);
         save(checkEngineFolder, pending);
@@ -290,7 +294,7 @@ public final class StripMine {
     /** Plans the current round again (game closed), e.g. after an update to how rounds are split. */
     public static State replan(Path modsFolder, Path checkEngineFolder) throws IOException {
         State s = load(checkEngineFolder);
-        if (s == null || !s.active()) return s;
+        if (s == null || !s.active() || s.configs()) return s;
         List<String> plan = plan(s.suspects(), readJars(modsFolder, s.disabled()), new HashSet<>(s.keepOn()),
                 s.suspects().size() / 2);
         if (plan.isEmpty()) return s;
@@ -607,6 +611,7 @@ public final class StripMine {
      * next launch has the loader skip it instead ({@link #lockedOn}).
      */
     static State apply(Path modsFolder, Path checkEngineFolder, State s) throws IOException {
+        if (s.configs()) return ConfigStrip.apply(modsFolder.getParent(), checkEngineFolder, s);
         Set<String> want = new LinkedHashSet<>(s.toDisable());
         List<String> nowOff = new ArrayList<>();
         for (String f : s.disabled()) {
@@ -657,10 +662,19 @@ public final class StripMine {
 
     private static State finish(Path modsFolder, Path checkEngineFolder, State s, Status status, List<String> left,
                                 List<String> notes) throws IOException {
-        restore(modsFolder, s.disabled());
+        restore(modsFolder, checkEngineFolder, s);
         State done = s.with(status, s.round(), left, List.of(), List.of(), s.roundStart(), notes);
         save(checkEngineFolder, done);
         return done;
+    }
+
+    /** Puts back everything this search has off right now: jars back on, or the player's own config files. */
+    private static void restore(Path modsFolder, Path checkEngineFolder, State s) throws IOException {
+        if (s.configs()) {
+            for (String f : s.disabled()) ConfigStrip.putBack(modsFolder.getParent(), checkEngineFolder, f);
+        } else {
+            restore(modsFolder, s.disabled());
+        }
     }
 
     private static void restore(Path modsFolder, List<String> disabled) throws IOException {
@@ -724,7 +738,8 @@ public final class StripMine {
                     Integer.parseInt(p.getProperty("round", "1")), list(p, "suspects"), list(p, "to_disable"),
                     list(p, "disabled"), Long.parseLong(p.getProperty("round_start", "0")),
                     Integer.parseInt(p.getProperty("start_count", "0")), list(p, "notes"), list(p, "keep_on"),
-                    Integer.parseInt(p.getProperty("retries", "0")), list(p, "roots"));
+                    Integer.parseInt(p.getProperty("retries", "0")), list(p, "roots"),
+                    Boolean.parseBoolean(p.getProperty("configs", "false")));
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -744,6 +759,7 @@ public final class StripMine {
         p.setProperty("notes", String.join("\n", s.notes()));
         p.setProperty("keep_on", String.join("\n", s.keepOn()));
         p.setProperty("retries", Integer.toString(s.retries()));
+        p.setProperty("configs", Boolean.toString(s.configs()));
         p.setProperty("roots", String.join("\n", s.roots()));
         Files.createDirectories(checkEngineFolder);
         Path tmp = checkEngineFolder.resolve(STATE_FILE + ".tmp");

@@ -54,6 +54,10 @@ final class StripMineScreens {
     }
 
     private static Screen confirmStart(Screen back, LastCrash crash, boolean stillLocked) {
+        // No mod changed since the pack last worked, but several configs did: search those instead.
+        List<String> configs = com.guiltypotato.checkengine.core.strip.ConfigStrip.suspects(game(),
+                BootCheck.outputFolder(), crash.changes());
+        if (!configs.isEmpty()) return confirmConfigs(back, crash, configs);
         int mods = countMods();
         int rounds = mods <= 1 ? 1 : 32 - Integer.numberOfLeadingZeros(mods - 1);
         List<Section> sections = new ArrayList<>();
@@ -94,6 +98,40 @@ final class StripMineScreens {
                 new Btn("Back", () -> go(back), false)), () -> go(back)));
     }
 
+    /** "Find the bad config?": like the mod search, over the config files changed since the pack last worked. */
+    private static Screen confirmConfigs(Screen back, LastCrash crash, List<String> configs) {
+        int rounds = 32 - Integer.numberOfLeadingZeros(configs.size() - 1);
+        return show(new DashScreen(AMBER, "STRIP MINE: FIND THE BAD CONFIG", null, null, List.of(
+                new Section("HOW IT WORKS", AMBER, "?", DashScreen.lines(
+                        "No mod changed since the pack last worked, but " + configs.size() + " config files did.",
+                        "Check Engine puts half of them back as they were then, and you launch.")),
+                new Section("SAFE", GREEN, "✔", DashScreen.lines(
+                        "Your own versions wait in checkengine/config-strip and all come back at the end.",
+                        "You can stop any time from the title screen.")),
+                new Section("WHAT HAPPENS NOW", GREY, "»", DashScreen.lines(
+                        "The game closes. Press Play again to start round 1. About " + rounds + " launches."))),
+                List.of(new Btn("Quit and start", () -> {
+                    open = false;
+                    try {
+                        com.guiltypotato.checkengine.core.strip.ConfigStrip.start(game(), BootCheck.outputFolder(),
+                                configs, crash.main().title(),
+                                StripMine.isStartupCrash(crash.explained().description()), false);
+                        StripMineHelper.launch(game(), mods(), BootCheck.outputFolder());
+                        Minecraft.getInstance().stop();
+                    } catch (IOException e) {
+                        CheckEngine.LOGGER.warn("Check Engine: couldn't start Strip Mine", e);
+                        go(back);
+                    }
+                }, true), new Btn("Back", () -> go(back), false)), () -> go(back)));
+    }
+
+    /** "12 mods are switched off" / "3 config files are back to how they were" */
+    private static String offText(StripMine.State s) {
+        int n = s.disabled().size();
+        return s.configs() ? n + " config file" + (n == 1 ? " is" : "s are") + " back to how " + (n == 1 ? "it was"
+                : "they were") + " when the pack last worked" : n + " mods are switched off";
+    }
+
     /** The title screen during a search, or null when there's nothing to show. */
     static Screen onTitle(Screen title, Screen previous) {
         Path folder = BootCheck.outputFolder();
@@ -111,8 +149,9 @@ final class StripMineScreens {
             self[0] = new DashScreen(AMBER, HEADLINE + ": NO CRASH THIS ROUND", code,
                     after <= 1 ? "FOUND" : after + " SUSPECTS LEFT", List.of(
                     new Section("THIS ROUND", GREEN, "✔", List.of(
-                            Line.strong("With " + s.disabled().size() + " mods switched off, the pack loads fine."),
-                            Line.dim("So the faulty mod is one of the mods that were off."))),
+                            Line.strong("With " + offText(s) + ", the pack loads fine."),
+                            Line.dim(s.configs() ? "So the bad config is one of those."
+                                    : "So the faulty mod is one of the mods that were off."))),
                     new Section("WHAT TO DO", AMBER, "»", List.of(Line.text(after <= 1
                             ? "That's the one. Quit the game and press Play to see which mod it is."
                             : "Quit the game and press Play again for round " + (s.round() + 1) + ". About "
@@ -128,7 +167,7 @@ final class StripMineScreens {
         Screen[] self = new Screen[1];
         self[0] = new DashScreen(AMBER, HEADLINE + ": PLAY TO TEST", code, s.suspects().size() + " SUSPECTS LEFT",
                 List.of(new Section("THIS ROUND", AMBER, "!", List.of(
-                                Line.strong(s.disabled().size() + " mods are switched off."),
+                                Line.strong(offText(s) + "."),
                                 Line.text("Play and do what crashed before."))),
                         new Section("WHAT TO DO", GREEN, "»", DashScreen.lines(
                                 "It crashes: just press Play again.",
@@ -155,7 +194,27 @@ final class StripMineScreens {
         };
         List<Section> sections = new ArrayList<>();
         List<Btn> buttons = new ArrayList<>();
-        if (found != null) {
+        if (found != null && s.configs()) {
+            sections.add(new Section("THE BAD CONFIG", GREEN, "✔", List.of(Line.strong(found),
+                    Line.dim(s.crash().isEmpty() ? "With its old version, the pack doesn't crash."
+                            : "The crash: " + s.crash()),
+                    Line.dim("Found in " + s.round() + " rounds. Every config file is back as you had it."))));
+            sections.add(new Section("FIX", GREEN, "✔", DashScreen.lines(
+                    "Put back its version from when the pack last worked. Yours is kept in "
+                            + "checkengine/config-undo-<date>, nothing is deleted.",
+                    "Or open it and undo your last edit there.")));
+            buttons.add(new Btn("Put the old one back and quit", () -> {
+                done.run();
+                try {
+                    com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.restoreOne(game(), BootCheck.outputFolder(),
+                            found);
+                } catch (IOException e) {
+                    CheckEngine.LOGGER.warn("Check Engine: couldn't put the config back", e);
+                }
+                open = false;
+                Minecraft.getInstance().stop();
+            }, true));
+        } else if (found != null) {
             List<String> off = List.of(found);
             try {
                 off = StripMine.switchOffPlan(mods(), found);

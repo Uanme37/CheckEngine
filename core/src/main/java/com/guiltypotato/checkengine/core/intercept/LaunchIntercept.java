@@ -51,29 +51,34 @@ public final class LaunchIntercept {
      * @param quitFix   applies the fix when the player quits ("QUIT AND FIX IT"), or null for a plain Quit
      * @param newMods   the jars "Undo new mods" would switch off (added since the pack last worked), maybe empty
      * @param undoNewMods switches {@code newMods} off (the game then quits), or null
+     * @param stripMineConfigs Strip Mine would search the changed config files, not the mods
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
                           java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix,
-                          List<String> newMods, Runnable undoNewMods) {
+                          List<String> newMods, Runnable undoNewMods, boolean stripMineConfigs) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null);
+            this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null, false);
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
+            return withStripMine(start, mods, locked, false);
+        }
+
+        Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked, boolean configs) {
             return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix, newMods,
-                    undoNewMods);
+                    undoNewMods, configs);
         }
 
         Message withQuitFix(Runnable fix) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, fix, newMods, undoNewMods);
+                    stripMineLocked, fix, newMods, undoNewMods, stripMineConfigs);
         }
 
         Message withUndoNewMods(List<String> jars, Runnable undo) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, quitFix, jars, undo);
+                    stripMineLocked, quitFix, jars, undo, stripMineConfigs);
         }
 
         /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
@@ -148,6 +153,7 @@ public final class LaunchIntercept {
                     + "on. Make a help file (Crash Doctor's button, or /checkengine export) and send it to the pack's "
                     + "author, with the crash report."), report);
         }
+        if (done.configs()) return configResult(done, report, modsFolder);
         String found = done.found();
         List<String> problems = found != null ? List.of(found + " causes the crash")
                 : done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList();
@@ -181,6 +187,32 @@ public final class LaunchIntercept {
             if (locked.isEmpty()) return;
             // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
             Runtime.getRuntime().addShutdownHook(new Thread(() -> StripMine.switchOff(modsFolder, locked)));
+        });
+    }
+
+    /** What a search over config files found: "QUIT AND FIX IT" puts back that file's last working version. */
+    private static Message configResult(StripMine.State done, Path report, Path modsFolder) {
+        String found = done.found();
+        List<String> details = new ArrayList<>();
+        if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
+        details.add("Found in " + done.round() + " rounds. Every config file is back as you had it.");
+        if (found == null) {
+            return new Message(Level.FOUND, done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList(),
+                    details, List.of(), List.of("Put these back one at a time (Crash Doctor: Undo config changes)."),
+                    report);
+        }
+        Message m = new Message(Level.FOUND, List.of(found + " causes the crash"), details, List.of(), List.of(
+                "QUIT AND FIX IT puts back " + found + " as it was when the pack last worked. Your version is "
+                        + "kept in checkengine/config-undo-<date>, nothing is deleted.",
+                "Or open it and undo your last edit there."), report);
+        if (modsFolder == null) return m;
+        return m.withQuitFix(() -> {
+            try {
+                com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.restoreOne(modsFolder.getParent(),
+                        modsFolder.getParent().resolve("checkengine"), found);
+            } catch (IOException ignored) {
+                // the file stays as it is; the result says which one it is
+            }
         });
     }
 
@@ -244,6 +276,21 @@ public final class LaunchIntercept {
                     .filter(n -> n.endsWith(".jar") && !n.startsWith("checkengine")).count();
         } catch (IOException ignored) {
             // the explanation just leaves the numbers out
+        }
+        // No mod changed since the pack last worked, but several configs did: search those instead.
+        PackSnapshot lastGood = PackSnapshot.load(checkEngineFolder);
+        List<String> configs = com.guiltypotato.checkengine.core.strip.ConfigStrip.suspects(gameDir, checkEngineFolder,
+                lastGood == null ? null : lastGood.changesTo(now));
+        if (lastGood != null && !configs.isEmpty()) {
+            return mayFail(crash, details).withStripMine(() -> {
+                try {
+                    com.guiltypotato.checkengine.core.strip.ConfigStrip.start(gameDir, checkEngineFolder, configs, title,
+                            startup, false);
+                    StripMineHelper.launch(gameDir, mods, checkEngineFolder);
+                } catch (IOException ignored) {
+                    // nothing to search
+                }
+            }, configs.size(), () -> false, true);
         }
         return mayFail(crash, details).withStripMine(() -> {
             try {

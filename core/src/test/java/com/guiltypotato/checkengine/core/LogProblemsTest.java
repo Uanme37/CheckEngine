@@ -26,6 +26,8 @@ class LogProblemsTest {
                     .append("#inventory:\n");
         }
         log.append("[10:00:05] [Worker-ResourceReload-3/WARN]: Missing textures in model other:thing#inventory:\n");
+        log.append("[14Oct2026 15:51:19.049] [modloading-sync-worker/WARN] [net.neoforged.fml.config.ConfigTracker/CONFIG]: "
+                + "Failed to load config neoforge-common.toml: com.electronwill.nightconfig.core.io.ParsingException: x\n");
 
         LogProblems.Result r = LogProblems.analyze(List.of(log.toString()), null);
         assertEquals(1, r.resets().size(), r.resets().toString());
@@ -33,6 +35,7 @@ class LogProblemsTest {
         assertEquals("kinetics.maxSpeed", r.resets().get(0).key());
         assertEquals("99999", r.resets().get(0).was());
         assertEquals(Map.of("Create", 4), r.missingAssets(), "one missing texture is noise");
+        assertEquals(List.of("neoforge-common.toml"), r.broken());
         assertTrue(r.toText().contains("kinetics.maxSpeed was 99999, now 256"), r.toText());
     }
 }

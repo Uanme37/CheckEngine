@@ -190,7 +190,8 @@ final class Popup {
         if (pack.supportLink() != null) actions.add(new Action("GET HELP", Tone.GREY, () -> browse(pack.supportLink())));
         String[] fault = faultCode(m).split("·");
         return new Page(tone, headline(m, pack), null, fault[0].strip(), fault.length > 1 ? fault[1].strip() : null,
-                sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
+                sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods()
+                + (m.stripMineConfigs() ? " CONFIGS" : " MODS") : null);
     }
 
     /** "BEYOND THE CRANK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
@@ -210,6 +211,29 @@ final class Popup {
         } catch (Exception ignored) {
             // no browser: the link is in the pack's config file
         }
+    }
+
+    /** Strip Mine over config files: no mod changed since the pack last worked, but several configs did. */
+    private static Page stripMineConfigsPage(Message m, AtomicReference<Choice> choice, Frame frame, Runnable back) {
+        int n = m.stripMineMods();
+        List<Section> sections = List.of(
+                new Section("HOW IT WORKS", Tone.AMBER, Icon.INFO, List.of(
+                        Line.text("No mod changed since the pack last worked, but " + n + " config files did."),
+                        Line.text("Check Engine puts half of them back as they were then, and you launch."),
+                        Line.text("Keep pressing Play until it says which file it is."))),
+                new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
+                        Line.text("Your own versions wait in checkengine/config-strip and all come back at the end."),
+                        Line.text("You can stop any time from the title screen."))),
+                new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
+                        Line.text("The game closes. Press Play again to start round 1."))));
+        List<Action> actions = List.of(
+                new Action("START STRIP MINE", Tone.AMBER, () -> {
+                    choice.set(Choice.STRIP_MINE);
+                    frame.dialog().dispose();
+                }),
+                new Action("BACK", Tone.GREY, back));
+        return new Page(Tone.AMBER, "STRIP MINE: FIND THE BAD CONFIG", "About " + m.stripMineRounds() + " launches",
+                null, null, sections, actions, null, n + " CONFIGS");
     }
 
     /** "Undo new mods": which mods go off, that it's safe, then switch them off and quit. */
@@ -246,6 +270,7 @@ final class Popup {
     /** What Strip Mine is, before it starts, with Start and Back. */
     private static Page stripMinePage(Message m, boolean stillLocked, AtomicReference<Choice> choice, Frame frame,
                                       Runnable back) {
+        if (m.stripMineConfigs()) return stripMineConfigsPage(m, choice, frame, back);
         List<Section> sections = new ArrayList<>();
         // CurseForge-installed packs are locked: the app would download the switched-off mods again.
         if (m.isStripMineLocked()) {

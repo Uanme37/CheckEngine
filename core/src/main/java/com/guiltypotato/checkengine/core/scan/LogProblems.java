@@ -24,7 +24,9 @@ public final class LogProblems {
             "Incorrect key (.+?) was corrected from (.*?) to its default, (.*?)\\.? *$");
     /** A config the loader couldn't read at all. */
     private static final Pattern BROKEN_CONFIG = Pattern.compile(
-            "(?:Failed loading config file|Failed to (?:load|parse|read) config file) (\\S+)");
+            // NeoForge 1.21: "Failed to load config neoforge-common.toml: ...ParsingException" (then resets it)
+            "(?:Failed loading config file|Failed to (?:load|parse|read) config(?: file)?) "
+                    + "(\\S+?\\.(?:toml|json5?|cfg|properties|ya?ml))\\b");
     /** The mod a missing texture or model belongs to: the namespace of the first resource named. */
     private static final Pattern MISSING_ASSET = Pattern.compile(
             "(?:Missing textures in model|Using missing texture, unable to load|missing model for variant: '|"

@@ -120,6 +120,32 @@ public final class ConfigCheckpoint {
         return undo;
     }
 
+    /** The saved copy of {@code path} ("config/x.toml") from the last launch that worked; may not exist. */
+    public static Path savedCopy(Path checkEngineFolder, String path) {
+        return checkEngineFolder.resolve(FOLDER).resolve("files").resolve(path);
+    }
+
+    /**
+     * Puts back one file as it was when the pack last worked (or takes it away if it's new since then). The current
+     * version goes to checkengine/config-undo-&lt;date&gt;/ first. Returns where it went, or null if there was none.
+     */
+    public static Path restoreOne(Path gameDir, Path checkEngineFolder, String path) throws IOException {
+        Path live = gameDir.resolve(path);
+        Path kept = null;
+        if (Files.isRegularFile(live)) {
+            kept = checkEngineFolder.resolve("config-undo-"
+                    + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))).resolve(path);
+            Files.createDirectories(kept.getParent());
+            Files.move(live, kept, StandardCopyOption.REPLACE_EXISTING);
+        }
+        Path saved = savedCopy(checkEngineFolder, path);
+        if (Files.isRegularFile(saved)) {
+            Files.createDirectories(live.getParent());
+            Files.copy(saved, live, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return kept;
+    }
+
     /** Config text files by path relative to the game folder. */
     static Map<String, Path> files(Path gameDir) {
         Map<String, Path> out = new TreeMap<>();

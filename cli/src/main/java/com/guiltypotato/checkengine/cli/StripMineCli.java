@@ -2,6 +2,7 @@ package com.guiltypotato.checkengine.cli;
 
 import com.guiltypotato.checkengine.core.model.Side;
 import com.guiltypotato.checkengine.core.scan.PackFolder;
+import com.guiltypotato.checkengine.core.strip.ConfigStrip;
 import com.guiltypotato.checkengine.core.strip.StripMine;
 import com.guiltypotato.checkengine.core.strip.StripMine.Outcome;
 import com.guiltypotato.checkengine.core.strip.StripMine.State;
@@ -10,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * {@code stripmine <pack folder> [stop]}: walks the player through a Strip Mine search, one launch per round. Runs
@@ -32,6 +34,14 @@ final class StripMineCli {
             Path folder = game.resolve("checkengine");
             if (args.length > 2 && args[2].equals("start")) {
                 // Scripted start: the game is closed and the crash happens while loading.
+                List<String> configs = ConfigStrip.suspects(game, folder);
+                if (!configs.isEmpty()) {
+                    State s = ConfigStrip.start(game, folder, configs, StripMine.crashTitle(game, 0) == null
+                            ? "the crash" : StripMine.crashTitle(game, 0), true, true);
+                    System.out.println("Strip Mine started over " + configs.size() + " changed config files (no mod "
+                            + "changed): round 1, " + s.disabled().size() + " put back.");
+                    return 0;
+                }
                 State s = StripMine.start(mods, folder, StripMine.crashTitle(game, 0) == null ? "the crash"
                         : StripMine.crashTitle(game, 0), true, true);
                 System.out.println("Strip Mine started: round 1, " + s.disabled().size() + " of " + s.suspects().size()
@@ -74,7 +84,8 @@ final class StripMineCli {
         while (s.active()) {
             System.out.println();
             System.out.println("=== Round " + s.round() + " (about " + s.roundsLeft() + " to go) ===");
-            System.out.println(s.disabled().size() + " mods are switched off for this test, " + s.suspects().size()
+            System.out.println(s.disabled().size() + (s.configs() ? " config files are back to their old versions"
+                    : " mods are switched off") + " for this test, " + s.suspects().size()
                     + " are still suspects.");
             System.out.println(s.startup()
                     ? "Launch the pack now. If it crashes, or once it reaches the title screen, close it and come back."
@@ -119,6 +130,13 @@ final class StripMineCli {
             if (!ask("Press Enter when it's on (or type stop): ").isEmpty()) return null;
         }
         if (!ask("Make sure the game is closed, then start? (y/n): ").equals("y")) return null;
+        // No mod changed since the pack last worked, but several configs did: search those instead.
+        List<String> configs = ConfigStrip.suspects(game, folder);
+        if (!configs.isEmpty()) {
+            System.out.println("No mod changed since the pack last worked, but " + configs.size() + " config files did: "
+                    + "searching those. Your versions all come back at the end.");
+            return ConfigStrip.start(game, folder, configs, crash == null ? "the crash" : crash, when.equals("y"), true);
+        }
         State s = StripMine.start(mods, folder, crash == null ? "the crash" : crash, when.equals("y"), true);
         System.out.println(s.suspects().size() + " mods to search.");
         return s;
@@ -126,6 +144,15 @@ final class StripMineCli {
 
     private static void report(State s) {
         System.out.println();
+        if (s.status() == Status.FOUND && s.configs()) {
+            System.out.println("FOUND IT: " + s.found());
+            System.out.println("With its version from when the pack last worked, the pack doesn't crash.");
+            System.out.println("Fix: undo your last edit in it, or put the old one back (Crash Doctor: Undo config "
+                    + "changes).");
+            System.out.println("Every config file is back as you had it.");
+            s.notes().forEach(n -> System.out.println("  " + n));
+            return;
+        }
         if (s.status() == Status.FOUND) {
             System.out.println("FOUND IT: " + s.found());
             System.out.println("With it switched off the pack doesn't crash" + (s.crash().isEmpty() ? "" : " (" + s.crash() + ")") + ".");
