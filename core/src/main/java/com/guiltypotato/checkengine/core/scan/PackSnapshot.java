@@ -97,6 +97,7 @@ public record PackSnapshot(String time, String minecraft, String loader, Map<Str
             list.add(new Changes.Change(Changes.Type.UPDATED, "loader", "the mod loader", loader, now.loader, null));
         }
         now.mods.forEach((id, e) -> {
+            if (id.equals("checkengine")) return; // Check Engine updating itself is never the cause
             Entry old = mods.get(id);
             if (old == null) {
                 list.add(new Changes.Change(Changes.Type.ADDED, id, e.name(), null, e.version(), e.file()));
@@ -105,6 +106,7 @@ public record PackSnapshot(String time, String minecraft, String loader, Map<Str
             }
         });
         mods.forEach((id, old) -> {
+            if (id.equals("checkengine")) return;
             if (!now.mods.containsKey(id)) {
                 list.add(new Changes.Change(Changes.Type.REMOVED, id, old.name(), old.version(), null, old.file()));
             }

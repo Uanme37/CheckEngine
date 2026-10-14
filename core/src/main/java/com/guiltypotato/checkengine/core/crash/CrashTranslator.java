@@ -605,11 +605,22 @@ public final class CrashTranslator {
         if (duplicate != null) return duplicate;
         if (description != null && description.startsWith("Ticking")) {
             String what = detailValue(lines, "Entity Type:", "Name:");
+            // "iceandfire:dragon_egg (com.github...EntityDragonEgg)": the Java class name means nothing to players
+            if (what != null) what = what.replaceAll("\\s*\\([\\w.$]+\\)$", "").strip();
             String at = detailValue(lines, "Entity's Exact location:", "Block location:");
-            return new Finding(Severity.ERROR, "ticking-crash", description,
+            String kind = description.toLowerCase(java.util.Locale.ROOT).contains("block") ? "block or machine"
+                    : "mob or entity";
+            // "Dragon egg (iceandfire) keeps crashing the world" instead of Minecraft's "Ticking entity"
+            String title = what != null && what.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")
+                    ? Character.toUpperCase(what.charAt(what.indexOf(':') + 1))
+                            + what.substring(what.indexOf(':') + 2).replace('_', ' ') + " ("
+                            + what.substring(0, what.indexOf(':')) + ") keeps crashing the world"
+                    : "A " + kind + " keeps crashing the world";
+            return new Finding(Severity.ERROR, "ticking-crash", title,
                     "Something in the world crashes every time it updates"
                             + (what != null ? ": " + what : "") + (at != null ? " at " + at : "") + "." + where,
-                    "Update " + (culprit != null ? culprit : "the mod that adds it")
+                    "Update " + (culprit != null ? culprit : what != null && what.contains(":")
+                            ? what.substring(0, what.indexOf(':')) : "the mod that adds it")
                             + ". To get the world back: Rescue world in Crash Doctor backs it up and removes just "
                             + "that one, or remove it yourself with a world editor (MCA Selector, NBTExplorer).",
                     List.of());
