@@ -616,8 +616,11 @@ final class Popup {
         p.add(label(s.title(), tracked(font(Font.BOLD, 12), 0.1f), tone));
         JPanel lines = column();
         for (Line l : s.lines()) {
-            lines.add(label(l.text(), font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN,
-                    l.style() == Style.STRONG ? 15 : 14), l.style() == Style.DIM ? DIM : TEXT));
+            Font f = font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN, l.style() == Style.STRONG ? 15 : 14);
+            // long sentences wrap instead of stretching the window
+            for (String part : wrap(l.text(), f, MAX_LINE)) {
+                lines.add(label(part, f, l.style() == Style.DIM ? DIM : TEXT));
+            }
         }
         p.add(lines.getComponentCount() > VISIBLE_LINES ? scroll(lines) : lines);
         return p;
@@ -892,6 +895,28 @@ final class Popup {
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setAlignmentX(0f);
         return p;
+    }
+
+    /** Widest a panel line gets before it wraps (pixels). */
+    private static final int MAX_LINE = 640;
+
+    /** Splits {@code text} at spaces into lines no wider than {@code max} pixels in font {@code f}. */
+    static List<String> wrap(String text, Font f, int max) {
+        java.awt.FontMetrics fm = new JLabel().getFontMetrics(f);
+        if (fm.stringWidth(text) <= max) return List.of(text);
+        List<String> out = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            String next = line.isEmpty() ? word : line + " " + word;
+            if (!line.isEmpty() && fm.stringWidth(next) > max) {
+                out.add(line.toString());
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(next);
+            }
+        }
+        if (!line.isEmpty()) out.add(line.toString());
+        return out;
     }
 
     private static JLabel label(String text, Font f, Color c) {
