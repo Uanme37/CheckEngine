@@ -610,8 +610,9 @@ public final class CrashTranslator {
                     "Something in the world crashes every time it updates"
                             + (what != null ? ": " + what : "") + (at != null ? " at " + at : "") + "." + where,
                     "Update " + (culprit != null ? culprit : "the mod that adds it")
-                            + ". To get the world back, remove that entity or block with a world editor (e.g. MCA "
-                            + "Selector or NBTExplorer) after making a backup.", List.of());
+                            + ". To get the world back: Rescue world in Crash Doctor backs it up and removes just "
+                            + "that one, or remove it yourself with a world editor (MCA Selector, NBTExplorer).",
+                    List.of());
         }
         return new Finding(Severity.ERROR, "crash", culprit != null ? "Crash in " + culprit : "Game crashed",
                 "Minecraft crashed with: " + exception + where + suspectLine,
