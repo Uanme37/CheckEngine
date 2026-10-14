@@ -76,6 +76,13 @@ if errorlevel 1 (
     type "%TEMP%\checkengine-logs.txt"
 )
 
+rem --- The same ingot or ore from several mods (only shown when there is some).
+"%JAVA%" -jar "%JAR%" materials "%PACK%" > "%TEMP%\checkengine-materials.txt" 2>nul
+if errorlevel 1 (
+    echo.
+    type "%TEMP%\checkengine-materials.txt"
+)
+
 echo.
 echo Want to check it against a server? Drag the server's folder or its server pack .zip into this window,
 set /p "SERVER=then press Enter (or just press Enter to skip): "

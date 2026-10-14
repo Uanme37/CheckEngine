@@ -36,6 +36,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
                    java -jar checkengine-cli.jar logs <pack folder>   (which mods flood the game log with warnings)
                    java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
+                   java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -65,6 +66,7 @@ public final class CheckEngineCli {
         if (args[0].equals("newmods")) return newMods(args);
         if (args[0].equals("logs")) return logs(args);
         if (args[0].equals("journal")) return journal(args);
+        if (args[0].equals("materials")) return materials(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -254,6 +256,30 @@ public final class CheckEngineCli {
             return 0;
         } catch (IOException | RuntimeException e) {
             System.err.println("Couldn't read the journal: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** materials <pack>: the same ingot, ore, dust... from several mods. Exit 1 if there are some. */
+    static int materials(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path mods = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder();
+            List<com.guiltypotato.checkengine.core.model.ModJar> jars = new java.util.ArrayList<>();
+            try (Stream<Path> s = Files.list(mods)) {
+                for (Path p : s.filter(f -> f.getFileName().toString().toLowerCase().endsWith(".jar")).toList()) {
+                    jars.add(com.guiltypotato.checkengine.core.scan.JarReader.read(p));
+                }
+            }
+            var dupes = com.guiltypotato.checkengine.core.scan.Materials.find(jars);
+            System.out.print(com.guiltypotato.checkengine.core.scan.Materials.toText(dupes,
+                    com.guiltypotato.checkengine.core.scan.Materials.unifiers(jars)));
+            return dupes.isEmpty() ? 0 : 1;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't read the mods: " + e.getMessage());
             return 2;
         }
     }
