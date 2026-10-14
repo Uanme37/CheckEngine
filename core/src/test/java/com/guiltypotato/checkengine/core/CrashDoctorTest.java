@@ -131,6 +131,9 @@ class CrashDoctorTest {
                 java.lang.IllegalStateException: Mod 'architectury' is not available!
                 	at TRANSFORMER/architectury@13.0.11/dev.architectury.platform.hooks.EventBusesHooks.whenAvailable(EventBusesHooks.java:34) ~[architectury-13.0.11-neoforge.jar%23607!/:?] {}
                 """);
+        // Linux stamps files with a coarser clock than currentTimeMillis: make "after the session started" certain
+        Files.setLastModifiedTime(dir.resolve("crash-2026-10-14_01.27.44-client.txt"),
+                FileTime.fromMillis(System.currentTimeMillis() + 2000));
         Path logs = Files.createDirectories(game.resolve("logs"));
         String log = """
                 [14Oct2026 01:27:30.001] [main/INFO] [LOADING]: Mod list:
