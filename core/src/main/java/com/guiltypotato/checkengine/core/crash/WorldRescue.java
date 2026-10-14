@@ -115,7 +115,8 @@ public final class WorldRescue {
         return Files.isRegularFile(checkEngineFolder.resolve(STATE));
     }
 
-    private static void copyFolder(Path from, Path to) throws IOException {
+    /** Copies a world folder (not its session.lock). */
+    public static void copyFolder(Path from, Path to) throws IOException {
         Files.walkFileTree(from, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {

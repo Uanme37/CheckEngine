@@ -27,6 +27,8 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 public final class BootCheck {
     private static CompletableFuture<Report> result;
+    /** Worlds that still use a mod removed since the pack last worked (counted in the background). */
+    private static CompletableFuture<java.util.List<com.guiltypotato.checkengine.core.world.SafeRemove.WorldHit>> worlds;
     private static LastCrash lastCrash;
 
     private BootCheck() {}
@@ -58,6 +60,30 @@ public final class BootCheck {
         // The early plugin already started the scan before mods loaded; dev runs don't have it, so scan here.
         CompletableFuture<Report> early = EarlyHandoff.scan();
         result = early != null ? early.thenApply(BootCheck::save) : CompletableFuture.supplyAsync(BootCheck::run);
+        // A mod removed since the pack last worked: count what of it the worlds still have, while the game loads.
+        // Not during Strip Mine: mods are switched off on purpose then.
+        worlds = result.thenApplyAsync(r -> {
+            if (r == null || com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) {
+                return java.util.List.<com.guiltypotato.checkengine.core.world.SafeRemove.WorldHit>of();
+            }
+            var removed = com.guiltypotato.checkengine.core.world.SafeRemove.removed(r.changes());
+            var hits = com.guiltypotato.checkengine.core.world.SafeRemove.check(FMLPaths.GAMEDIR.get(), removed);
+            if (!hits.isEmpty()) {
+                CheckEngine.LOGGER.warn("Check Engine: worlds still use removed mods:\n{}",
+                        com.guiltypotato.checkengine.core.world.SafeRemove.toText(hits));
+            }
+            return hits;
+        });
+    }
+
+    /** Worlds that still use a removed mod; empty if none, or the count isn't done after a few seconds. */
+    public static java.util.List<com.guiltypotato.checkengine.core.world.SafeRemove.WorldHit> worldsUsingRemovedMods() {
+        if (worlds == null) return java.util.List.of();
+        try {
+            return worlds.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return java.util.List.of();
+        }
     }
 
     /** The finished report, or null if the scan failed or isn't done after a few seconds. */

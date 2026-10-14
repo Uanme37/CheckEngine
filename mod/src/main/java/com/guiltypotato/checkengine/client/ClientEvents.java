@@ -64,6 +64,11 @@ public final class ClientEvents {
             Screen updated = PackUpdatedScreen.of(next, report.changes());
             if (updated != null) next = updated;
         }
+        // A world still uses a mod that's gone: say what it loses before it's opened (in front of the update notes).
+        if (crash == null && report != null) {
+            Screen worlds = SafeRemoveScreen.of(next, BootCheck.worldsUsingRemovedMods(), report.changes());
+            if (worlds != null) next = worlds;
+        }
         if (crash != null) next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
         if (next != title) event.setNewScreen(next);
     }

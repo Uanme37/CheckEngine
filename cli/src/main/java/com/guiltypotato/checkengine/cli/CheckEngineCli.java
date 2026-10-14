@@ -38,6 +38,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
                    java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
                    java -jar checkengine-cli.jar notes <pack folder> [done]   (update notes since your last release; done = released)
+                   java -jar checkengine-cli.jar saferemove <pack folder> <mod id> [more ids]   (what each world loses without those mods)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -69,6 +70,7 @@ public final class CheckEngineCli {
         if (args[0].equals("journal")) return journal(args);
         if (args[0].equals("materials")) return materials(args);
         if (args[0].equals("notes")) return notes(args);
+        if (args[0].equals("saferemove")) return safeRemove(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -322,6 +324,24 @@ public final class CheckEngineCli {
             System.err.println("Couldn't write the notes: " + e.getMessage());
             return 2;
         }
+    }
+
+    /** saferemove <pack> <mod id...>: what each world would lose without these mods. Exit 1 if a world uses them. */
+    static int safeRemove(String[] args) {
+        if (args.length < 3) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        Path game = Path.of(args[1]).toAbsolutePath();
+        if (Files.isDirectory(game.resolve("minecraft")) && !Files.isDirectory(game.resolve("saves"))) {
+            game = game.resolve("minecraft"); // Prism / MultiMC instance folder
+        }
+        java.util.Map<String, String> mods = new java.util.LinkedHashMap<>();
+        for (int i = 2; i < args.length; i++) mods.put(args[i].toLowerCase(java.util.Locale.ROOT), args[i]);
+        System.out.println("Reading the worlds in " + game.resolve("saves") + " (big worlds take a while)...");
+        var hits = com.guiltypotato.checkengine.core.world.SafeRemove.check(game, mods);
+        System.out.print(com.guiltypotato.checkengine.core.world.SafeRemove.toText(hits));
+        return hits.isEmpty() ? 0 : 1;
     }
 
     static int undoConfigs(String[] args) {
