@@ -57,6 +57,13 @@ public final class CrashDoctorScreen extends DashScreen {
             out.add(1, new Btn("Rescue world", () -> Minecraft.getInstance().setScreen(rescue(self[0], next, crash,
                     world)), true, "Backs the world up, then removes the broken mob or machine the next time it loads."));
         }
+        // Mods added since the pack last worked: one click puts the pack back to how it last started.
+        List<String> newMods = newMods();
+        if (!newMods.isEmpty()) {
+            out.add(1, new Btn("Undo new mods", () -> Minecraft.getInstance().setScreen(undoNewMods(self[0], newMods)),
+                    true, "Switches off the " + newMods.size() + " mod" + (newMods.size() == 1 ? "" : "s")
+                            + " added since the pack last worked. Renamed to .disabled, nothing is deleted."));
+        }
         if (configs) {
             out.add(2, new Btn("Undo config changes", () -> undoConfigs(next), true,
                     "Puts back the configs from the last launch that worked. Your current ones are kept in "
@@ -104,6 +111,48 @@ public final class CrashDoctorScreen extends DashScreen {
                     }, "Check Engine world rescue");
                     t.setDaemon(true);
                     t.start();
+                }, true), new Btn("Back", () -> Minecraft.getInstance().setScreen(back), false)),
+                () -> Minecraft.getInstance().setScreen(back));
+    }
+
+    private static List<String> newMods() {
+        try {
+            return com.guiltypotato.checkengine.core.strip.UndoNewMods.plan(FMLPaths.GAMEDIR.get().resolve("mods"),
+                    BootCheck.outputFolder());
+        } catch (IOException | RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    /** "Undo new mods?": which mods, that it's safe, then switch them off and quit. */
+    private static Screen undoNewMods(Screen back, List<String> jars) {
+        List<Line> list = new ArrayList<>();
+        jars.stream().limit(12).forEach(j -> list.add(Line.text("- " + j)));
+        if (jars.size() > 12) list.add(Line.dim("...and " + (jars.size() - 12) + " more"));
+        List<Section> sections = new ArrayList<>(List.of(
+                new Section("SWITCHES OFF", AMBER, "±", list),
+                new Section("SAFE", GREEN, "✔", List.of(
+                        Line.text("Renamed to .disabled, nothing is deleted."),
+                        Line.dim("Mods that need them go off too. Updated mods stay as they are."),
+                        Line.dim("Put them back with Check Pack.bat (it asks), or take .disabled off their names.")))));
+        Path game = FMLPaths.GAMEDIR.get();
+        if (com.guiltypotato.checkengine.core.strip.StripMine.lockedByCurseForge(game)) {
+            sections.add(0, new Section("FIRST: UNLOCK THE PACK", RED, "!", List.of(
+                    Line.text(com.guiltypotato.checkengine.core.strip.StripMine.UNLOCK_STEPS))));
+        }
+        return new DashScreen(AMBER, "UNDO NEW MODS", null, null, sections, List.of(
+                new Btn("Switch off and quit", () -> {
+                    try {
+                        List<String> locked = com.guiltypotato.checkengine.core.strip.UndoNewMods.apply(
+                                game.resolve("mods"), BootCheck.outputFolder(), jars);
+                        // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
+                        if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() ->
+                                com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"),
+                                        locked)));
+                    } catch (IOException e) {
+                        CheckEngine.LOGGER.warn("Check Engine: couldn't switch the new mods off", e);
+                    }
+                    Minecraft.getInstance().stop();
                 }, true), new Btn("Back", () -> Minecraft.getInstance().setScreen(back), false)),
                 () -> Minecraft.getInstance().setScreen(back));
     }

@@ -101,7 +101,8 @@ final class Popup {
         AtomicReference<JPanel> main = new AtomicReference<>();
         Runnable back = () -> frame.swap(main.get());
         main.set(frame.render(mainPage(m, pack, choice, d,
-                () -> frame.swap(frame.render(stripMinePage(m, false, choice, frame, back))))));
+                () -> frame.swap(frame.render(stripMinePage(m, false, choice, frame, back))),
+                () -> frame.swap(frame.render(undoNewModsPage(m, choice, frame, back))))));
 
         d.setContentPane(main.get());
         d.pack();
@@ -156,7 +157,8 @@ final class Popup {
     }
 
     /** The first page: what's wrong, what changed, the fix. */
-    static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine) {
+    static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine,
+                         Runnable openUndoNewMods) {
         Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND ? Tone.GREEN : Tone.AMBER;
         List<Section> sections = new ArrayList<>();
         List<Line> problem = new ArrayList<>();
@@ -181,6 +183,7 @@ final class Popup {
             choice.set(Choice.QUIT);
             d.dispose();
         }));
+        if (m.undoNewMods() != null) actions.add(new Action("UNDO NEW MODS", Tone.AMBER, openUndoNewMods));
         if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
         actions.add(new Action("LOAD ANYWAY", Tone.GREY, d::dispose));
         if (m.report() != null) actions.add(new Action("FULL ERROR", Tone.GREY, () -> openReport(m)));
@@ -207,6 +210,37 @@ final class Popup {
         } catch (Exception ignored) {
             // no browser: the link is in the pack's config file
         }
+    }
+
+    /** "Undo new mods": which mods go off, that it's safe, then switch them off and quit. */
+    private static Page undoNewModsPage(Message m, AtomicReference<Choice> choice, Frame frame, Runnable back) {
+        List<Line> list = new ArrayList<>();
+        m.newMods().stream().limit(10).forEach(j -> list.add(Line.text("• " + j)));
+        if (m.newMods().size() > 10) list.add(Line.dim("...and " + (m.newMods().size() - 10) + " more"));
+        List<Section> sections = new ArrayList<>();
+        if (m.isStripMineLocked()) {
+            sections.add(new Section("FIRST: UNLOCK THE PACK", Tone.RED, Icon.ALERT, List.of(
+                    Line.text("CurseForge has this pack locked, so it would put switched-off mods straight back."),
+                    Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
+                    Line.text("turn on \"Allow content management\". Then come back here."))));
+        }
+        sections.add(new Section("SWITCHES OFF", Tone.AMBER, Icon.CHANGED, list));
+        sections.add(new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
+                Line.text("Renamed to .disabled, nothing is deleted. Mods that need them go off too."),
+                Line.text("Updated mods stay as they are: their old versions aren't on this PC."),
+                Line.dim("Put them back with Check Pack.bat (it asks), or take .disabled off their names."))));
+        sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
+                Line.text("The game closes. Press Play again: the pack is back to how it last worked."))));
+        List<Action> actions = List.of(
+                new Action("SWITCH OFF AND QUIT", Tone.GREEN, () -> {
+                    m.undoNewMods().run();
+                    choice.set(Choice.QUIT);
+                    frame.dialog().dispose();
+                }),
+                new Action("BACK", Tone.GREY, back));
+        int n = m.newMods().size();
+        return new Page(Tone.AMBER, "UNDO NEW MODS", n + " mod" + (n == 1 ? "" : "s")
+                + " added since the pack last worked", null, null, sections, actions, null, null);
     }
 
     /** What Strip Mine is, before it starts, with Start and Back. */

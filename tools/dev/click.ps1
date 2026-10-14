@@ -1,4 +1,4 @@
-param([int]$X, [int]$Y, [switch]$Hover)
+param([int]$X, [int]$Y, [switch]$Hover, [string]$Title = "Minecraft")
 # X, Y: pixels inside the Minecraft window, as in shot.ps1's screenshot.
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -10,7 +10,7 @@ public class C { [DllImport("user32.dll")] public static extern bool GetWindowRe
   public struct R { public int L, T, Rt, B; } }
 "@
 [C]::SetProcessDPIAware() | Out-Null
-$p = Get-Process | Where-Object { $_.MainWindowTitle -like "Minecraft*" } | Select-Object -First 1
+$p = Get-Process | Where-Object { $_.MainWindowTitle -like "$Title*" } | Select-Object -First 1
 [C]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
 $r = New-Object C+R; [C]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
 [C]::SetCursorPos($r.L + $X, $r.T + $Y) | Out-Null

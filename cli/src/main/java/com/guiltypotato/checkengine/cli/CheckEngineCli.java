@@ -14,6 +14,7 @@ import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.scan.ScanOptions;
 import com.guiltypotato.checkengine.core.scan.ServerCompare;
 import com.guiltypotato.checkengine.core.scan.ServerPack;
+import com.guiltypotato.checkengine.core.strip.UndoNewMods;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +33,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
+                   java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -58,6 +60,7 @@ public final class CheckEngineCli {
         if (args[0].equals("export")) return export(args);
         if (args[0].equals("stripmine")) return StripMineCli.run(args);
         if (args[0].equals("undo-configs")) return undoConfigs(args);
+        if (args[0].equals("newmods")) return newMods(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -177,6 +180,43 @@ public final class CheckEngineCli {
     }
 
     /** Puts back the configs of the last launch that worked; the current ones are kept in checkengine/config-undo-*. */
+    /**
+     * newmods <pack> [list|off|putback]: the mods added since the pack last worked. list (default) prints them and
+     * exits 1 when there are some; off switches them off (with what needs them); putback switches them on again.
+     */
+    static int newMods(String[] args) {
+        String what = args.length == 3 ? args[2] : "list";
+        if (args.length < 2 || args.length > 3 || !List.of("list", "off", "putback").contains(what)) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path mods = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder();
+            Path folder = mods.getParent().resolve("checkengine");
+            if (what.equals("putback")) {
+                List<String> back = UndoNewMods.putBack(mods, folder);
+                System.out.println(back.isEmpty() ? "Nothing to put back." : "Switched back on: " + String.join(", ", back));
+                return 0;
+            }
+            List<String> plan = UndoNewMods.plan(mods, folder);
+            if (plan.isEmpty()) {
+                System.out.println("No mods added since the pack last worked (or it never worked with Check Engine "
+                        + "installed).");
+                return 0;
+            }
+            System.out.println("Added since the pack last worked (with the mods that need them):");
+            plan.forEach(f -> System.out.println("  " + f));
+            if (what.equals("list")) return 1;
+            List<String> locked = UndoNewMods.apply(mods, folder, plan);
+            System.out.println(locked.isEmpty() ? "Switched off (renamed to .disabled). Put them back any time: newmods "
+                    + "<pack> putback." : "Close the game first, these are in use: " + String.join(", ", locked));
+            return locked.isEmpty() ? 0 : 2;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't switch the new mods: " + e.getMessage());
+            return 2;
+        }
+    }
+
     static int undoConfigs(String[] args) {
         if (args.length != 2) {
             System.err.print(USAGE);

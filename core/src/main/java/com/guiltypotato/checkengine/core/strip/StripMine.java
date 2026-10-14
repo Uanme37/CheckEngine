@@ -670,13 +670,13 @@ public final class StripMine {
         }
     }
 
-    private static void rename(Path from, Path to) throws IOException {
+    static void rename(Path from, Path to) throws IOException {
         if (!Files.exists(from) || Files.exists(to)) return; // never overwrite anything
         Files.move(from, to);
     }
 
     /** The jars in the mods folder, plus the ones Strip Mine switched off (never the player's own .disabled files). */
-    private static Map<String, ModJar> readJars(Path modsFolder, List<String> ours) throws IOException {
+    static Map<String, ModJar> readJars(Path modsFolder, List<String> ours) throws IOException {
         Map<String, ModJar> out = new HashMap<>();
         try (Stream<Path> files = Files.list(modsFolder)) {
             for (Path p : files.filter(f -> f.getFileName().toString().toLowerCase().endsWith(".jar")).toList()) {
@@ -699,7 +699,7 @@ public final class StripMine {
         return out;
     }
 
-    private static boolean isCheckEngine(ModJar j) {
+    static boolean isCheckEngine(ModJar j) {
         return ids(j).contains("checkengine") || j.fileName().toLowerCase().startsWith("checkengine");
     }
 

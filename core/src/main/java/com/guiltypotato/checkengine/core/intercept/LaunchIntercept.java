@@ -49,22 +49,31 @@ public final class LaunchIntercept {
      * @param stripMineMods how many mods a search would go through, for the window's explanation
      * @param stripMineLocked whether CurseForge has the pack locked right now (checked again on Start), or null
      * @param quitFix   applies the fix when the player quits ("QUIT AND FIX IT"), or null for a plain Quit
+     * @param newMods   the jars "Undo new mods" would switch off (added since the pack last worked), maybe empty
+     * @param undoNewMods switches {@code newMods} off (the game then quits), or null
      */
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
-                          java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix) {
+                          java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix,
+                          List<String> newMods, Runnable undoNewMods) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null, 0, null, null);
+            this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null);
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
-            return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix);
+            return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix, newMods,
+                    undoNewMods);
         }
 
         Message withQuitFix(Runnable fix) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, fix);
+                    stripMineLocked, fix, newMods, undoNewMods);
+        }
+
+        Message withUndoNewMods(List<String> jars, Runnable undo) {
+            return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
+                    stripMineLocked, quitFix, jars, undo);
         }
 
         /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
@@ -310,9 +319,38 @@ public final class LaunchIntercept {
         return ask(message, null);
     }
 
+    /**
+     * Offers "Undo new mods" when mods were added since the pack last worked: back to how it last started, in one
+     * click. Not for Strip Mine's own result (it already names the mod).
+     */
+    static Message withUndoNewMods(Message m, Path gameDir) {
+        if (gameDir == null || m.level() == Level.FOUND) return m;
+        Path mods = gameDir.resolve("mods");
+        Path folder = gameDir.resolve("checkengine");
+        List<String> jars;
+        try {
+            jars = com.guiltypotato.checkengine.core.strip.UndoNewMods.plan(mods, folder);
+        } catch (IOException | RuntimeException e) {
+            return m;
+        }
+        if (jars.isEmpty()) return m;
+        return m.withUndoNewMods(jars, () -> {
+            try {
+                List<String> locked = com.guiltypotato.checkengine.core.strip.UndoNewMods.apply(mods, folder, jars);
+                // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
+                if (!locked.isEmpty()) {
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> StripMine.switchOff(mods, locked)));
+                }
+            } catch (IOException ignored) {
+                // nothing switched off: the next launch shows the same window
+            }
+        });
+    }
+
     /** As {@link #ask(Message)}, with the pack's name and help link from {@code gameDir} (see PackInfo). */
     public static Choice ask(Message message, Path gameDir) {
         try {
+            message = withUndoNewMods(message, gameDir);
             Choice c = Popup.show(message, logo(), com.guiltypotato.checkengine.core.scan.PackInfo.load(gameDir));
             if (c == Choice.STRIP_MINE && message.stripMine() != null) {
                 message.stripMine().run(); // the helper sets up round 1 once the game has closed
