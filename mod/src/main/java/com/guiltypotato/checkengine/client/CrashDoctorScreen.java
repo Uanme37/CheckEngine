@@ -39,7 +39,7 @@ public final class CrashDoctorScreen extends DashScreen {
                     others.stream().map(f -> Line.text("- " + f.title())).toList()));
         }
         if (crash.changes() != null && !crash.changes().isEmpty()) {
-            out.add(new Section("CHANGED SINCE IT LAST WORKED", AMBER, "~",
+            out.add(new Section("CHANGED SINCE IT LAST WORKED", AMBER, "±",
                     List.of(crash.changes().summary().split("\n")).stream().map(Line::text).toList()));
         }
         if (main.fix() != null) out.add(new Section("FIX", GREEN, "✔", List.of(Line.text(main.fix()))));
