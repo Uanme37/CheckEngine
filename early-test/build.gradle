@@ -12,6 +12,12 @@ neoForge {
             client()
             gameDirectory = file('run')
         }
+        // joins the dev server right away (join mismatch tests: run the server with a mod the client lacks)
+        joinClient {
+            client()
+            gameDirectory = file('run')
+            programArguments.addAll('--quickPlayMultiplayer', 'localhost:25565')
+        }
         server {
             server()
             gameDirectory = file('run')
@@ -24,4 +30,4 @@ def installEarlyJar = tasks.register('installEarlyJar', Copy) {
     from(project(':early').tasks.named('jar'))
     into 'run/mods'
 }
-tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach { dependsOn installEarlyJar }
+tasks.matching { it.name in ['runClient', 'runServer', 'runJoinClient'] }.configureEach { dependsOn installEarlyJar }
