@@ -42,8 +42,16 @@ public final class JarReader {
     /** Loader plug-ins (ModLauncher services): not mods, but they load fine and often matter (e.g. Connector). */
     static final List<String> SERVICES = List.of(
             "META-INF/services/cpw.mods.modlauncher.api.ITransformationService",
+            "META-INF/services/cpw.mods.modlauncher.serviceapi.ILaunchPluginService",
             "META-INF/services/net.minecraftforge.forgespi.locating.IModLocator",
-            "META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator");
+            "META-INF/services/net.minecraftforge.forgespi.locating.IDependencyLocator",
+            "META-INF/services/net.minecraftforge.fml.loading.ImmediateWindowProvider",
+            "META-INF/services/net.neoforged.neoforgespi.locating.IModFileCandidateLocator",
+            "META-INF/services/net.neoforged.neoforgespi.locating.IDependencyLocator",
+            "META-INF/services/net.neoforged.neoforgespi.locating.IModFileReader",
+            // early loading windows, e.g. Drippy Loading Screen's (Better MC 6)
+            "META-INF/services/net.neoforged.neoforgespi.earlywindow.ImmediateWindowProvider",
+            "META-INF/services/net.neoforged.neoforgespi.earlywindow.GraphicsBootstrapper");
 
     /** Reads a jar that's already in memory (e.g. inside a server pack zip). {@code file} is only for display. */
     public static ModJar read(Path file, byte[] jarBytes) {
@@ -118,7 +126,10 @@ public final class JarReader {
         if (fabric != null) {
             return new ModJar(file, ModJar.Kind.FABRIC, fabricMods(fabric), nested, null);
         }
-        if (modType != null || entries.get(JARJAR) != null) {
+        // Mods another mod loads itself: The Impossible Library's multiversion mods (Music Triggers 7)
+        boolean loadedByMod = manifest != null && (manifest.getMainAttributes().getValue("TILMultiversionMods") != null
+                || manifest.getMainAttributes().getValue("TILMultiversionCoreMods") != null);
+        if (modType != null || loadedByMod || entries.get(JARJAR) != null) {
             return new ModJar(file, ModJar.Kind.LIBRARY, List.of(), nested, null);
         }
         return new ModJar(file, ModJar.Kind.UNKNOWN, List.of(), nested, null);
