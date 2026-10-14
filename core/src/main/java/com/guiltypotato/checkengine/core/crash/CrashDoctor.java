@@ -114,7 +114,9 @@ public final class CrashDoctor {
         } catch (IOException e) {
             return null;
         }
-        CrashTranslator.Explanation explained = CrashTranslator.translate(text);
+        // The game log of the same session can name the mod that failed first (the report blames a knock-on).
+        CrashTranslator.Explanation explained = CrashTranslator.withLog(CrashTranslator.translate(text),
+                GameLog.forCrash(gameDir, newest));
         if (explained.findings().isEmpty()) return null;
         String when = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(newest)), ZoneId.systemDefault())
                 .withSecond(0).withNano(0).toString().replace('T', ' ');

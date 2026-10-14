@@ -118,4 +118,59 @@ class CrashDoctorTest {
         assertNull(CrashDoctor.checkAndStartSession(game, ce()));
         assertNull(CrashDoctor.checkAndStartSession(game, ce()));
     }
+
+    /** A mod fails to load, then architectury trips over it: the report blames architectury, the log knows better. */
+    @Test
+    void theGameLogNamesTheModThatFailedFirst() throws IOException {
+        assertNull(CrashDoctor.checkAndStartSession(game, ce()));
+        Path dir = Files.createDirectories(game.resolve("crash-reports"));
+        Files.writeString(dir.resolve("crash-2026-10-14_01.27.44-client.txt"), """
+                ---- Minecraft Crash Report ----
+                Description: Initializing game
+
+                java.lang.IllegalStateException: Mod 'architectury' is not available!
+                	at TRANSFORMER/architectury@13.0.11/dev.architectury.platform.hooks.EventBusesHooks.whenAvailable(EventBusesHooks.java:34) ~[architectury-13.0.11-neoforge.jar%23607!/:?] {}
+                """);
+        Path logs = Files.createDirectories(game.resolve("logs"));
+        String log = """
+                [14Oct2026 01:27:30.001] [main/INFO] [LOADING]: Mod list:
+                		Architectury 13.0.11 (architectury)
+                		CE Test Crash Mod 1.0.0 (cecrash)
+                [14Oct2026 01:27:40.182] [modloading-worker-0/ERROR] [net.neoforged.fml.javafmlmod.FMLModContainer/LOADING]: Failed to create mod instance. ModID: cecrash, class ce.crash.CeCrash
+                java.lang.reflect.InvocationTargetException: null
+                	at TRANSFORMER/cecrash@1.0.0/ce.crash.CeCrash.<init>(CeCrash.java:6) ~[cecrash-1.0.0.jar%23147!/:?]
+                Caused by: java.lang.IllegalStateException: CE test: this mod crashes on purpose
+                	at TRANSFORMER/cecrash@1.0.0/ce.crash.CeCrash.<init>(CeCrash.java:6) ~[cecrash-1.0.0.jar%23147!/:?]
+                [14Oct2026 01:27:46.300] [Render thread/FATAL] [net.minecraft.client.Minecraft/]: Crash report saved to: #@!@# C:\\pack\\crash-reports\\crash-2026-10-14_01.27.44-client.txt
+                """;
+        try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(logs.resolve("2026-10-14-1.log.gz")))) {
+            out.write(log.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        Files.writeString(logs.resolve("latest.log"), "[14Oct2026 01:30:00.000] [main/INFO] [x/]: a new session\n");
+
+        LastCrash c = CrashDoctor.checkAndStartSession(game, ce());
+        assertNotNull(c);
+        assertEquals("CE Test Crash Mod crashed while loading", c.main().title());
+        assertTrue(c.main().detail().contains("IllegalStateException: CE test"), c.main().detail());
+        assertTrue(c.main().detail().contains("failed first"), c.main().detail());
+        assertEquals(java.util.List.of("cecrash-1.0.0.jar"), c.main().files());
+        assertEquals("Mod didn't load: architectury", c.explained().findings().get(1).title());
+    }
+
+    /** One broken mixin makes many mods fail with the same error: that's not each mod's fault, leave the report be. */
+    @Test
+    void manyModsWithTheSameErrorAreNotBlamed() {
+        var report = com.guiltypotato.checkengine.core.crash.CrashTranslator.translate("""
+                Description: Initializing game
+
+                java.lang.IllegalStateException: Mod 'architectury' is not available!
+                """);
+        StringBuilder log = new StringBuilder();
+        for (String id : new String[] {"citadel", "xaerominimap", "colorwheel"}) {
+            log.append("[18:09:40] [modloading-worker-0/ERROR]: Failed to create mod instance. ModID: ").append(id)
+                    .append(", class x.Y\norg.spongepowered.asm.mixin.injection.throwables.InjectionError: LVT in LevelRenderer\n");
+        }
+        var e = com.guiltypotato.checkengine.core.crash.CrashTranslator.withLog(report, log.toString());
+        assertEquals(1, e.findings().size(), e.findings().toString());
+    }
 }

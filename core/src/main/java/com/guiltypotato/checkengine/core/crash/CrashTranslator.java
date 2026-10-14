@@ -93,6 +93,84 @@ public final class CrashTranslator {
         }
     }
 
+    /** "Failed to create mod instance. ModID: cecrash, class ce.crash.CeCrash" (NeoForge and Forge). */
+    private static final Pattern LOG_CONSTRUCT = Pattern.compile(
+            "Failed to create mod instance\\. ModID: ([a-z0-9_.-]+)");
+    /** "Caught exception during event FMLCommonSetupEvent dispatch for modid create" */
+    private static final Pattern LOG_EVENT = Pattern.compile(
+            "Caught exception during event (?:\\S+\\.)?(\\S+?) dispatch for modid ([a-z0-9_.-]+)");
+    /** Log lines start with "[14Oct2026 10:29:28.182]" or "[10:29:28]"; anything else belongs to the line above. */
+    private static final Pattern LOG_LINE = Pattern.compile("^\\[(?:\\d{2}[A-Za-z]{3}\\d{4} |\\d{2}:\\d{2}:\\d{2}\\])");
+
+    /**
+     * Adds what the game log knows: when a mod failed to load earlier in the session, the crash report often blames
+     * the mod that tripped over it next ("Mod 'architectury' is not available"). The mod that failed first goes on
+     * top. Returns {@code crash} unchanged when the log names no failed mod, or the report already does.
+     */
+    public static Explanation withLog(Explanation crash, String log) {
+        if (log == null) return crash;
+        String[] lines = log.replace("\r", "").split("\n");
+        Map<String, String> failed = new LinkedHashMap<>(); // mod id -> its error
+        for (int i = 0; i < lines.length; i++) {
+            Matcher c = LOG_CONSTRUCT.matcher(lines[i]);
+            Matcher e = LOG_EVENT.matcher(lines[i]);
+            String mod = c.find() ? c.group(1) : e.find() ? e.group(2) : null;
+            if (mod == null || failed.containsKey(mod)) continue;
+            failed.put(mod, logError(lines, i));
+        }
+        // Only when the report shows a side effect: a mixin conflict or a mod's own crash is already the real story.
+        Finding main = crash.findings().isEmpty() ? null : crash.findings().get(0);
+        boolean knockOn = main == null || main.code().equals("knock-on-crash") || main.code().equals("crash")
+                || main.title().startsWith("Mod didn't load: ");
+        // Many mods failing with the same error share one cause (often a broken mixin), not each its own.
+        Map<String, Long> sameError = new java.util.HashMap<>();
+        failed.values().stream().filter(java.util.Objects::nonNull).forEach(e -> sameError.merge(e, 1L, Long::sum));
+        failed.values().removeIf(e -> e != null && sameError.get(e) > 1);
+        if (!knockOn || failed.isEmpty() || failed.size() > 3) return crash;
+        String said = crash.findings().stream().map(f -> f.title() + " " + f.detail() + " " + f.files())
+                .reduce("", String::concat).toLowerCase(java.util.Locale.ROOT);
+        List<Finding> first = new ArrayList<>();
+        for (Map.Entry<String, String> f : failed.entrySet()) {
+            String id = f.getKey();
+            if (said.contains("(" + id + ")") || said.contains(id + "-") || said.contains("mod: " + id)) continue;
+            String name = logModName(log, id);
+            String msg = name + " (" + id + ") has failed to load correctly" + (f.getValue() == null ? ""
+                    : " " + f.getValue());
+            String jar = logJar(log, id);
+            Finding base = loadingIssue(msg, jar == null ? List.of() : List.of(jar));
+            first.add(new Finding(base.severity(), base.code(), base.title(), base.detail()
+                    + "\nThe crash report blames something else, but that's a knock-on: the game log shows " + name
+                    + " failed first.", base.fix(), base.files()));
+        }
+        if (first.isEmpty()) return crash;
+        List<Finding> all = new ArrayList<>(first);
+        all.addAll(crash.findings());
+        return new Explanation(crash.description(), crash.exception(), all);
+    }
+
+    /** The error under a log line: the last "Caused by:" of its stack trace, or the first line. */
+    private static String logError(String[] lines, int at) {
+        String error = null;
+        for (int j = at + 1; j < lines.length && j < at + 400 && !LOG_LINE.matcher(lines[j]).find(); j++) {
+            String l = lines[j].strip();
+            if (j == at + 1 && !l.startsWith("at ")) error = l;
+            else if (l.startsWith("Caused by: ")) error = l.substring("Caused by: ".length());
+        }
+        return error;
+    }
+
+    /** "\t\tCE Test Crash Mod 1.0.0 (cecrash)" from the mod list at the top of the log, or the id. */
+    private static String logModName(String log, String id) {
+        Matcher m = Pattern.compile("(?m)^\\t\\t(.+?) \\S+ \\(" + Pattern.quote(id) + "\\)\\s*$").matcher(log);
+        return m.find() ? m.group(1).strip() : id;
+    }
+
+    /** "TRANSFORMER/cecrash@1.0.0/... ~[cecrash-1.0.0.jar%23147!/:?]": the mod's jar, or null. */
+    private static String logJar(String log, String id) {
+        Matcher m = Pattern.compile("/" + Pattern.quote(id) + "@[^/]+/.*?~\\[([^\\]%!]+\\.jar)").matcher(log);
+        return m.find() ? m.group(1) : null;
+    }
+
     /** Explains a Forge latest.log that stopped on missing or wrong-version mods, or returns null if it didn't. */
     public static Explanation translateLog(String log) {
         if (!log.contains(FORGE_DEPS_MARKER)) return null;

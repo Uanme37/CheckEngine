@@ -244,7 +244,12 @@ public final class CheckEngineCli {
                 others = reports.subList(1, reports.size());
             }
             String text = Files.readString(file, StandardCharsets.UTF_8);
-            CrashTranslator.Explanation e = CrashTranslator.translate(text);
+            // In a pack folder the game log can name the mod that failed first (the report blames a knock-on).
+            Path gameDir = file.getParent() != null && file.getParent().getFileName() != null
+                    && file.getParent().getFileName().toString().equals("crash-reports") ? file.getParent().getParent()
+                    : null;
+            CrashTranslator.Explanation e = CrashTranslator.withLog(CrashTranslator.translate(text),
+                    gameDir == null ? null : com.guiltypotato.checkengine.core.crash.GameLog.forCrash(gameDir, file));
             System.out.println("Crash report: " + file);
             System.out.print(e.toText());
             // A knock-on crash right after another crash: the earlier one is usually the real problem.
