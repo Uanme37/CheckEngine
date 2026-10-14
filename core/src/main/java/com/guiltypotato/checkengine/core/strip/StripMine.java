@@ -189,7 +189,52 @@ public final class StripMine {
                 locked.add(f);
             }
         }
+        // NeoForge 26.1 keeps its jars locked until the game process ends, so even a rename on the way out can
+        // fail: the next start does it before the loader opens the mods folder (applyPending).
+        if (!locked.isEmpty()) addPending(modsFolder, locked);
         return locked;
+    }
+
+    /** checkengine/switch-off-pending.txt: jars to switch off as soon as they aren't locked. */
+    static final String PENDING_FILE = "switch-off-pending.txt";
+
+    private static synchronized void addPending(Path modsFolder, List<String> jars) {
+        Path file = modsFolder.getParent().resolve("checkengine").resolve(PENDING_FILE);
+        try {
+            Set<String> all = new LinkedHashSet<>(Files.isRegularFile(file)
+                    ? Files.readAllLines(file, StandardCharsets.UTF_8) : List.of());
+            all.addAll(jars);
+            all.removeIf(String::isBlank);
+            Files.createDirectories(file.getParent());
+            Files.write(file, all, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // the jar stays on; the player can rename it
+        }
+    }
+
+    /**
+     * Call before the loader opens the mods folder: switches off the jars a closing game couldn't. Returns the ones
+     * that are still locked (have the loader skip them).
+     */
+    public static List<String> applyPending(Path modsFolder) {
+        Path file = modsFolder.getParent().resolve("checkengine").resolve(PENDING_FILE);
+        if (!Files.isRegularFile(file)) return List.of();
+        List<String> still = new ArrayList<>();
+        try {
+            for (String f : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                if (f.isBlank() || !Files.exists(modsFolder.resolve(f))) continue;
+                try {
+                    rename(modsFolder.resolve(f), modsFolder.resolve(f + DISABLED));
+                } catch (IOException e) {
+                    still.add(f);
+                }
+            }
+            if (still.isEmpty()) Files.deleteIfExists(file); // our own note, done
+            else Files.write(file, still, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // try again next start
+        }
+        return still;
     }
 
     /** Stops the search and switches everything Strip Mine turned off back on. */
