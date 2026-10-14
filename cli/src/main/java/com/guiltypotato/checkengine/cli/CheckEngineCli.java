@@ -37,6 +37,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar logs <pack folder>   (log flooding, config typos, missing textures)
                    java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
                    java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
+                   java -jar checkengine-cli.jar notes <pack folder> [done]   (update notes since your last release; done = released)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -67,6 +68,7 @@ public final class CheckEngineCli {
         if (args[0].equals("logs")) return logs(args);
         if (args[0].equals("journal")) return journal(args);
         if (args[0].equals("materials")) return materials(args);
+        if (args[0].equals("notes")) return notes(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -283,6 +285,41 @@ public final class CheckEngineCli {
             return dupes.isEmpty() ? 0 : 1;
         } catch (IOException | RuntimeException e) {
             System.err.println("Couldn't read the mods: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** notes <pack> [done]: update notes since the last release, saved as a .md file; "done" marks a release. */
+    static int notes(String[] args) {
+        if (args.length < 2 || args.length > 3 || (args.length == 3 && !args[2].equals("done"))) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path game = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder().getParent();
+            Path folder = game.resolve("checkengine");
+            if (args.length == 3) {
+                com.guiltypotato.checkengine.core.scan.UpdateNotes.markReleased(folder);
+                System.out.println("Marked as released: the next notes start from the pack as it is now.");
+                return 0;
+            }
+            String notes = com.guiltypotato.checkengine.core.scan.UpdateNotes.write(folder);
+            boolean first = notes == null;
+            if (first) notes = com.guiltypotato.checkengine.core.scan.UpdateNotes.fromJournal(folder);
+            if (notes == null) {
+                System.out.println("Nothing to write yet: launch the pack once with Check Engine installed.");
+                return 0;
+            }
+            Path file = com.guiltypotato.checkengine.core.scan.UpdateNotes.save(folder, notes);
+            System.out.print(notes);
+            System.out.println();
+            System.out.println("Saved to " + file);
+            System.out.println(first ? "First notes: this is the journal so far. Once this version is out, run "
+                    + "'notes <pack> done' and the next notes list only what changed after it."
+                    : "Published it? Run 'notes <pack> done' so the next notes start from here.");
+            return 0;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't write the notes: " + e.getMessage());
             return 2;
         }
     }

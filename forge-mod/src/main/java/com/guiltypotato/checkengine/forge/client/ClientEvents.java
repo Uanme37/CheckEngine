@@ -59,6 +59,11 @@ public final class ClientEvents {
         }
         // Crash Doctor first: if the last game crashed, that's what the player wants to know about.
         LastCrash crash = BootCheck.lastCrash();
+        // After a pack update, once: what's new, updated and gone (Crash Doctor comes first if the last game crashed).
+        if (crash == null && report != null) {
+            Screen updated = PackUpdatedScreen.of(next, report.changes());
+            if (updated != null) next = updated;
+        }
         if (crash != null) next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
         if (next != title) event.setNewScreen(next);
     }

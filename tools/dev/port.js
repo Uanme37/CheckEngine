@@ -40,6 +40,7 @@ function rep(s, a, b) { must(s, a); return s.split(a).join(b); }
   let m = read("StripMineScreens.java");
   m = rep(m, "import net.minecraft.Util;", "import net.minecraft.util.Util;");
   fs.writeFileSync(out + "StripMineScreens.java", m);
+  fs.writeFileSync(out + "PackUpdatedScreen.java", read("PackUpdatedScreen.java"));
 }
 
 // ---- Forge 1.20.1 ----
@@ -73,5 +74,6 @@ function rep(s, a, b) { must(s, a); return s.split(a).join(b); }
   fs.writeFileSync(out + "DashScreen.java", d);
   fs.writeFileSync(out + "CrashDoctorScreen.java", forge(read("CrashDoctorScreen.java")));
   fs.writeFileSync(out + "StripMineScreens.java", forge(read("StripMineScreens.java")));
+  fs.writeFileSync(out + "PackUpdatedScreen.java", forge(read("PackUpdatedScreen.java")).split("import net.neoforged.fml.loading.FMLPaths;").join("import net.minecraftforge.fml.loading.FMLPaths;"));
 }
 console.log("ok");

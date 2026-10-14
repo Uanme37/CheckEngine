@@ -66,7 +66,8 @@ public final class ClientEvents {
             StartupTimer.finish(false);
         }
         // 26.1 can open the title screen more than once while starting up, so keep showing ours until it's closed.
-        if (event.getCurrentScreen() instanceof BootWarningScreen || event.getCurrentScreen() instanceof CrashDoctorScreen) {
+        if (event.getCurrentScreen() instanceof BootWarningScreen || event.getCurrentScreen() instanceof CrashDoctorScreen
+                || (event.getCurrentScreen() != null && event.getCurrentScreen() == PackUpdatedScreen.showing)) {
             event.setNewScreen(event.getCurrentScreen());
             return;
         }
@@ -76,6 +77,11 @@ public final class ClientEvents {
         if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
         // Crash Doctor first: if the last game crashed, that's what the player wants to know about (shown once).
         LastCrash crash = BootCheck.lastCrash();
+        // After a pack update, once: what's new, updated and gone (Crash Doctor comes first if the last game crashed).
+        if (crash == null && report != null) {
+            Screen updated = PackUpdatedScreen.of(next, report.changes());
+            if (updated != null) next = updated;
+        }
         if (crash != null && !crashShown) {
             crashShown = true;
             next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
