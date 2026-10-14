@@ -1,29 +1,40 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.11.2.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.12.0.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.11.2.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.12.0.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.11.2.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.11.2.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.11.2.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.11.2.jar compare <pack folder> <server folder or server pack .zip>
-java -jar checkengine-cli-0.11.2.jar export <pack folder>
-java -jar checkengine-cli-0.11.2.jar stripmine <pack folder>
+java -jar checkengine-cli-0.12.0.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.12.0.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.12.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.12.0.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.12.0.jar export <pack folder>
+java -jar checkengine-cli-0.12.0.jar stripmine <pack folder>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.11.2.jar** for NeoForge 26.1.2 and newer 26.1.x
-- **checkengine-neoforge-1.21.1-0.11.2.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.11.2.jar** for Forge 1.20.1
+- **checkengine-neoforge-26.1-0.12.0.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-1.21.1-0.12.0.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.12.0.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
+
+## What's new in 0.12.0
+**A new look, and smarter about what it finds.**
+- **New Check Engine window:** a dashboard with a warning lamp, a fault code readout and clear panels. Colors tell you how bad it is: red = won't start, amber = warning, green = found or fixed, blue = a setting to change. Crash Doctor and Strip Mine in game use the same look, scroll on small screens, and keep the extra buttons under "More".
+- **Your pack's name in the headline:** "Beyond the Crank won't start". Pack makers can set the name and a help link (Discord, GitHub, CurseForge page) in config/checkengine-pack.properties: players then get a "Get help" button.
+- **Strip Mine smart start:** the first round tests the mods you changed since the pack last worked. If one of those did it, Strip Mine finds it in about 3 launches instead of 9.
+- **Quit and fix it:** when Strip Mine finds the mod, one button switches it off (renamed to .disabled, never deleted), together with the mods that can't run without it.
+- **Memory check:** if the game gets far too little memory for the pack, a blue window says so before the long load, with how much helps and how to change it in CurseForge or Prism. The pack's number is a recommendation, so it only speaks up when it's far too low.
+- **Java check (Forge 1.20.1):** warns when the Java is much newer than the game was made for.
+- **Crash Doctor reads more crashes:** mods crashing during setup, mods that need a newer Java, client-only mods on a server, broken mod files, Fabric mods through Connector, and crash reports pasted from chat or forms. When it can't name the mod, it suggests Strip Mine.
+- **Shorter error screen:** the loader's error screen now shows one line per problem with the fix, and where the full report is.
 
 ## What's new in 0.11.2
 - **Strip Mine no longer starts a separate program.** Check Engine now sets up the next round itself as the game closes (after a crash, or when you quit), on all three versions. Nothing runs in the background, and there's no PowerShell.
