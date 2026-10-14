@@ -86,6 +86,9 @@ public final class BootCheck {
         // During a Strip Mine search half the pack is switched off on purpose: that's not "the pack that worked".
         if (com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) return;
         try {
+            // What changed since the last launch that worked goes in the pack journal first.
+            com.guiltypotato.checkengine.core.scan.PackJournal.record(outputFolder(), report.changes(),
+                    lastCrash() == null);
             PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
             // The configs too, so a config edit that breaks the pack can be found and undone. Not on a launch that
             // explains a crash: the changed configs may be why, and Crash Doctor offers to undo them.

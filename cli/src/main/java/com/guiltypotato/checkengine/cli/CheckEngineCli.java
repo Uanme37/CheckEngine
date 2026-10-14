@@ -35,6 +35,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
                    java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
                    java -jar checkengine-cli.jar logs <pack folder>   (which mods flood the game log with warnings)
+                   java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -63,6 +64,7 @@ public final class CheckEngineCli {
         if (args[0].equals("undo-configs")) return undoConfigs(args);
         if (args[0].equals("newmods")) return newMods(args);
         if (args[0].equals("logs")) return logs(args);
+        if (args[0].equals("journal")) return journal(args);
         if (args[0].equals("exportcheck")) return exportCheck(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
@@ -236,6 +238,24 @@ public final class CheckEngineCli {
         }
         System.out.print(result.toText());
         return result.isEmpty() ? 0 : 1;
+    }
+
+    /** journal <pack>: the pack journal, what changed between launches that worked (newest first). */
+    static int journal(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path game = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder().getParent();
+            String text = com.guiltypotato.checkengine.core.scan.PackJournal.read(game.resolve("checkengine"));
+            System.out.print(text != null ? text : "No journal yet: it starts with the next launch that works with "
+                    + "Check Engine installed.\n");
+            return 0;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't read the journal: " + e.getMessage());
+            return 2;
+        }
     }
 
     static int undoConfigs(String[] args) {
