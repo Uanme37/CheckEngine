@@ -1,6 +1,8 @@
 # Check Engine
 
-Tells pack makers what's broken in their pack, in plain English. NeoForge 1.21.1. No gameplay changes.
+Tells players and pack makers what's broken in a pack, in plain English. NeoForge 1.21.1 and 26.1, Forge 1.20.1. No gameplay changes.
+
+**Pack makers:** [make your pack Check Engine ready](docs/pack-makers.md) (config, badge, tools).
 
 ## Layout
 - `core/` plain Java scanner (reads jars + `META-INF/neoforge.mods.toml`), no Minecraft code
