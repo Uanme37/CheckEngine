@@ -63,12 +63,12 @@ For pack makers ([guide](https://github.com/Uanme37/CheckEngine/blob/main/docs/p
 - **Quiet mode:** hide warnings your players don't need (`quiet`, `hide_warnings`).
 - **"Works with Check Engine" badge** for your pack page.
 
-Fixes: NeoForge 26.1 packs with mods bundled inside other mods (ATM11) no longer get false "missing mod" errors; early loading screens (Drippy Loading Screen) and Music Triggers no longer show as "not a mod".
+Fixes: NeoForge 26.1 packs with mods bundled inside other mods no longer get false "missing mod" errors; early loading screens (Drippy Loading Screen) and Music Triggers no longer show as "not a mod".
 
 ## What's new in 0.12.0
 **A new look, and smarter about what it finds.**
 - **New Check Engine window:** a dashboard with a warning lamp, a fault code readout and clear panels. Colors tell you how bad it is: red = won't start, amber = warning, green = found or fixed, blue = a setting to change. Crash Doctor and Strip Mine in game use the same look, scroll on small screens, and keep the extra buttons under "More".
-- **Your pack's name in the headline:** "Beyond the Crank won't start". Pack makers can set the name and a help link (Discord, GitHub, CurseForge page) in config/checkengine-pack.properties: players then get a "Get help" button.
+- **Your pack's name in the headline:** "My Pack won't start". Pack makers can set the name and a help link (Discord, GitHub, CurseForge page) in config/checkengine-pack.properties: players then get a "Get help" button.
 - **Strip Mine smart start:** the first round tests the mods you changed since the pack last worked. If one of those did it, Strip Mine finds it in about 3 launches instead of 9.
 - **Quit and fix it:** when Strip Mine finds the mod, one button switches it off (renamed to .disabled, never deleted), together with the mods that can't run without it.
 - **Memory check:** if the game gets far too little memory for the pack, a blue window says so before the long load, with how much helps and how to change it in CurseForge or Prism. The pack's number is a recommendation, so it only speaks up when it's far too low.
@@ -166,7 +166,7 @@ Fixes: NeoForge 26.1 packs with mods bundled inside other mods (ATM11) no longer
 
 ## What's new in 0.1.1
 Fixes found by testing on 29 real modpacks:
-- The mod now loads on any NeoForge 21.1. 0.1.0 needed 21.1.252 or newer, so it refused to start in packs like FTB Skies 2, ATM10 and Better MC.
+- The mod now loads on any NeoForge 21.1. 0.1.0 needed 21.1.252 or newer, so it refused to start in packs on slightly older NeoForge versions.
 - No more false "wrong NeoForge version" errors for mods made for 1.21 (NeoForge 1.21.1 loads them anyway).
 - Respects `config/fml.toml` dependency overrides, and knows Monocle lets Iris run on Embeddium.
 - `/checkengine scan` no longer warns about recipes a mod ships for optional mods you don't have (Farming for Blockheads has hundreds); they're one note now.
