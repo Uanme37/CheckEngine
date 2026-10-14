@@ -92,7 +92,8 @@ public final class SetupCheck {
         boolean memory = what.equals("memory");
         String to = value == null ? "." : " > " + value + ".";
         if (Files.isRegularFile(gameDir.resolve("minecraftinstance.json"))) {
-            return "CurseForge: three dots next to Play > Profile options > " + (memory ? "Allocated memory" : "Java") + to;
+            return "CurseForge: three dots next to Play > Profile options > " + (memory
+                    ? "Memory Settings > Custom RAM Allocation" : "Advanced Settings > Java") + to;
         }
         Path parent = gameDir.toAbsolutePath().getParent();
         if (parent != null && Files.isRegularFile(parent.resolve("instance.cfg"))) {
