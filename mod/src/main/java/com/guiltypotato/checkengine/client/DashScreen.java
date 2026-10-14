@@ -21,7 +21,7 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 public class DashScreen extends Screen {
     static final int RED = 0xFFFF4B3E, AMBER = 0xFFFF9A1F, GREEN = 0xFF3DDC4A, BLUE = 0xFF3B82F6, GREY = 0xFF9A9CA3;
-    private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("checkengine", "textures/gui/logo.png");
+    private static final ResourceLocation LOGO = ResourceLocation.fromNamespaceAndPath("checkengine", "textures/gui/logo_round.png");
     private static final ResourceLocation UAN = ResourceLocation.fromNamespaceAndPath("checkengine", "textures/gui/uan.png");
     private static final int LINE = 10;
 
@@ -226,9 +226,12 @@ public class DashScreen extends Screen {
         // Lamp: the logo in a bezel whose ring blinks.
         int lx = x + 12, ly = y + 12;
         boolean on = (Util.getMillis() / 550) % 2 == 0;
-        g.fill(lx - 3, ly - 3, lx + 35, ly + 35, 0xFF55585F);
-        g.fill(lx - 2, ly - 2, lx + 34, ly + 34, 0xFF2A2C30);
-        g.fill(lx - 1, ly - 1, lx + 33, ly + 33, on ? tone : dim(tone));
+        int lcx = lx + 16, lcy = ly + 16;
+        if (on) disc(g, lcx, lcy, 22.5, (tone & 0x00FFFFFF) | 0x30000000); // glow
+        disc(g, lcx, lcy, 19.5, 0xFF6A6D74); // metal bezel
+        disc(g, lcx, lcy, 18.5, 0xFF3A3C41);
+        disc(g, lcx, lcy, 17.5, on ? tone : dim(tone)); // the lamp ring
+        disc(g, lcx, lcy, 16.5, 0xFF0D0D0F);
         g.blit(LOGO, lx, ly, 32, 32, 0, 0, 64, 64, 64, 64);
 
         g.drawString(font, Component.literal("CHECK ENGINE").withStyle(ChatFormatting.BOLD), x + 54, y + 14, 0xFFE8E8EA);
@@ -282,6 +285,17 @@ public class DashScreen extends Screen {
         g.fill(x, fy, x + w, y + h, 0xFF0F1012);
         g.blit(UAN, x + 10, fy + 3, 9, 9, 0, 0, 32, 32, 32, 32);
         small(g, "Check Engine", x + 23, fy + 5, 0xFF9A9CA3, false);
+    }
+
+    /** A filled circle, drawn as one line of pixels per row (screens only draw rectangles). */
+    private static void disc(GuiGraphics g, int cx, int cy, double r, int color) {
+        int ri = (int) Math.ceil(r);
+        for (int dy = -ri; dy < ri; dy++) {
+            double yy = dy + 0.5;
+            if (Math.abs(yy) > r) continue;
+            int half = (int) Math.round(Math.sqrt(r * r - yy * yy));
+            g.fill(cx - half, cy + dy, cx + half, cy + dy + 1, color);
+        }
     }
 
     private void badge(GuiGraphics g, int x, int y, int color, String icon) {
