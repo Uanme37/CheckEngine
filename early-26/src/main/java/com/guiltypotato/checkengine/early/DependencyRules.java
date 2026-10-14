@@ -17,6 +17,7 @@ import net.neoforged.neoforgespi.language.IModInfo;
 import net.neoforged.neoforgespi.language.IModInfo.DependencyType;
 import net.neoforged.neoforgespi.locating.IModFile;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 /**
  * NeoForge's own dependency check (ModSorter.verifyDependencyVersions in FML 11, NeoForge 26.1), run a moment early.
@@ -36,6 +37,10 @@ final class DependencyRules {
         }
         Map<String, ArtifactVersion> versions = new HashMap<>();
         mods.forEach((id, mod) -> versions.put(id, mod.getVersion()));
+        // FML 11 gives every dependency locator the mod list from before jar-in-jar ran, so mods bundled inside
+        // other mods (JEI's mezz_config, Sodium's real jar) aren't in it yet. Read them from the jars, like NeoForge
+        // does right after; a top-level copy wins.
+        versions.putAll(bundled(files, versions));
 
         List<Blocker> out = new ArrayList<>();
         for (IModInfo mod : mods.values()) {
@@ -55,6 +60,21 @@ final class DependencyRules {
                 } else if (type == DependencyType.INCOMPATIBLE && installed && !notContained(dep, versions)) {
                     out.add(blocker(Kind.INCOMPATIBLE, mod, dep, mods, versions));
                 }
+            }
+        }
+        return out;
+    }
+
+    /** Mods packed inside the jars (META-INF/jarjar), newest copy of each, that no top-level jar provides. */
+    static Map<String, ArtifactVersion> bundled(List<IModFile> files, Map<String, ArtifactVersion> topLevel) {
+        Map<String, ArtifactVersion> out = new HashMap<>();
+        for (IModFile file : files) {
+            java.nio.file.Path path = file.getFilePath();
+            if (path == null || !java.nio.file.Files.isRegularFile(path)) continue;
+            for (ModInfo nested : com.guiltypotato.checkengine.core.scan.JarReader.read(path).nestedMods()) {
+                if (topLevel.containsKey(nested.modId()) || nested.version() == null) continue;
+                ArtifactVersion v = new DefaultArtifactVersion(nested.version());
+                out.merge(nested.modId(), v, (a, b) -> a.compareTo(b) >= 0 ? a : b);
             }
         }
         return out;
