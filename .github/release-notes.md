@@ -1,29 +1,61 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
 ## Check a pack without starting the game (easiest)
-1. Download **CheckEngine-v0.12.0.zip** below and unzip it anywhere.
+1. Download **CheckEngine-v0.13.0.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
 3. Read the report. It lists duplicate mods, missing dependencies, version mismatches and client-only mods that would break a server.
 
-It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.12.0.jar` in the same folder.
+It uses the Java that CurseForge or the Minecraft launcher already installed, so there's nothing else to set up. Keep `Check Pack.bat` and `checkengine-cli-0.13.0.jar` in the same folder.
 
 The checker can also explain a crash, build a server copy of a pack without the client-only mods, and compare a pack with a server to find out why players can't join:
 ```
-java -jar checkengine-cli-0.12.0.jar scan <pack folder> [--server]
-java -jar checkengine-cli-0.12.0.jar crash <pack folder or crash-*.txt>
-java -jar checkengine-cli-0.12.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
-java -jar checkengine-cli-0.12.0.jar compare <pack folder> <server folder or server pack .zip>
-java -jar checkengine-cli-0.12.0.jar export <pack folder>
-java -jar checkengine-cli-0.12.0.jar stripmine <pack folder>
+java -jar checkengine-cli-0.13.0.jar scan <pack folder> [--server]
+java -jar checkengine-cli-0.13.0.jar crash <pack folder or crash-*.txt>
+java -jar checkengine-cli-0.13.0.jar serverpack <pack folder> [--out <new folder>] [--zip]
+java -jar checkengine-cli-0.13.0.jar compare <pack folder> <server folder or server pack .zip>
+java -jar checkengine-cli-0.13.0.jar export <pack folder>
+java -jar checkengine-cli-0.13.0.jar stripmine <pack folder>
+java -jar checkengine-cli-0.13.0.jar logs <pack folder>
+java -jar checkengine-cli-0.13.0.jar materials <pack folder>
+java -jar checkengine-cli-0.13.0.jar notes <pack folder> [done]
+java -jar checkengine-cli-0.13.0.jar saferemove <pack folder> <mod id>
+java -jar checkengine-cli-0.13.0.jar exportcheck <export .zip or .mrpack>
 ```
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.12.0.jar** for NeoForge 26.1.2 and newer 26.1.x
-- **checkengine-neoforge-1.21.1-0.12.0.jar** for NeoForge 1.21.1
-- **checkengine-forge-1.20.1-0.12.0.jar** for Forge 1.20.1
+- **checkengine-neoforge-26.1-0.13.0.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-1.21.1-0.13.0.jar** for NeoForge 1.21.1
+- **checkengine-forge-1.20.1-0.13.0.jar** for Forge 1.20.1
 
 Problems show on a screen before the title screen and are saved to `checkengine/boot-report.txt`. Server ops can run `/checkengine scan` to find quests, recipes and loot tables that point at mods that aren't installed, and `/checkengine startup` to see how long the last startup took and which mods were slowest.
+
+## What's new in 0.13.0
+**The big one: Check Engine now helps after it worked, not only when it breaks.**
+
+For everyone:
+- **Silent crashes explained:** when the game closes with no crash report (exit code -1073741819 and friends), Crash Doctor reads Java's own crash file and names the cause: graphics driver, overlay, Java, or a mod.
+- **The real culprit in knock-on crashes:** when the crash report blames a mod that only tripped over another one ("Mod 'architectury' is not available"), Crash Doctor reads the game log and names the mod that failed first.
+- **Undo new mods:** one button switches off the mods added since the pack last worked (renamed to .disabled), so the pack is back to how it last started. Put them back any time.
+- **Undo config changes:** configs are part of "what changed since it last worked", and one button puts back the configs from the last launch that worked.
+- **Strip Mine for configs:** when no mod changed but several configs did, Strip Mine finds the bad config file the same way it finds a bad mod.
+- **World rescue:** a broken mob or machine that crashes a world every time it loads gets removed for one session, after a backup.
+- **Safe Remove:** before a world opens without a mod it still uses, Check Engine says what goes ("1,402 Create blocks, 18 chests or machines") and backs the world up in one click.
+- **"The pack was updated":** after a pack update, one blue screen lists what's new, updated and removed.
+- **Downgrade warning:** a mod that went back to an older version (worlds saved with the newer one can break).
+- **Two mods doing one job:** two minimaps, two recipe viewers, two renderers, two grave mods...
+- **Every screen in the new look,** including the heads-up and the "can't join: mods don't match" screen. LOAD ANYWAY is easier to find.
+
+For pack makers ([guide](https://github.com/Uanme37/CheckEngine/blob/main/docs/pack-makers.md)):
+- **Pack journal:** every launch that works writes down what changed (checkengine/pack-journal.txt).
+- **Update notes:** `notes` writes your changelog since the last release, ready to paste.
+- **Log check:** which mods flood the log, config values the game threw away (typos), and missing textures by mod.
+- **Duplicate materials:** the same ingot or ore from several mods, with a unifier tip.
+- **Export check:** drop your export on Check Pack.bat to catch your own settings, worlds, logs and user name before uploading.
+- **Quiet mode:** hide warnings your players don't need (`quiet`, `hide_warnings`).
+- **"Works with Check Engine" badge** for your pack page.
+
+Fixes: NeoForge 26.1 packs with mods bundled inside other mods (ATM11) no longer get false "missing mod" errors; early loading screens (Drippy Loading Screen) and Music Triggers no longer show as "not a mod".
 
 ## What's new in 0.12.0
 **A new look, and smarter about what it finds.**
