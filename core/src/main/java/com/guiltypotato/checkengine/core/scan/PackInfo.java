@@ -6,6 +6,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
@@ -18,13 +19,41 @@ import java.util.Properties;
  * @param supportLink an http(s) link for help (Discord, GitHub issues, CurseForge page...), or null
  * @param recommendedMb the memory the pack maker recommends (recommended_ram=10G), or 0
  */
-public record PackInfo(String name, String supportLink, long recommendedMb) {
+public record PackInfo(String name, String supportLink, long recommendedMb, boolean quiet, List<String> hide) {
     public static final String FILE = "checkengine-pack.properties";
     /** Longer names don't fit the window's headline. */
     private static final int MAX_HEADLINE_NAME = 26;
 
     public PackInfo(String name, String supportLink) {
         this(name, supportLink, 0);
+    }
+
+    public PackInfo(String name, String supportLink, long recommendedMb) {
+        this(name, supportLink, recommendedMb, false, List.of());
+    }
+
+    /**
+     * Quiet mode: whether players don't get to see this finding. Problems that stop the game always show; with
+     * quiet=true no warning does; hide_warnings hides the ones whose kind ("same-job-mods") or title matches.
+     */
+    public boolean hides(Finding f) {
+        if (f.severity() == Finding.Severity.ERROR) return false;
+        if (quiet) return true;
+        String title = f.title().toLowerCase(Locale.ROOT);
+        return hide.stream().anyMatch(h -> f.code().equalsIgnoreCase(h) || title.contains(h.toLowerCase(Locale.ROOT)));
+    }
+
+    /** The findings players get to see (see {@link #hides}). */
+    public List<Finding> visible(List<Finding> findings) {
+        return findings.stream().filter(f -> !hides(f)).toList();
+    }
+
+    /**
+     * Whether a whole screen is switched off: "settings" (the memory and Java windows, also off with quiet=true) or
+     * "update-notes" (the "pack was updated" screen).
+     */
+    public boolean hidesScreen(String screen) {
+        return (quiet && screen.equals("settings")) || hide.stream().anyMatch(h -> h.equalsIgnoreCase(screen));
     }
 
     public static PackInfo load(Path gameDir) {
@@ -35,7 +64,10 @@ public record PackInfo(String name, String supportLink, long recommendedMb) {
         if (name == null) name = withoutCopyNumber(prismName(gameDir));
         String link = blankToNull(p.getProperty("support_link"));
         if (link != null && !link.matches("(?i)https?://\\S+")) link = null;
-        return new PackInfo(name, link, memoryMb(p.getProperty("recommended_ram")));
+        List<String> hide = java.util.Arrays.stream(p.getProperty("hide_warnings", "").split(","))
+                .map(String::strip).filter(h -> !h.isEmpty()).toList();
+        return new PackInfo(name, link, memoryMb(p.getProperty("recommended_ram")),
+                Boolean.parseBoolean(p.getProperty("quiet", "false").strip()), hide);
     }
 
     /** "10G", "10 GB", "10240M", "10240" (MB) -> MB; 0 when empty or unreadable. A bare number under 100 means GB. */
@@ -75,9 +107,14 @@ public record PackInfo(String name, String supportLink, long recommendedMb) {
                     + "#   help link.\n"
                     + "# recommended_ram: the memory your pack needs, e.g. 10G. Players who give it far less get a\n"
                     + "#   warning. Empty = CurseForge's recommended RAM, or Check Engine's own measurement.\n"
+                    + "# quiet: true = players only see Check Engine when something stops the game or it crashed.\n"
+                    + "# hide_warnings: warnings players don't need, comma-separated: a kind (same-job-mods,\n"
+                    + "#   duplicate-mod, downgraded-mod, settings, update-notes) or words from the title (Xaero's Minimap).\n"
                     + "pack_name=\n"
                     + "support_link=\n"
-                    + "recommended_ram=\n");
+                    + "recommended_ram=\n"
+                    + "quiet=false\n"
+                    + "hide_warnings=\n");
         } catch (IOException ignored) {
             // read-only folder: fine
         }

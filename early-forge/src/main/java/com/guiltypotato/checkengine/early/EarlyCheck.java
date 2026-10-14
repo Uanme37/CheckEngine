@@ -234,6 +234,11 @@ public class EarlyCheck implements IDependencyLocator {
         if (FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
         SetupCheck.Warning w = SetupCheck.first(FMLPaths.GAMEDIR.get(), folder, expectedJava);
         if (w == null) return;
+        // Quiet mode: the pack maker switched the memory and Java windows off
+        if (com.guiltypotato.checkengine.core.scan.PackInfo.load(FMLPaths.GAMEDIR.get()).hidesScreen("settings")) {
+            LOGGER.warn("Check Engine (not shown, quiet mode): {}", w.toText());
+            return;
+        }
         LOGGER.warn("Check Engine: {}", w.toText());
         if (LaunchIntercept.askSetting(w, folder) == LaunchIntercept.Choice.QUIT) {
             LOGGER.info("Check Engine: the player chose Quit before loading");

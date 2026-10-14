@@ -83,7 +83,8 @@ public class EarlyCheck implements IDependencyLocator {
             roots.forEach(f -> LOGGER.error("  {}", f.title()));
             // "{0}" isn't in NeoForge's language file, so the screen shows the argument as is.
             for (String text : IssueText.problems(problems)) pipeline.addIssue(ModLoadingIssue.error("{0}", text));
-            for (Finding f : IssueText.clues(scan, problems)) {
+            var pack = com.guiltypotato.checkengine.core.scan.PackInfo.load(FMLPaths.GAMEDIR.get());
+            for (Finding f : pack.visible(IssueText.clues(scan, problems))) {
                 pipeline.addIssue(ModLoadingIssue.warning("{0}", IssueText.clue(f)));
             }
             save(report, roots);
@@ -112,6 +113,11 @@ public class EarlyCheck implements IDependencyLocator {
         if (FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
         SetupCheck.Warning w = SetupCheck.first(FMLPaths.GAMEDIR.get(), folder, expectedJava);
         if (w == null) return;
+        // Quiet mode: the pack maker switched the memory and Java windows off
+        if (com.guiltypotato.checkengine.core.scan.PackInfo.load(FMLPaths.GAMEDIR.get()).hidesScreen("settings")) {
+            LOGGER.warn("Check Engine (not shown, quiet mode): {}", w.toText());
+            return;
+        }
         LOGGER.warn("Check Engine: {}", w.toText());
         if (LaunchIntercept.askSetting(w, folder) == LaunchIntercept.Choice.QUIT) {
             LOGGER.info("Check Engine: the player chose Quit before loading");

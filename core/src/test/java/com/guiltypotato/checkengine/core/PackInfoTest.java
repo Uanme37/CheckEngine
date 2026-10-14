@@ -63,4 +63,33 @@ class PackInfoTest {
     void aLongNameIsLeftOutOfTheHeadline() {
         assertNull(new PackInfo("DarkRPG - RPG with Magic Origins Quests Adventure", null).headlineName());
     }
+
+    /** Quiet mode: the pack maker hides warnings players don't need; problems that stop the game always show. */
+    @Test
+    void quietModeHidesWarningsNeverProblems() throws Exception {
+        Files.createDirectories(game.resolve("config"));
+        Files.writeString(game.resolve("config").resolve(PackInfo.FILE),
+                "hide_warnings=same-job-mods, Xaero's Minimap, update-notes\n");
+        PackInfo pack = PackInfo.load(game);
+        var sameJob = new com.guiltypotato.checkengine.core.scan.Finding(
+                com.guiltypotato.checkengine.core.scan.Finding.Severity.WARNING, "same-job-mods", "2 minimaps: a and b",
+                "", "", java.util.List.of());
+        var dupe = new com.guiltypotato.checkengine.core.scan.Finding(
+                com.guiltypotato.checkengine.core.scan.Finding.Severity.WARNING, "duplicate-mod",
+                "Duplicate mod: Xaero's Minimap", "", "", java.util.List.of());
+        var other = new com.guiltypotato.checkengine.core.scan.Finding(
+                com.guiltypotato.checkengine.core.scan.Finding.Severity.WARNING, "duplicate-mod", "Duplicate mod: JEI",
+                "", "", java.util.List.of());
+        var missing = new com.guiltypotato.checkengine.core.scan.Finding(
+                com.guiltypotato.checkengine.core.scan.Finding.Severity.ERROR, "same-job-mods", "Missing mod: create",
+                "", "", java.util.List.of());
+        assertEquals(java.util.List.of(other, missing), pack.visible(java.util.List.of(sameJob, dupe, other, missing)));
+        assertTrue(pack.hidesScreen("update-notes"));
+        assertTrue(!pack.hidesScreen("settings"));
+
+        Files.writeString(game.resolve("config").resolve(PackInfo.FILE), "quiet=true\n");
+        PackInfo quiet = PackInfo.load(game);
+        assertEquals(java.util.List.of(missing), quiet.visible(java.util.List.of(sameJob, dupe, other, missing)));
+        assertTrue(quiet.hidesScreen("settings"));
+    }
 }

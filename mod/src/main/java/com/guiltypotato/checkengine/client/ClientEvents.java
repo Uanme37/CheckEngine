@@ -54,7 +54,9 @@ public final class ClientEvents {
         Report report = BootCheck.get();
         Screen next = title;
         if (report != null) {
-            List<Finding> findings = BootCheck.worthShowing(report);
+            // Quiet mode: the pack maker can hide warnings players don't need
+            List<Finding> findings = com.guiltypotato.checkengine.core.scan.PackInfo.load(
+                    BootCheck.outputFolder().getParent()).visible(BootCheck.worthShowing(report));
             if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
         }
         // Crash Doctor first: if the last game crashed, that's what the player wants to know about.

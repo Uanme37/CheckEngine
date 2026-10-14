@@ -23,7 +23,7 @@ final class PackUpdatedScreen {
 
     /** The screen, or null when the changes don't look like a pack update. */
     static Screen of(Screen next, Changes changes) {
-        if (shown) return null;
+        if (shown || PackInfo.load(FMLPaths.GAMEDIR.get()).hidesScreen("update-notes")) return null;
         List<Changes.Change> mods = com.guiltypotato.checkengine.core.scan.UpdateNotes.forPlayers(changes);
         if (mods.isEmpty()) return null;
         List<Section> sections = new ArrayList<>();
