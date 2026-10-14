@@ -267,6 +267,7 @@ public final class LaunchIntercept {
         for (Changes.Change c : changes.changes()) {
             out.add(switch (c.type()) {
                 case ADDED -> "+ " + c.name() + " " + c.to();
+                case CONFIG -> "* " + c.to() + " config " + c.name();
                 case REMOVED -> "- " + c.name() + " " + c.from();
                 case UPDATED -> "~ " + c.name() + " " + c.from() + " → " + c.to();
             });

@@ -47,6 +47,39 @@ public final class CrashDoctorScreen extends DashScreen {
     }
 
     private static List<Btn> buttons(Screen next, LastCrash crash, Screen[] self) {
+        List<Btn> out = new ArrayList<>(baseButtons(next, crash, self));
+        // A config edit since the pack last worked is often the whole story: offer to put the old ones back.
+        boolean configs = crash.changes() != null && crash.changes().changes().stream()
+                .anyMatch(c -> c.type() == com.guiltypotato.checkengine.core.scan.Changes.Type.CONFIG);
+        if (configs) {
+            out.add(2, new Btn("Undo config changes", () -> undoConfigs(next), true,
+                    "Puts back the configs from the last launch that worked. Your current ones are kept in "
+                            + "checkengine/config-undo-<date>, nothing is deleted."));
+        }
+        return out;
+    }
+
+    private static void undoConfigs(Screen next) {
+        String text;
+        try {
+            Path kept = com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.restore(FMLPaths.GAMEDIR.get(),
+                    BootCheck.outputFolder());
+            text = kept == null ? "Nothing to undo: the configs already match the last launch that worked."
+                    : "The configs from the last launch that worked are back. Your changed ones are in "
+                            + BootCheck.outputFolder().getParent().relativize(kept) + ".";
+        } catch (IOException e) {
+            CheckEngine.LOGGER.warn("Check Engine: couldn't put the configs back", e);
+            text = "Couldn't put the configs back: " + e.getMessage();
+        }
+        Minecraft.getInstance().setScreen(new DashScreen(GREEN, "CONFIGS PUT BACK", null, null, List.of(
+                new Section("DONE", GREEN, "✔", List.of(Line.text(text),
+                        Line.dim("Restart the game so every mod reads them again.")))),
+                List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true),
+                        new Btn("Later", () -> Minecraft.getInstance().setScreen(next), false)),
+                () -> Minecraft.getInstance().setScreen(next)));
+    }
+
+    private static List<Btn> baseButtons(Screen next, LastCrash crash, Screen[] self) {
         return List.of(
                 new Btn(tr("checkengine.screen.continue"), () -> Minecraft.getInstance().setScreen(next), true),
                 new Btn(tr("checkengine.crash.strip_mine"),

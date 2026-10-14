@@ -195,8 +195,19 @@ public final class PackScanner {
     /** Compares the pack with the last launch that worked (saved by the mod in checkengine/ next to mods/). */
     private static Changes changesSinceLastGoodLaunch(Path modsFolder, List<ModJar> jars, ScanOptions options) {
         if (modsFolder == null || modsFolder.getParent() == null) return null;
-        PackSnapshot last = PackSnapshot.load(modsFolder.getParent().resolve("checkengine"));
-        return last == null ? null : last.changesTo(PackSnapshot.of(jars, options));
+        Path folder = modsFolder.getParent().resolve("checkengine");
+        PackSnapshot last = PackSnapshot.load(folder);
+        if (last == null) return null;
+        Changes mods = last.changesTo(PackSnapshot.of(jars, options));
+        // Configs too: one mistyped value can break the pack while every mod is fine.
+        List<ConfigCheckpoint.Change> configs = ConfigCheckpoint.changes(modsFolder.getParent(), folder);
+        if (configs.isEmpty()) return mods;
+        List<Changes.Change> all = new ArrayList<>(mods.changes());
+        for (ConfigCheckpoint.Change c : configs) {
+            all.add(new Changes.Change(Changes.Type.CONFIG, "config", c.path(), null,
+                    c.kind().name().toLowerCase(java.util.Locale.ROOT), c.path()));
+        }
+        return new Changes(mods.since(), all);
     }
 
     /**

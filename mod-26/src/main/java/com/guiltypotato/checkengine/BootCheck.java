@@ -84,6 +84,11 @@ public final class BootCheck {
         if (com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) return;
         try {
             PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
+            // The configs too, so a config edit that breaks the pack can be found and undone. Not on a launch that
+            // explains a crash: the changed configs may be why, and Crash Doctor offers to undo them.
+            if (lastCrash() == null) {
+                com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.save(outputFolder().getParent(), outputFolder());
+            }
         } catch (IOException | RuntimeException e) {
             CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
         }

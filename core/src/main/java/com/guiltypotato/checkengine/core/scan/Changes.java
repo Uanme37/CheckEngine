@@ -14,7 +14,8 @@ public record Changes(String since, List<Change> changes) {
     /** How many changes to name per kind before saying "and N more". */
     private static final int LIST_LIMIT = 10;
 
-    public enum Type { ADDED, REMOVED, UPDATED }
+    /** CONFIG: a config file changed since the pack last worked ({@code name} is its path). */
+    public enum Type { ADDED, REMOVED, UPDATED, CONFIG }
 
     /**
      * @param id   mod id ("minecraft" / "loader" for those)
@@ -29,6 +30,7 @@ public record Changes(String since, List<Change> changes) {
                 case ADDED -> "added " + name + " " + to;
                 case REMOVED -> "removed " + name + " " + from;
                 case UPDATED -> "updated " + name + " " + from + " -> " + to;
+                case CONFIG -> to + " config " + name;
             };
         }
     }
@@ -48,6 +50,7 @@ public record Changes(String since, List<Change> changes) {
         line(sb, "Added", Type.ADDED);
         line(sb, "Removed", Type.REMOVED);
         line(sb, "Updated", Type.UPDATED);
+        line(sb, "Configs", Type.CONFIG);
         return sb.toString().strip();
     }
 
@@ -62,6 +65,10 @@ public record Changes(String since, List<Change> changes) {
             }
             Change c = list.get(i);
             if (i > 0) sb.append(", ");
+            if (type == Type.CONFIG) {
+                sb.append(c.name()).append(" (").append(c.to()).append(')');
+                continue;
+            }
             sb.append(c.name()).append(' ').append(type == Type.UPDATED ? c.from() + " -> " + c.to()
                     : type == Type.ADDED ? c.to() : c.from());
         }

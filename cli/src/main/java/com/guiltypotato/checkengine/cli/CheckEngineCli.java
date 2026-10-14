@@ -31,6 +31,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar compare <pack folder> <server folder or server pack .zip>
                    java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
+                   java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
 
               --server          check it as a dedicated server (also flags client-only mods)
               --client          check it as a player's game (default)
@@ -55,6 +56,7 @@ public final class CheckEngineCli {
         if (args[0].equals("compare")) return compare(args);
         if (args[0].equals("export")) return export(args);
         if (args[0].equals("stripmine")) return StripMineCli.run(args);
+        if (args[0].equals("undo-configs")) return undoConfigs(args);
         int i = 0;
         if (args[0].equals("scan")) i++;
         Path folder = null;
@@ -150,6 +152,31 @@ public final class CheckEngineCli {
             return 0;
         } catch (IOException e) {
             System.err.println(CheckEngineCore.NAME + " couldn't make a help file for " + args[1] + ": " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /** Puts back the configs of the last launch that worked; the current ones are kept in checkengine/config-undo-*. */
+    static int undoConfigs(String[] args) {
+        if (args.length != 2) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path game = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder().getParent();
+            Path folder = game.resolve("checkengine");
+            var changes = com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.changes(game, folder);
+            if (changes.isEmpty()) {
+                System.out.println("The configs match the last launch that worked (or it never worked with Check Engine "
+                        + "installed). Nothing to undo.");
+                return 0;
+            }
+            changes.forEach(c -> System.out.println("  " + c.describe()));
+            Path kept = com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.restore(game, folder);
+            System.out.println("Put back " + changes.size() + " config file(s). Your changed ones are in " + kept);
+            return 0;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't put the configs back: " + e.getMessage());
             return 2;
         }
     }
