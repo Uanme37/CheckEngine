@@ -155,7 +155,7 @@ final class StripMineScreens {
                     new Section("WHAT TO DO", AMBER, "»", List.of(Line.text(after <= 1
                             ? "That's the one. Quit the game and press Play to see which mod it is."
                             : "Quit the game and press Play again for round " + (s.round() + 1) + ". About "
-                                    + roundsAfter + " rounds to go.")))), List.of(
+                                    + roundsAfter + (roundsAfter == 1 ? " round" : " rounds") + " to go.")))), List.of(
                     new Btn("Quit game", () -> {
                         open = false;
                         Minecraft.getInstance().stop();
@@ -172,7 +172,7 @@ final class StripMineScreens {
                         new Section("WHAT TO DO", GREEN, "»", DashScreen.lines(
                                 "It crashes: just press Play again.",
                                 "It doesn't: come back here and press No crash. About " + s.roundsLeft()
-                                        + " rounds to go."))), List.of(
+                                        + (s.roundsLeft() == 1 ? " round" : " rounds") + " to go."))), List.of(
                 new Btn("No crash: next round", () -> {
                     open = false;
                     StripMine.markWorked(folder);
@@ -198,7 +198,7 @@ final class StripMineScreens {
             sections.add(new Section("THE BAD CONFIG", GREEN, "✔", List.of(Line.strong(found),
                     Line.dim(s.crash().isEmpty() ? "With its old version, the pack doesn't crash."
                             : "The crash: " + s.crash()),
-                    Line.dim("Found in " + s.round() + " rounds. Every config file is back as you had it."))));
+                    Line.dim("Found in " + s.round() + (s.round() == 1 ? " round." : " rounds.") + " Every config file is back as you had it."))));
             sections.add(new Section("FIX", GREEN, "✔", DashScreen.lines(
                     "Put back its version from when the pack last worked. Yours is kept in "
                             + "checkengine/config-undo-<date>, nothing is deleted.",
@@ -225,7 +225,7 @@ final class StripMineScreens {
             sections.add(new Section("THE FAULTY MOD", GREEN, "✔", List.of(Line.strong(found),
                     Line.dim(s.crash().isEmpty() ? "With it switched off, the pack doesn't crash."
                             : "The crash: " + s.crash()),
-                    Line.dim("Found in " + s.round() + " rounds. Every mod is switched back on."))));
+                    Line.dim("Found in " + s.round() + (s.round() == 1 ? " round." : " rounds.") + " Every mod is switched back on."))));
             sections.add(new Section("FIX", GREEN, "✔", DashScreen.lines(
                     "Switch it off: renamed to .disabled, nothing is deleted" + (plan.size() > 1 ? " (with the "
                             + (plan.size() - 1) + " mods that need it)." : "."),

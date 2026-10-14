@@ -104,22 +104,41 @@ public class DashScreen extends Screen {
         for (Section s : sections) content += sectionHeight(s) + 5;
         // Buttons: one row if they fit, else the small ones get a row of their own under the main ones.
         List<Btn> row = row();
-        int total = 0;
-        for (Btn b : row) total += buttonWidth(b) + 6;
-        buttonRows = total - 6 <= cardW - 24 ? 1 : 2;
+        // Main buttons wrap onto more rows when they don't fit; the small ones go at the right of the last row.
+        int avail = cardW - 24;
+        List<List<Btn>> lines = new ArrayList<>();
+        List<Btn> line = new ArrayList<>();
+        int lineW = 0;
+        for (Btn b : row) {
+            if (!b.primary()) continue;
+            int w = buttonWidth(b);
+            if (!line.isEmpty() && lineW + 6 + w > avail) {
+                lines.add(line);
+                line = new ArrayList<>();
+                lineW = 0;
+            }
+            lineW += (line.isEmpty() ? 0 : 6) + w;
+            line.add(b);
+        }
+        lines.add(line);
+        int smallW = rowWidth(row.stream().filter(b -> !b.primary()).toList());
+        boolean smallOwnRow = smallW > 0 && !line.isEmpty() && lineW + 12 + smallW > avail;
+        buttonRows = lines.size() + (smallOwnRow ? 1 : 0);
         contentHeight = content;
         cardH = Math.min(height - 12, 4 + 46 + content + 2 + 28 + 16 + (buttonRows - 1) * 24);
         cardY = Math.max(6, (height - cardH) / 2);
 
         int y = cardY + cardH - 16 - 25 - (buttonRows - 1) * 24;
-        int x = cardX + 12;
-        for (Btn b : row) {
-            if (!b.primary()) continue;
-            int w = buttonWidth(b);
-            addRenderableWidget(button(b, x, y, w));
-            x += w + 6;
+        for (int i = 0; i < lines.size(); i++) {
+            int x = cardX + 12;
+            for (Btn b : lines.get(i)) {
+                int w = buttonWidth(b);
+                addRenderableWidget(button(b, x, y, w));
+                x += w + 6;
+            }
+            if (i < lines.size() - 1) y += 24;
         }
-        y += (buttonRows - 1) * 24;
+        if (smallOwnRow) y += 24;
         int right = cardX + cardW - 12;
         List<Btn> small = row.stream().filter(b -> !b.primary()).toList();
         for (int i = small.size() - 1; i >= 0; i--) {

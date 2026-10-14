@@ -167,7 +167,7 @@ final class Popup {
             if (i == 0) m.details().forEach(dl -> problem.add(Line.dim(dl)));
         }
         sections.add(new Section(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
-                : m.level() == Level.FOUND ? "THE FAULTY MOD" : "LAST CRASH", tone,
+                : m.level() == Level.FOUND ? (m.stripMineConfigs() ? "THE BAD CONFIG" : "THE FAULTY MOD") : "LAST CRASH", tone,
                 m.level() == Level.FOUND ? Icon.CHECK : Icon.ALERT, problem));
         if (!m.changed().isEmpty()) {
             sections.add(new Section("CHANGED SINCE IT LAST WORKED", Tone.AMBER, Icon.CHANGED,

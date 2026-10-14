@@ -159,7 +159,8 @@ public final class LaunchIntercept {
                 : done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList();
         List<String> details = new ArrayList<>();
         if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
-        details.add("Found in " + done.round() + " rounds. Every mod is switched back on.");
+        details.add("Found in " + done.round() + (done.round() == 1 ? " round." : " rounds.")
+                + " Every mod is switched back on.");
         if (found == null) {
             return new Message(Level.FOUND, problems, details, List.of(), List.of("These mods need each other, so Strip "
                     + "Mine can't split them. Update them, or remove them one at a time."), report);
@@ -195,16 +196,17 @@ public final class LaunchIntercept {
         String found = done.found();
         List<String> details = new ArrayList<>();
         if (!done.crash().isEmpty()) details.add("The crash: " + done.crash());
-        details.add("Found in " + done.round() + " rounds. Every config file is back as you had it.");
+        details.add("Found in " + done.round() + (done.round() == 1 ? " round." : " rounds.")
+                + " Every config file is back as you had it.");
         if (found == null) {
             return new Message(Level.FOUND, done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList(),
                     details, List.of(), List.of("Put these back one at a time (Crash Doctor: Undo config changes)."),
-                    report);
+                    report).withStripMine(null, 0, null, true);
         }
         Message m = new Message(Level.FOUND, List.of(found + " causes the crash"), details, List.of(), List.of(
                 "QUIT AND FIX IT puts back " + found + " as it was when the pack last worked. Your version is "
                         + "kept in checkengine/config-undo-<date>, nothing is deleted.",
-                "Or open it and undo your last edit there."), report);
+                "Or open it and undo your last edit there."), report).withStripMine(null, 0, null, true);
         if (modsFolder == null) return m;
         return m.withQuitFix(() -> {
             try {
