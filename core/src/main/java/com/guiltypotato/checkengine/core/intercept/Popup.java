@@ -132,7 +132,7 @@ final class Popup {
             choice.set(Choice.QUIT);
             d.dispose();
         });
-        Action go = new Action(w.quitFirst() ? "LOAD ANYWAY" : "CONTINUE", w.quitFirst() ? Tone.GREY : Tone.BLUE,
+        Action go = new Action(w.quitFirst() ? "LOAD ANYWAY" : "CONTINUE", w.quitFirst() ? Tone.STEEL : Tone.BLUE,
                 d::dispose);
         Action never = new Action("DON'T ASK AGAIN", Tone.GREY, () -> {
             SetupCheck.ignore(checkEngineFolder, w.key());
@@ -185,7 +185,8 @@ final class Popup {
         }));
         if (m.undoNewMods() != null) actions.add(new Action("UNDO NEW MODS", Tone.AMBER, openUndoNewMods));
         if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
-        actions.add(new Action("LOAD ANYWAY", Tone.GREY, d::dispose));
+        // big when loading anyway is a real choice; after "won't start" it only ends in the loader's error
+        actions.add(new Action("LOAD ANYWAY", m.level() == Level.MAY_FAIL ? Tone.STEEL : Tone.GREY, d::dispose));
         if (m.report() != null) actions.add(new Action("FULL ERROR", Tone.GREY, () -> openReport(m)));
         if (pack.supportLink() != null) actions.add(new Action("GET HELP", Tone.GREY, () -> browse(pack.supportLink())));
         String[] fault = faultCode(m).split("·");
@@ -676,6 +677,7 @@ final class Popup {
                 case RED -> new Color[] {new Color(0xFF5F52), new Color(0xD93A2E), new Color(0x8E2119), new Color(0xFFD9D6)};
                 case GREEN -> new Color[] {new Color(0x34B045), new Color(0x1F7A2A), new Color(0x0F4416), new Color(0xC8FFD0)};
                 case BLUE -> new Color[] {new Color(0x5B97F7), new Color(0x2F6FE0), new Color(0x1B3F86), new Color(0xD6E6FF)};
+                case STEEL -> new Color[] {new Color(0x8E99A8), new Color(0x5C6676), new Color(0x2F3540), new Color(0xE2E8F0)};
                 default -> new Color[] {new Color(0xC98420), new Color(0x8A5A12), new Color(0x4F3309), new Color(0xFFCF86)};
             };
             top = c[0];
@@ -796,7 +798,7 @@ final class Popup {
             case AMBER -> AMBER;
             case GREEN -> GREEN;
             case BLUE -> BLUE;
-            case GREY -> DIM;
+            case GREY, STEEL -> DIM;
         };
     }
 

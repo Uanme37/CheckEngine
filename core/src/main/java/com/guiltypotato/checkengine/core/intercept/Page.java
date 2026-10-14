@@ -20,7 +20,8 @@ import java.util.List;
  */
 record Page(Tone tone, String headline, String subline, String code, String codeLabel, List<Section> sections,
             List<Action> actions, String help, String note) {
-    enum Tone { RED, AMBER, GREEN, BLUE, GREY }
+    /** GREY actions are small buttons; STEEL is a big neutral one (LOAD ANYWAY). */
+    enum Tone { RED, AMBER, GREEN, BLUE, GREY, STEEL }
 
     enum Style { STRONG, TEXT, DIM }
 
