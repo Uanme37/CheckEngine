@@ -16,21 +16,38 @@ import java.util.Properties;
  *
  * @param name        the pack's name, or null if unknown
  * @param supportLink an http(s) link for help (Discord, GitHub issues, CurseForge page...), or null
+ * @param recommendedMb the memory the pack maker recommends (recommended_ram=10G), or 0
  */
-public record PackInfo(String name, String supportLink) {
+public record PackInfo(String name, String supportLink, long recommendedMb) {
     public static final String FILE = "checkengine-pack.properties";
     /** Longer names don't fit the window's headline. */
     private static final int MAX_HEADLINE_NAME = 26;
 
+    public PackInfo(String name, String supportLink) {
+        this(name, supportLink, 0);
+    }
+
     public static PackInfo load(Path gameDir) {
-        if (gameDir == null) return new PackInfo(null, null);
+        if (gameDir == null) return new PackInfo(null, null, 0);
         Properties p = settings(gameDir);
         String name = blankToNull(p.getProperty("pack_name"));
         if (name == null) name = withoutCopyNumber(curseForgeName(gameDir));
         if (name == null) name = withoutCopyNumber(prismName(gameDir));
         String link = blankToNull(p.getProperty("support_link"));
         if (link != null && !link.matches("(?i)https?://\\S+")) link = null;
-        return new PackInfo(name, link);
+        return new PackInfo(name, link, memoryMb(p.getProperty("recommended_ram")));
+    }
+
+    /** "10G", "10 GB", "10240M", "10240" (MB) -> MB; 0 when empty or unreadable. A bare number under 100 means GB. */
+    static long memoryMb(String text) {
+        String t = blankToNull(text);
+        if (t == null) return 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)^([0-9]+(?:[.][0-9]+)?)\\s*(gb?|mb?)?$")
+                .matcher(t);
+        if (!m.find()) return 0;
+        double n = Double.parseDouble(m.group(1));
+        boolean gb = m.group(2) != null ? m.group(2).toLowerCase(Locale.ROOT).startsWith("g") : n < 100;
+        return Math.round(gb ? n * 1024 : n);
     }
 
     /** The name in upper case for a headline ("BEYOND THE CRANK"), or null when unknown or too long. */
@@ -56,8 +73,11 @@ public record PackInfo(String name, String supportLink) {
                     + "# pack_name: shown on Check Engine's screens (\"My Pack won't start\"). Empty = the launcher's name.\n"
                     + "# support_link: where players get help (Discord invite, GitHub issues, CurseForge page). Empty = no\n"
                     + "#   help link.\n"
+                    + "# recommended_ram: the memory your pack needs, e.g. 10G. Players who give it far less get a\n"
+                    + "#   warning. Empty = CurseForge's recommended RAM, or Check Engine's own measurement.\n"
                     + "pack_name=\n"
-                    + "support_link=\n");
+                    + "support_link=\n"
+                    + "recommended_ram=\n");
         } catch (IOException ignored) {
             // read-only folder: fine
         }

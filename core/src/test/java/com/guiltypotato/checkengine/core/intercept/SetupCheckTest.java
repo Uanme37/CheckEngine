@@ -39,6 +39,17 @@ class SetupCheckTest {
         assertNull(SetupCheck.memory(game, 12544));
     }
 
+    /** The pack maker's recommended_ram wins over CurseForge's number and Check Engine's measurement. */
+    @Test
+    void thePackMakersRecommendationWins() throws Exception {
+        Files.createDirectories(game.resolve("config"));
+        Files.createDirectories(game.resolve("mods"));
+        Files.writeString(game.resolve("config").resolve("checkengine-pack.properties"), "pack_name=My Pack\nrecommended_ram=10G\n");
+        SetupCheck.Warning w = SetupCheck.memory(game, 2048);
+        assertNotNull(w);
+        assertTrue(w.problem().contains("My Pack recommends 10 GB"), w.problem());
+    }
+
     @Test
     void onlyAMuchNewerJavaIsWorthAWindow() {
         assertNull(SetupCheck.java(21, 17, game), "Java 21 on 1.20.1 is common and fine");

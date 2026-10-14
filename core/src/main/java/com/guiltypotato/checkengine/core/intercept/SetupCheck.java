@@ -50,8 +50,13 @@ public final class SetupCheck {
      */
     static Warning memory(Path gameDir, long maxHeapMb) {
         RamAdvisor.Facts facts = RamAdvisor.facts(gameDir, gameDir.resolve("mods"));
-        long authors = curseForgeRecommendedMb(gameDir);
+        // Whose number: the pack maker's own setting, the pack author's in CurseForge, then Check Engine's measurement
+        // of the last launch, then an estimate from the mod count.
+        PackInfo info = PackInfo.load(gameDir);
+        long authors = info.recommendedMb() > 0 ? info.recommendedMb() : curseForgeRecommendedMb(gameDir);
         long need = authors > 0 ? authors : RamAdvisor.recommendedMb(facts);
+        String basis = authors > 0 ? "" : facts.measuredMb() > 0 ? " (measured on your last launch)"
+                : " for " + facts.modCount() + " mods";
         if (maxHeapMb <= 0 || maxHeapMb >= need * 60 / 100 || need - maxHeapMb < 1536) return null;
         // The recommendation is what plays best, not a must: not every PC has that much. The least that should load
         // is about 60% of it, so that's what the fix asks for first.
@@ -69,8 +74,8 @@ public final class SetupCheck {
                 : "\nYour PC has " + pcGb + " GB: give it about " + gb(spare) + " and close other programs while playing.");
         return new Warning("ignore_memory", "CE-08", "LOW MEMORY",
                 headName != null ? "LOW MEMORY FOR " + headName : "NOT ENOUGH MEMORY",
-                "MEMORY", "The game has " + gb(maxHeapMb) + ". " + name + (authors > 0 ? " recommends " : " plays best with ")
-                        + gb(need) + ".",
+                "MEMORY", "The game has " + gb(maxHeapMb) + ". " + name + (authors > 0 ? " recommends " : " needs about ")
+                        + gb(need) + basis + ".",
                 "It can run on less, but with " + facts.modCount() + " mods " + gb(maxHeapMb) + " will probably freeze "
                         + "or crash.", fix, note, true);
     }
