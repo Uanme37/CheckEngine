@@ -62,7 +62,7 @@ final class RecipeReader {
 
     /** What the recipe asks for, as a pack maker wrote it: "#c:ingots/tin" or "create:cogwheel". */
     private static String label(Ingredient ing) {
-        if (ing.isCustom()) return "a special ingredient";
+        if (ing.isCustom()) return RecipeCheck.SPECIAL;
         List<String> parts = new ArrayList<>();
         for (Ingredient.Value v : ing.getValues()) {
             if (v instanceof Ingredient.TagValue tag) parts.add("#" + tag.tag().location());

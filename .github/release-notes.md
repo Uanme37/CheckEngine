@@ -32,9 +32,9 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 
 ## What's new in 0.14.0
 **Recipe check**, in `/checkengine scan`:
-- **Recipe clashes:** two crafting recipes with the same grid (or its mirror image, or the same items in any order) that make different things. Only one of each pair can ever be crafted. The fix is to remove one with KubeJS or CraftTweaker, or to add Polymorph.
+- **Recipe clashes:** two crafting recipes that take exactly the same items in the same grid (or its mirror image, or in any order) but make different things. Only one of each pair can ever be crafted. The fix is to remove one with KubeJS or CraftTweaker, or to add Polymorph. Recipes that only share some inputs (any planks vs one kind of planks) are listed as info.
 - **Recipes nobody can craft:** a slot asks for a tag that has no items in it.
-- **Quest items nothing gives:** an FTB Quests task asks for an item that no recipe, loot table or quest reward gives.
-- Also listed, as info: crafting ingredients that nothing gives.
+- Also listed, as info: quest items and crafting ingredients that no recipe, loot table or quest reward gives (often mob drops or spells, so worth a look rather than a fix).
+- Fast in big packs: ATM10 (46,000 crafting recipes) scans in seconds.
 
 On 1.21.1 and Forge 1.20.1 it checks the recipes the game actually loaded, so KubeJS and CraftTweaker changes count. On 26.1 it reads the recipe files, so script changes aren't seen there yet.

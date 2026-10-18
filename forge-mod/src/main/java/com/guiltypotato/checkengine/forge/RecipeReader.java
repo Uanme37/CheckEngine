@@ -72,7 +72,7 @@ final class RecipeReader {
         try {
             return label(ing.toJson());
         } catch (RuntimeException e) {
-            return "a special ingredient";
+            return RecipeCheck.SPECIAL;
         }
     }
 
@@ -80,7 +80,7 @@ final class RecipeReader {
         if (json instanceof JsonObject obj) {
             if (obj.has("tag")) return "#" + obj.get("tag").getAsString();
             if (obj.has("item")) return obj.get("item").getAsString();
-            return obj.size() == 0 ? "" : "a special ingredient";
+            return obj.size() == 0 ? "" : RecipeCheck.SPECIAL;
         }
         if (json instanceof JsonArray arr) {
             List<String> parts = new ArrayList<>();
