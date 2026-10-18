@@ -37,8 +37,9 @@ import net.neoforged.neoforge.client.gui.ModMismatchDisconnectedScreen;
 public final class JoinMismatchScreen extends DashScreen {
     private static final String KEY = "neoforge.network.negotiation.failure.";
 
-    private JoinMismatchScreen(ModMismatchDisconnectedScreen original, Screen back, List<Finding> findings) {
-        super(RED, "CAN'T JOIN: MODS DON'T MATCH", null, null, sections(findings), buttons(original, back),
+    private JoinMismatchScreen(ModMismatchDisconnectedScreen original, Screen back, List<Finding> findings,
+                               List<Failure> failures) {
+        super(RED, "CAN'T JOIN: MODS DON'T MATCH", null, null, sections(findings), buttons(original, back, failures),
                 () -> Minecraft.getInstance().setScreen(back));
     }
 
@@ -53,14 +54,21 @@ public final class JoinMismatchScreen extends DashScreen {
         return List.of(new Section("YOUR MODS VS THE SERVER'S", RED, "!", lines));
     }
 
-    private static List<Btn> buttons(ModMismatchDisconnectedScreen original, Screen back) {
-        return List.of(
-                new Btn("Back", () -> Minecraft.getInstance().setScreen(back), true),
+    private static List<Btn> buttons(ModMismatchDisconnectedScreen original, Screen back, List<Failure> failures) {
+        List<Btn> out = new ArrayList<>();
+        if (failures.stream().anyMatch(f -> f.kind() != Kind.OTHER)) {
+            out.add(new Btn("Fix it", () -> JoinFixScreens.start(failures, back), true,
+                    "Switches off mods the server doesn't have, and gets the server's versions from Modrinth where it "
+                            + "can. Nothing is deleted, and Undo puts it all back."));
+        }
+        out.addAll(List.of(
+                new Btn("Back", () -> Minecraft.getInstance().setScreen(back), out.isEmpty()),
                 new Btn("Open mods folder", () -> Util.getPlatform().openFile(FMLPaths.MODSDIR.get().toFile()), false),
                 new Btn("Open report", () -> Util.getPlatform().openFile(reportFile().toFile()), false,
                         "The full list, with the server's address, in a text file."),
                 new Btn("Details", () -> Minecraft.getInstance().setScreen(original), false,
-                        "The loader's own list of the channels that didn't match."));
+                        "The loader's own list of the channels that didn't match.")));
+        return out;
     }
 
     static Path reportFile() {
@@ -86,7 +94,7 @@ public final class JoinMismatchScreen extends DashScreen {
             Files.writeString(reportFile(), JoinMismatch.toText(server == null ? null : server.ip, findings),
                     StandardCharsets.UTF_8);
             CheckEngine.LOGGER.warn("Check Engine: couldn't join, {}. Details: {}", Report.summary(findings), reportFile());
-            return new JoinMismatchScreen(screen, back == null ? new TitleScreen() : back, findings);
+            return new JoinMismatchScreen(screen, back == null ? new TitleScreen() : back, findings, failures);
         } catch (ReflectiveOperationException | RuntimeException | IOException e) {
             CheckEngine.LOGGER.warn("Check Engine: couldn't explain the mod mismatch, showing NeoForge's screen", e);
             return null;
