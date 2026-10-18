@@ -161,8 +161,11 @@ public final class RecipeCheck {
             for (Recipe a : bucket.getValue()) {
                 List<Slot> filled = a.filled();
                 if (filled.isEmpty()) continue;
-                Set<Recipe> partners = new LinkedHashSet<>();
-                for (String item : filled.get(0).items()) partners.addAll(byItem.getOrDefault(item, List.of()));
+                // A partner shares an item with every filled slot, so look up through the smallest one. Identity set:
+                // hashing a Recipe hashes every tag's items, which hung big packs.
+                Slot probe = filled.stream().min(java.util.Comparator.comparingInt(s -> s.items().size())).get();
+                Set<Recipe> partners = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                for (String item : probe.items()) partners.addAll(byItem.getOrDefault(item, List.of()));
                 for (Recipe b : partners) {
                     if (a == b || base(a.result()).equals(base(b.result()))) continue;
                     // Two shaped recipes are compared as grids; only pairs with a shapeless recipe go by count.

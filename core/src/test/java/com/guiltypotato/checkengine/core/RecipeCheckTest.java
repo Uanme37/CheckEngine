@@ -1,12 +1,14 @@
 package com.guiltypotato.checkengine.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.guiltypotato.checkengine.core.data.DataScanner;
 import com.guiltypotato.checkengine.core.data.RecipeCheck;
 import com.guiltypotato.checkengine.core.data.RecipeCheck.Slot;
 import com.guiltypotato.checkengine.core.scan.Finding;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +77,19 @@ class RecipeCheckTest {
         check.shaped("b:x", "mod/b", "b:x", 2, 2, List.of(item("x:gem"), E, E, E));
         check.shaped("c:x", "mod/c", "a:x", 1, 1, List.of(item("x:gem")));
         assertTrue(byCode(Finding.RECIPE_CLASH).isEmpty());
+    }
+
+    @Test
+    void bigTagsInABigPackStayFast() {
+        // A big pack: thousands of 3x3 recipes around one big tag (planks, ingots). Used to hang for minutes.
+        String[] planks = new String[400];
+        for (int i = 0; i < planks.length; i++) planks[i] = "wood:planks_" + i;
+        Slot plank = tag("minecraft:planks", planks);
+        for (int i = 0; i < 3000; i++) {
+            check.shaped("m:r" + i, "mod/m", "m:out" + i, 3, 3,
+                    List.of(plank, plank, plank, plank, item("m:core" + i), plank, plank, plank, plank));
+        }
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> assertTrue(byCode(Finding.RECIPE_CLASH).isEmpty()));
     }
 
     @Test
