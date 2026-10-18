@@ -16,3 +16,8 @@ test { useJUnitPlatform() }
 
 // The Forge 1.20.1 mod runs on Java 17, so the shared core must too.
 tasks.withType(JavaCompile).configureEach { options.release = 17 }
+
+// The Known Crash Library lives at the repo root (easy to find and edit on GitHub); every jar carries a copy.
+processResources {
+    from(rootProject.file('known-crashes.json')) { into 'com/guiltypotato/checkengine/core/crash' }
+}

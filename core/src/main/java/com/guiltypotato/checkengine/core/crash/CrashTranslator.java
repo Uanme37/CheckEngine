@@ -199,6 +199,17 @@ public final class CrashTranslator {
     }
 
     public static Explanation translate(String report) {
+        Explanation e = translateUnknown(report);
+        // A crash someone already solved goes first, with its fix, above Check Engine's own reading.
+        KnownCrashes.Entry known = KnownCrashes.current().match(report);
+        if (known == null) return e;
+        List<Finding> findings = new ArrayList<>(e.findings());
+        findings.removeIf(f -> f.code().equals("unknown-crash"));
+        findings.add(0, known.finding());
+        return new Explanation(e.description(), e.exception(), findings);
+    }
+
+    private static Explanation translateUnknown(String report) {
         // A silent crash (no crash report): Java's hs_err_pid file instead.
         if (NativeCrash.isNativeCrash(report)) return NativeCrash.explain(report);
         String[] lines = tidy(report).split("\n");

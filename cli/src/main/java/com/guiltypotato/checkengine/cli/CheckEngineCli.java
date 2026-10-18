@@ -415,6 +415,8 @@ public final class CheckEngineCli {
             Path gameDir = file.getParent() != null && file.getParent().getFileName() != null
                     && file.getParent().getFileName().toString().equals("crash-reports") ? file.getParent().getParent()
                     : null;
+            // A pack that downloaded a newer crash library copy uses it here too.
+            if (gameDir != null) com.guiltypotato.checkengine.core.crash.KnownCrashes.use(gameDir.resolve("checkengine"));
             CrashTranslator.Explanation e = CrashTranslator.withLog(CrashTranslator.translate(text),
                     gameDir == null ? null : com.guiltypotato.checkengine.core.crash.GameLog.forCrash(gameDir, file));
             System.out.println("Crash report: " + file);

@@ -72,6 +72,7 @@ public final class CrashDoctor {
      * that a new session started, so the next launch only looks at crashes from this one.
      */
     public static LastCrash checkAndStartSession(Path gameDir, Path checkEngineFolder) {
+        useCrashLibrary(checkEngineFolder);
         Properties state = load(checkEngineFolder);
         LastCrash crash = null;
         String started = state.getProperty("session_started");
@@ -89,10 +90,23 @@ public final class CrashDoctor {
     }
 
     /**
+     * Picks up the newest crash library copy, and when the player turned on updates, fetches a newer one in the
+     * background for the next crash (never holds up startup).
+     */
+    private static void useCrashLibrary(Path checkEngineFolder) {
+        KnownCrashes.use(checkEngineFolder);
+        if (!KnownCrashes.updatesOn(checkEngineFolder)) return;
+        Thread t = new Thread(() -> KnownCrashes.updateIfDue(checkEngineFolder), "Check Engine crash library update");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
      * The previous session's unseen crash without marking anything (for the pre-launch check, which runs before
      * {@link #checkAndStartSession}), or null.
      */
     public static LastCrash peek(Path gameDir, Path checkEngineFolder) {
+        KnownCrashes.use(checkEngineFolder);
         Properties state = load(checkEngineFolder);
         String started = state.getProperty("session_started");
         if (started == null) return null;

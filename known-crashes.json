@@ -1,0 +1,46 @@
+{
+  "_readme": "The Check Engine crash library. Each entry is a crash someone already solved. 'all': every text must be in the crash report or log; 'any': at least one must be; 'none': none may be. First match wins, so put narrow entries above broad ones. Raise 'version' with every change so players with updates on get it. To add one, open a pull request or an issue with the crash report and the fix that worked.",
+  "version": 1,
+  "crashes": [
+    {
+      "id": "rtss-overlay",
+      "title": "RivaTuner / MSI Afterburner overlay",
+      "detail": "The game died inside RivaTuner Statistics Server, the on-screen FPS overlay that comes with MSI Afterburner. It hooks into the game's graphics and modded Minecraft often trips over it.",
+      "fix": "Close RivaTuner Statistics Server (or turn its overlay off for javaw.exe), then start the game again.",
+      "any": [
+        "RTSSHooks64.dll",
+        "RTSSHooks.dll"
+      ]
+    },
+    {
+      "id": "discord-overlay",
+      "title": "Discord overlay",
+      "detail": "The game died inside Discord's in-game overlay.",
+      "fix": "Turn off Discord's in-game overlay (Discord settings > Game Overlay), then start the game again.",
+      "any": [
+        "DiscordHook64.dll",
+        "DiscordHook.dll"
+      ]
+    },
+    {
+      "id": "no-opengl-driver",
+      "title": "No proper graphics driver",
+      "detail": "Windows has no OpenGL driver for the graphics card the game is using, usually because only Windows' basic display driver is installed.",
+      "fix": "Install the driver from your graphics card maker (NVIDIA, AMD or Intel), restart the PC, then start the game. On a laptop, make javaw.exe use the dedicated graphics card.",
+      "any": [
+        "WGL: The driver does not appear to support OpenGL",
+        "Pixel format not accelerated"
+      ]
+    },
+    {
+      "id": "heap-reserve",
+      "title": "Java couldn't get the memory you gave it",
+      "detail": "The launcher asked Java for more memory than it could reserve. This happens with 32-bit Java, or when the RAM setting is higher than the PC can spare.",
+      "fix": "Lower the RAM setting in your launcher (6 to 8 GB is plenty for most packs) and make sure the launcher uses 64-bit Java.",
+      "any": [
+        "Could not reserve enough space for",
+        "Invalid maximum heap size"
+      ]
+    }
+  ]
+}

@@ -63,10 +63,30 @@ public final class HelpBundle {
                 // the help file is still useful without it
             }
             Path crash = newestCrash(gameDir);
-            if (crash != null) copy(zip, crash, "crash-reports/" + crash.getFileName(), redact);
+            if (crash != null) {
+                copy(zip, crash, "crash-reports/" + crash.getFileName(), redact);
+                suggestFix(zip, crash, redact);
+            }
             copy(zip, gameDir.resolve("config").resolve("fml.toml"), "config/fml.toml", redact);
         }
         return out;
+    }
+
+    /** A ready-made crash library suggestion: if someone finds the fix, this is what the list entry needs. */
+    private static void suggestFix(ZipOutputStream zip, Path crash, Redactor redact) {
+        try {
+            String sig = com.guiltypotato.checkengine.core.crash.KnownCrashes.signature(
+                    Files.readString(crash, StandardCharsets.UTF_8));
+            if (sig.isEmpty()) return;
+            put(zip, "suggest-this-fix.txt", redact.apply("""
+                    Found the fix for this crash? Add it to the Check Engine crash library so it helps the next
+                    player: open an issue at https://github.com/Uanme37/CheckEngine/issues with this text and the fix
+                    that worked.
+
+                    """ + sig + "\n"));
+        } catch (IOException | RuntimeException ignored) {
+            // the help file is still useful without it
+        }
     }
 
     private static String readme(Path gameDir, Report report) {
