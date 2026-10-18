@@ -37,6 +37,12 @@ public record Finding(Severity severity, String code, String title, String detai
     public static final String NO_MODS = "no-mods";
     public static final String ITEMS_FROM_MISSING_MOD = "items-from-missing-mod";
     public static final String BROKEN_QUEST_ITEM = "broken-quest-item";
+    /** Two crafting recipes with the same grid that make different things: only one can be crafted. */
+    public static final String RECIPE_CLASH = "recipe-clash";
+    /** A recipe slot asks for a tag with no items, so the recipe can never be crafted. */
+    public static final String DEAD_RECIPE = "dead-recipe";
+    /** Something needs an item that no recipe, loot table or quest reward gives. */
+    public static final String UNOBTAINABLE_ITEM = "unobtainable-item";
     /** A crash that depends on timing (two mods racing during parallel loading): the next launch usually works. */
     public static final String TIMING_CRASH = "timing-crash";
 }

@@ -1,6 +1,8 @@
 package com.guiltypotato.checkengine;
 
 import com.guiltypotato.checkengine.core.data.DataScanner;
+import com.guiltypotato.checkengine.core.data.RecipeCheck;
+import com.guiltypotato.checkengine.core.data.RecipeFiles;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.io.IOException;
@@ -8,6 +10,8 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,10 +29,14 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 
-/** /checkengine scan: recipes, loot tables and FTB Quests that use items from mods that aren't installed. */
+/**
+ * /checkengine scan: recipes, loot tables and FTB Quests that use items from mods that aren't installed,
+ * plus recipe clashes, recipes nobody can craft and quest items nothing gives.
+ */
 final class DataScan {
     private DataScan() {}
 
@@ -40,6 +48,9 @@ final class DataScan {
         Map<Identifier, Resource> recipes = resources.listResources("recipe", DataScan::isJson);
         Map<Identifier, Resource> lootTables = resources.listResources("loot_table", DataScan::isJson);
         Set<String> namespaces = knownNamespaces();
+        Map<Identifier, Resource> tags = resources.listResources("tags/item", DataScan::isJson);
+        // 26.1 reads crafting recipes from their files: KubeJS and CraftTweaker changes aren't seen here.
+        RecipeCheck recipeCheck = new RecipeCheck(DataScan::itemName);
 
         CompletableFuture.supplyAsync(() -> {
             DataScanner scanner = new DataScanner(namespaces::contains);
@@ -56,7 +67,12 @@ final class DataScan {
                     throw new RuntimeException("couldn't read FTB Quests files: " + e.getMessage(), e);
                 }
             }
-            return save(scanner);
+            RecipeFiles recipeFiles = new RecipeFiles();
+            tags.forEach((path, r) -> recipeFiles.tag(id(path, "tags/item/"), read(r)));
+            recipes.forEach((path, r) -> recipeFiles.recipe(recipeCheck, id(path, "recipe/"), r.sourcePackId(), read(r)));
+            recipeCheck.madeAll(scanner.gives());
+            scanner.questTaskItems().forEach((item, files) -> files.forEach(f -> recipeCheck.questNeeds(f, item)));
+            return save(scanner, recipeCheck);
         }, Util.backgroundExecutor()).whenComplete((done, error) -> server.execute(() -> {
             if (error != null) {
                 CheckEngine.LOGGER.error("Check Engine: data scan failed", error);
@@ -68,12 +84,15 @@ final class DataScan {
         return 1;
     }
 
-    private static Component save(DataScanner scanner) {
-        List<Finding> findings = scanner.findings();
+    private static Component save(DataScanner scanner, RecipeCheck recipeCheck) {
+        List<Finding> findings = new ArrayList<>(scanner.findings());
+        findings.addAll(recipeCheck.findings());
+        findings.sort(Comparator.comparing(Finding::severity));
         StringBuilder sb = new StringBuilder("Check Engine data scan\n");
         sb.append("Checked: ").append(scanner.checked(DataScanner.Kind.RECIPE)).append(" recipes, ")
                 .append(scanner.checked(DataScanner.Kind.LOOT_TABLE)).append(" loot tables, ")
-                .append(scanner.checked(DataScanner.Kind.QUEST)).append(" FTB Quests files\n\n");
+                .append(scanner.checked(DataScanner.Kind.QUEST)).append(" FTB Quests files, ")
+                .append(recipeCheck.checked()).append(" crafting recipes compared\n\n");
         Report.appendFindings(sb, findings);
         Path file = BootCheck.outputFolder().resolve("scan-report.txt");
         try {
@@ -98,6 +117,12 @@ final class DataScan {
             r.keySet().forEach(k -> out.add(k.getNamespace()));
         }
         return out;
+    }
+
+    private static String itemName(String id) {
+        Identifier rl = Identifier.tryParse(id);
+        if (rl == null) return id;
+        return BuiltInRegistries.ITEM.getOptional(rl).map(item -> new ItemStack(item).getHoverName().getString()).orElse(id);
     }
 
     private static boolean isJson(Identifier path) {

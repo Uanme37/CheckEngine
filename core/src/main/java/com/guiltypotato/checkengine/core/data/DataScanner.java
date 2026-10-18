@@ -5,7 +5,9 @@ import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Finding.Severity;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +28,9 @@ public final class DataScanner {
     /** {@code id: "ns:path"}, {@code item: "ns:path"} or {@code icon: "ns:path"} in a quest file. */
     private static final Pattern QUEST_ITEM = Pattern.compile(
             "^\\s*(?:id|item|icon):\\s*\"([a-z0-9_.-]+):([a-z0-9_./-]+)\"", Pattern.MULTILINE);
+    /** Like {@link #QUEST_ITEM} without icons: what a task asks for or a reward gives. */
+    private static final Pattern QUEST_GOODS = Pattern.compile(
+            "\\b(?:id|item):\\s*\"([a-z0-9_.-]+):([a-z0-9_./-]+)\"");
     /** FTB Quests swaps items it can't find for ftbquests:missing_item and keeps the old id here. */
     private static final Pattern QUEST_MISSING = Pattern.compile(
             "\"ftbquests:missing_item\":\\s*\"([^\"]+)\"");
@@ -64,6 +69,8 @@ public final class DataScanner {
     private final List<Ref> brokenQuestItems = new ArrayList<>();
     private final List<String> unreadable = new ArrayList<>();
     private final Map<Kind, Integer> checked = new LinkedHashMap<>();
+    private final Set<String> gives = new HashSet<>();
+    private final Map<String, Set<String>> questTaskItems = new TreeMap<>();
 
     /** @param namespaceExists true for "minecraft", loaded mod ids, and any namespace with registered items */
     public DataScanner(Predicate<String> namespaceExists) {
@@ -80,6 +87,27 @@ public final class DataScanner {
         walk(obj, v -> use(new Ref(Kind.RECIPE, id, source, v)), "item", "id");
         // Since 1.21.2 ingredients are plain strings: "ingredients": ["mod:gear"], "key": {"A": "mod:gear"}.
         ingredients(obj, v -> use(new Ref(Kind.RECIPE, id, source, v)), false);
+        // Every output, including a machine's second and third ones that the game's own recipe list leaves out.
+        for (String key : OUTPUT_KEYS) if (obj.get(key) != null) collectItems(obj.get(key), gives);
+    }
+
+    /** Recipe fields that hold what the recipe makes. */
+    private static final List<String> OUTPUT_KEYS = List.of("result", "results", "output", "outputs");
+
+    private static void collectItems(Object node, Set<String> into) {
+        if (node instanceof String s) {
+            if (s.indexOf(':') > 0 && !s.startsWith("#")) into.add(s);
+        } else if (node instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (("id".equals(e.getKey()) || "item".equals(e.getKey())) && e.getValue() instanceof String s) {
+                    if (s.indexOf(':') > 0 && !s.startsWith("#")) into.add(s);
+                } else if (!(e.getValue() instanceof String)) {
+                    collectItems(e.getValue(), into);
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object o : list) collectItems(o, into);
+        }
     }
 
     /** Recipe fields that hold ingredients. */
@@ -113,7 +141,10 @@ public final class DataScanner {
         Map<String, Object> obj = parse(id, json);
         if (obj == null || isConditional(obj)) return;
         count(Kind.LOOT_TABLE);
-        walkLootItems(obj, v -> use(new Ref(Kind.LOOT_TABLE, id, source, v)));
+        walkLootItems(obj, v -> {
+            use(new Ref(Kind.LOOT_TABLE, id, source, v));
+            gives.add(v);
+        });
     }
 
     public void questFile(String name, String snbt) {
@@ -126,6 +157,60 @@ public final class DataScanner {
         }
         Matcher missing = QUEST_MISSING.matcher(snbt);
         while (missing.find()) brokenQuestItems.add(new Ref(Kind.QUEST, name, null, missing.group(1)));
+        for (String block : blocks(snbt, "tasks:")) {
+            for (String item : questItems(block)) questTaskItems.computeIfAbsent(item, k -> new LinkedHashSet<>()).add(name);
+        }
+        for (String block : blocks(snbt, "rewards:")) gives.addAll(questItems(block));
+    }
+
+    /** Items written in a block of a quest file, minus FTB's own placeholders and filters. */
+    private static List<String> questItems(String block) {
+        List<String> out = new ArrayList<>();
+        Matcher m = QUEST_GOODS.matcher(block);
+        while (m.find()) {
+            String ns = m.group(1);
+            if (ns.equals("ftbquests") || ns.equals("itemfilters") || ns.equals("ftbfiltersystem")) continue;
+            out.add(ns + ":" + m.group(2));
+        }
+        return out;
+    }
+
+    /** The text of every {@code key [ ... ]} list in an SNBT file, brackets matched, strings skipped. */
+    private static List<String> blocks(String snbt, String key) {
+        List<String> out = new ArrayList<>();
+        for (int at = snbt.indexOf(key); at >= 0; at = snbt.indexOf(key, at + 1)) {
+            int open = snbt.indexOf('[', at);
+            if (open < 0) break;
+            if (!snbt.substring(at + key.length(), open).isBlank()) continue;
+            int depth = 0;
+            boolean inString = false;
+            for (int i = open; i < snbt.length(); i++) {
+                char c = snbt.charAt(i);
+                if (inString) {
+                    if (c == '\\') i++;
+                    else if (c == '"') inString = false;
+                } else if (c == '"') {
+                    inString = true;
+                } else if (c == '[') {
+                    depth++;
+                } else if (c == ']' && --depth == 0) {
+                    out.add(snbt.substring(open, i + 1));
+                    at = i;
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Items that recipe outputs, loot tables and quest rewards give, read from the files. */
+    public Set<String> gives() {
+        return gives;
+    }
+
+    /** Items quests ask for, with the quest files that ask. */
+    public Map<String, Set<String>> questTaskItems() {
+        return questTaskItems;
     }
 
     public int checked(Kind kind) {

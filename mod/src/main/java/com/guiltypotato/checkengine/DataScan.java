@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine;
 
 import com.guiltypotato.checkengine.core.data.DataScanner;
+import com.guiltypotato.checkengine.core.data.RecipeCheck;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.io.IOException;
@@ -8,6 +9,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +32,10 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 
-/** /checkengine scan: recipes, loot tables and FTB Quests that use items from mods that aren't installed. */
+/**
+ * /checkengine scan: recipes, loot tables and FTB Quests that use items from mods that aren't installed,
+ * plus recipe clashes, recipes nobody can craft and quest items nothing gives.
+ */
 final class DataScan {
     private DataScan() {}
 
@@ -40,6 +47,9 @@ final class DataScan {
         Map<ResourceLocation, Resource> recipes = resources.listResources("recipe", DataScan::isJson);
         Map<ResourceLocation, Resource> lootTables = resources.listResources("loot_table", DataScan::isJson);
         Set<String> namespaces = knownNamespaces();
+        Map<String, String> sources = new HashMap<>();
+        recipes.forEach((path, r) -> sources.put(id(path, "recipe/"), r.sourcePackId()));
+        RecipeCheck recipeCheck = RecipeReader.read(server, sources);
 
         CompletableFuture.supplyAsync(() -> {
             DataScanner scanner = new DataScanner(namespaces::contains);
@@ -56,7 +66,9 @@ final class DataScan {
                     throw new RuntimeException("couldn't read FTB Quests files: " + e.getMessage(), e);
                 }
             }
-            return save(scanner);
+            recipeCheck.madeAll(scanner.gives());
+            scanner.questTaskItems().forEach((item, files) -> files.forEach(f -> recipeCheck.questNeeds(f, item)));
+            return save(scanner, recipeCheck);
         }, Util.backgroundExecutor()).whenComplete((done, error) -> server.execute(() -> {
             if (error != null) {
                 CheckEngine.LOGGER.error("Check Engine: data scan failed", error);
@@ -68,12 +80,15 @@ final class DataScan {
         return 1;
     }
 
-    private static Component save(DataScanner scanner) {
-        List<Finding> findings = scanner.findings();
+    private static Component save(DataScanner scanner, RecipeCheck recipeCheck) {
+        List<Finding> findings = new ArrayList<>(scanner.findings());
+        findings.addAll(recipeCheck.findings());
+        findings.sort(Comparator.comparing(Finding::severity));
         StringBuilder sb = new StringBuilder("Check Engine data scan\n");
         sb.append("Checked: ").append(scanner.checked(DataScanner.Kind.RECIPE)).append(" recipes, ")
                 .append(scanner.checked(DataScanner.Kind.LOOT_TABLE)).append(" loot tables, ")
-                .append(scanner.checked(DataScanner.Kind.QUEST)).append(" FTB Quests files\n\n");
+                .append(scanner.checked(DataScanner.Kind.QUEST)).append(" FTB Quests files, ")
+                .append(recipeCheck.checked()).append(" crafting recipes compared\n\n");
         Report.appendFindings(sb, findings);
         Path file = BootCheck.outputFolder().resolve("scan-report.txt");
         try {
