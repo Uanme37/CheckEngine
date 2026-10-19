@@ -1,12 +1,14 @@
 package com.guiltypotato.checkengine.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.guiltypotato.checkengine.core.data.DataScanner;
 import com.guiltypotato.checkengine.core.data.RecipeCheck;
 import com.guiltypotato.checkengine.core.data.RecipeCheck.Slot;
 import com.guiltypotato.checkengine.core.scan.Finding;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,12 +37,12 @@ class RecipeCheckTest {
         check.shaped("create:copper_gear", "mod/create", "create:copper_gear", 3, 3,
                 List.of(E, copper, E, copper, item("minecraft:stick"), copper, E, copper, E));
         check.shaped("thermal:gear_copper", "mod/thermal", "thermal:copper_gear", 3, 3,
-                List.of(E, item("minecraft:copper_ingot"), E, item("minecraft:copper_ingot"), item("minecraft:stick"),
-                        item("minecraft:copper_ingot"), E, item("minecraft:copper_ingot"), E));
+                List.of(E, copper, E, copper, item("minecraft:stick"), copper, E, copper, E));
         List<Finding> f = byCode(Finding.RECIPE_CLASH);
         assertEquals(1, f.size());
         assertEquals("1 recipe clash", f.get(0).title());
-        assertTrue(f.get(0).detail().contains("Copper Gear (create:copper_gear) (create:copper_gear)"), f.get(0).detail());
+        assertEquals(Finding.Severity.WARNING, f.get(0).severity());
+        assertTrue(f.get(0).detail().contains("- Copper Gear (create:copper_gear) and"), f.get(0).detail());
         assertTrue(f.get(0).detail().contains("thermal:copper_gear (thermal:gear_copper)"), f.get(0).detail());
     }
 
@@ -65,8 +67,36 @@ class RecipeCheckTest {
         check.shaped("c:dust", "mod/c", "c:dust", 1, 2, List.of(item("x:ore"), item("a:hammer")));
         // Same result as a:dust: a harmless duplicate. b:hammer isn't a:hammer, so b and c don't clash.
         check.shapeless("d:dust", "mod/d", "a:dust", List.of(item("x:ore"), item("a:hammer")));
+        check.shapeless("e:dust", "mod/e", "e:dust", List.of(tag("c:tools/hammers", "a:hammer", "b:hammer"), item("x:ore")));
         List<Finding> f = byCode(Finding.RECIPE_CLASH);
-        assertEquals("3 recipe clashes", f.get(0).title(), f.get(0).detail());
+        // e and a take exactly the same items, and so do c and d (shaped vs shapeless); the other pairs only share some.
+        assertEquals("2 recipe clashes", f.get(0).title(), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- a:dust and e:dust"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- c:dust and a:dust (d:dust)"), f.get(0).detail());
+        assertEquals("5 pairs of recipes share some inputs", f.get(1).title(), f.get(1).detail());
+        assertEquals(Finding.Severity.INFO, f.get(1).severity());
+    }
+
+    @Test
+    void anyPlanksAgainstOnePlankIsOnlyAnOverlap() {
+        // Crafting Table from any planks vs Aspen Crafting Table from aspen planks: both can still be crafted.
+        Slot planks = tag("minecraft:planks", "minecraft:oak_planks", "aspen:aspen_planks");
+        Slot aspen = item("aspen:aspen_planks");
+        check.shaped("minecraft:crafting_table", "mod/minecraft", "minecraft:crafting_table", 2, 2, List.of(planks, planks, planks, planks));
+        check.shaped("aspen:crafting_table", "mod/aspen", "aspen:crafting_table", 2, 2, List.of(aspen, aspen, aspen, aspen));
+        List<Finding> f = byCode(Finding.RECIPE_CLASH);
+        assertEquals(1, f.size(), String.valueOf(f));
+        assertEquals(Finding.Severity.INFO, f.get(0).severity());
+        assertEquals("1 pair of recipes shares some inputs", f.get(0).title());
+    }
+
+    @Test
+    void specialIngredientsAreLeftOut() {
+        // A mod's own ingredient (e.g. one item with set components) lists plain items, which would look the same.
+        Slot log = RecipeCheck.slot(RecipeCheck.SPECIAL, List.of("x:log"));
+        check.shapeless("atm:essence_a", "a script", "atm:essence_a", List.of(log));
+        check.shapeless("atm:essence_b", "a script", "atm:essence_b", List.of(log));
+        assertTrue(byCode(Finding.RECIPE_CLASH).isEmpty(), String.valueOf(check.findings()));
     }
 
     @Test
@@ -75,6 +105,19 @@ class RecipeCheckTest {
         check.shaped("b:x", "mod/b", "b:x", 2, 2, List.of(item("x:gem"), E, E, E));
         check.shaped("c:x", "mod/c", "a:x", 1, 1, List.of(item("x:gem")));
         assertTrue(byCode(Finding.RECIPE_CLASH).isEmpty());
+    }
+
+    @Test
+    void bigTagsInABigPackStayFast() {
+        // A big pack: thousands of 3x3 recipes around one big tag (planks, ingots). Used to hang for minutes.
+        String[] planks = new String[400];
+        for (int i = 0; i < planks.length; i++) planks[i] = "wood:planks_" + i;
+        Slot plank = tag("minecraft:planks", planks);
+        for (int i = 0; i < 3000; i++) {
+            check.shaped("m:r" + i, "mod/m", "m:out" + i, 3, 3,
+                    List.of(plank, plank, plank, plank, item("m:core" + i), plank, plank, plank, plank));
+        }
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> assertTrue(byCode(Finding.RECIPE_CLASH).isEmpty()));
     }
 
     @Test
@@ -95,6 +138,7 @@ class RecipeCheckTest {
         List<Finding> f = byCode(Finding.UNOBTAINABLE_ITEM);
         assertEquals(1, f.size());
         assertEquals("1 quest item nothing gives", f.get(0).title());
+        assertEquals(Finding.Severity.INFO, f.get(0).severity());
         assertTrue(f.get(0).detail().contains("mypack:steel_plate: chapters/steel.snbt"), f.get(0).detail());
         assertTrue(!f.get(0).detail().contains("honeycomb"));
     }
@@ -159,7 +203,7 @@ class RecipeCheckTest {
                 """);
         files.recipe(check, "thermal:gear_copper", "mod/thermal", """
                 {"type": "minecraft:crafting_shaped", "pattern": [" C", "CSC", " C "],
-                 "key": {"C": "other:copper_ingot", "S": "minecraft:stick"},
+                 "key": {"C": "#c:ingots/copper", "S": "minecraft:stick"},
                  "result": {"id": "thermal:copper_gear"}}
                 """);
         files.recipe(check, "mypack:tin", "file/pack.zip", """
@@ -171,7 +215,15 @@ class RecipeCheckTest {
                 """);
         assertEquals(3, check.checked());
         // The same 3x3 shape once the empty top row is trimmed; short rows count as padded with spaces.
-        assertEquals(1, byCode(Finding.RECIPE_CLASH).size(), String.valueOf(check.findings()));
+        assertEquals("1 recipe clash", byCode(Finding.RECIPE_CLASH).get(0).title(), String.valueOf(check.findings()));
         assertTrue(byCode(Finding.DEAD_RECIPE).get(0).detail().contains("#c:ingots/tin"));
+    }
+
+    @Test
+    void namesWithoutColourCodesOrUntranslatedKeys() {
+        assertEquals("Chaos Component", RecipeCheck.cleanName("§cChaos Component"));
+        assertEquals(null, RecipeCheck.cleanName("item.mmorpg.buff_potion.common_arcane"));
+        assertEquals(null, RecipeCheck.cleanName("Vial of %s (%s)"));
+        assertEquals("Copper Gear", RecipeCheck.cleanName("Copper Gear"));
     }
 }

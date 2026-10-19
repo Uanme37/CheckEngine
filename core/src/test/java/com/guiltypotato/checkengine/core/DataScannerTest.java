@@ -100,6 +100,17 @@ class DataScannerTest {
     }
 
     @Test
+    void forgeNamesModDataByJar() {
+        // Forge 1.20.1 gives the jar file name as the source (real Craft to Exile 2: Lightman's Currency).
+        scanner.recipe("lightmanscurrency:auction_stand/biomesoplenty/fir", "lightmanscurrency-1.20.1-2.3.0.5.jar",
+                "{\"type\":\"minecraft:crafting_shapeless\",\"ingredients\":[{\"item\":\"biomesoplenty:fir_log\"}],"
+                        + "\"result\":{\"item\":\"lightmanscurrency:auction_stand\"}}");
+        List<Finding> found = byCode(Finding.ITEMS_FROM_MISSING_MOD);
+        assertEquals(1, found.size());
+        assertEquals(Finding.Severity.INFO, found.get(0).severity());
+    }
+
+    @Test
     void questsFromAtm10Shape() {
         scanner.questFile("productive_bees.snbt", """
                 {

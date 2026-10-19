@@ -2,6 +2,15 @@
 
 Read this instead of re-exploring. Plan and history: `Check Engine - Overview.md` (the 0.13 list has [x] marks). Rules: `MC\CLAUDE.md`.
 
+## Paused: 0.14 Recipe check (2026-10-18)
+- Branch `recipe-check`, PR #3 (not merged, not released). Cloud wrote it; A3's PC built it (no compile fixes) and fixed a big-pack hang in `RecipeCheck.clashes()` (63cdf15).
+- Passed: dev scans on 1.21.1, 26.1, Forge (test datapack: 1 clash + 1 dead recipe found). ATM10 mods copy: scan done in seconds.
+- Blocking release: false alarms. ATM10 gave 2231 "clashes" (mostly tag-vs-specific overlaps, e.g. Crafting Table vs Aspen Crafting Table) and 93 "quest items nothing gives". Details in PR #3 comments; full report `recipe-check-test/atm10-scan-report.txt` (not in git). Cloud answered with e4fdec0 (warn only on exact clashes, overlaps and quest items as info): build it and rerun the ATM10 copy scan to check.
+- 2026-10-19 BTC real-instance test PASSED (jar built from e5e7bf9, 167 tests): launch fine, no boot problems, `/checkengine scan` in 3 s, 0 problems, 6 warnings (180 exact clashes, mostly duplicate metals from different mods; 4 missing-mod groups all from A3's CreateRubberworks_Compat_v6.zip; 2 empty-tag recipes), overlaps (57) and quest items (8) now info. Report in BTC `checkengine/scan-report.txt`. 0.14 jar left in BTC working copy (0.13.1 parked in `_to_delete\checkengine-0.14-btc-test`). Cosmetic: lines show the id twice when recipe id = item id. CTE2 (Forge) and ATM11 (26.1.2) real scans passed 2026-10-19 after fixes: double id, Forge jar-named mod extras now info (07f8066), clean names (colour codes, untranslated keys), 26.1 reads every file of a tag (2fc7aeb, Iron's Jewelry empty tag hid Allthemodium ingots). 26.1 jar range now [26.1.2,26.3): dev-tested on NeoForge 26.2.0.93 (no MC 26.2.1 exists). Open bug: ATM11 Crash Doctor diagnosed an out-of-memory crash (log line) but no screen showed before the title screen; suspects FancyMenu/Drippy/SFM title-screen handlers. Not new in 0.14 as far as known.
+- Earlier, not done then: BTC 1.2.2 test and in-game screenshots for the upload. BTC in a dev game needs Numismatics (log4j path), Create Central Kitchen (game tests forced on by Fabric API in dev) switched off; then campfires error and Neruina stops the world. Dev server copy also needs Iris, IrisSearch, Colorwheel, Formations off. Better next time: A3 launches the real BTC instance with the 0.14 jar and runs `/checkengine scan`, or use a dedicated server made from a CurseForge instance (serverpack needs `minecraftinstance.json` to spot client-only mods).
+- Bug found: Crash Doctor reads a client crash (NoClassDefFoundError in GameTestHooks) as "Client-only mod on the server" with fix "Remove cpw.mods.modlauncher". Crash file + screenshots in `recipe-check-test/`.
+- Test copies parked in `MC\_to_delete\checkengine-recipe-test\` (about 3 GB). Dev run folders are back as they were.
+
 ## State (2026-10-14)
 - GitHub: v0.13.0 released 2026-10-14 (all of 0.13). Push only when A3 asks.
 - CurseForge: nothing new until all of 0.13 is done (A3's call), then one Craft to Exile 2 launch, upload, outreach.

@@ -48,7 +48,8 @@ final class DataScan {
         Map<Identifier, Resource> recipes = resources.listResources("recipe", DataScan::isJson);
         Map<Identifier, Resource> lootTables = resources.listResources("loot_table", DataScan::isJson);
         Set<String> namespaces = knownNamespaces();
-        Map<Identifier, Resource> tags = resources.listResources("tags/item", DataScan::isJson);
+        // Every file for a tag, not just the top one: tags add up across mods (an empty one mustn't hide the rest).
+        Map<Identifier, List<Resource>> tags = resources.listResourceStacks("tags/item", DataScan::isJson);
         // 26.1 reads crafting recipes from their files: KubeJS and CraftTweaker changes aren't seen here.
         RecipeCheck recipeCheck = new RecipeCheck(DataScan::itemName);
 
@@ -68,7 +69,7 @@ final class DataScan {
                 }
             }
             RecipeFiles recipeFiles = new RecipeFiles();
-            tags.forEach((path, r) -> recipeFiles.tag(id(path, "tags/item/"), read(r)));
+            tags.forEach((path, stack) -> stack.forEach(r -> recipeFiles.tag(id(path, "tags/item/"), read(r))));
             recipes.forEach((path, r) -> recipeFiles.recipe(recipeCheck, id(path, "recipe/"), r.sourcePackId(), read(r)));
             recipeCheck.madeAll(scanner.gives());
             scanner.questTaskItems().forEach((item, files) -> files.forEach(f -> recipeCheck.questNeeds(f, item)));

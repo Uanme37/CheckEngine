@@ -21,6 +21,8 @@ import java.util.function.Function;
 public final class RecipeCheck {
     /** Clash lines listed in the report before "...and N more". */
     private static final int MAX_LISTED = 50;
+    /** The label of an ingredient that checks more than the item (a mod's own ingredient type); its items can't be trusted. */
+    public static final String SPECIAL = "a special ingredient";
 
     /**
      * One crafting-grid slot.
@@ -47,7 +49,15 @@ public final class RecipeCheck {
             for (String s : small) if (big.contains(s)) return true;
             return false;
         }
+
+        /** Takes exactly the same items. */
+        boolean same(Slot other) {
+            return items.equals(other.items);
+        }
     }
+
+    /** Two recipes some grid fits; only an exact clash means one of them can never be crafted. */
+    private record Clash(String line, boolean exact) {}
 
     private record Recipe(String id, String source, String result, int width, int height, List<Slot> slots,
                           boolean shapeless) {
@@ -103,14 +113,25 @@ public final class RecipeCheck {
 
     public List<Finding> findings() {
         List<Finding> out = new ArrayList<>();
-        List<String> clashes = clashes();
+        List<Clash> all = clashes();
+        List<String> clashes = all.stream().filter(Clash::exact).map(Clash::line).toList();
+        List<String> overlaps = all.stream().filter(c -> !c.exact()).map(Clash::line).toList();
         if (!clashes.isEmpty()) {
             out.add(new Finding(Severity.WARNING, Finding.RECIPE_CLASH,
                     clashes.size() + (clashes.size() == 1 ? " recipe clash" : " recipe clashes"),
-                    "These crafting recipes use the same grid but make different things, so only one of each pair "
-                            + "can ever be crafted (which one depends on load order):\n" + list(clashes),
+                    "These crafting recipes take exactly the same items but make different things, so only one of each "
+                            + "pair can ever be crafted (which one depends on load order):\n" + list(clashes),
                     "Remove or change one recipe of each pair with KubeJS or CraftTweaker, or add Polymorph so players can pick.",
                     List.of()));
+        }
+        if (!overlaps.isEmpty()) {
+            out.add(new Finding(Severity.INFO, Finding.RECIPE_CLASH,
+                    overlaps.size() + (overlaps.size() == 1 ? " pair of recipes shares" : " pairs of recipes share")
+                            + " some inputs",
+                    "Both recipes of each pair can still be crafted, but with the items they share only one of them "
+                            + "comes out, e.g. any planks for a Crafting Table and one kind of planks for a wooden one. "
+                            + "Usually fine; if players say a recipe gives the wrong thing, look here:\n" + list(overlaps),
+                    null, List.of()));
         }
         List<String> dead = deadRecipes();
         if (!dead.isEmpty()) {
@@ -121,10 +142,12 @@ public final class RecipeCheck {
         }
         List<String> quests = unobtainableQuestItems();
         if (!quests.isEmpty()) {
-            out.add(new Finding(Severity.WARNING, Finding.UNOBTAINABLE_ITEM,
+            // Info, not a warning: mob drops, spells and machines without recipe files are common in big packs.
+            out.add(new Finding(Severity.INFO, Finding.UNOBTAINABLE_ITEM,
                     quests.size() + (quests.size() == 1 ? " quest item nothing gives" : " quest items nothing gives"),
-                    "A quest asks for these, but no recipe, loot table or quest reward gives them. If players get them "
-                            + "another way (a machine that isn't a recipe, trading, a mob), ignore this:\n" + list(quests),
+                    "A quest asks for these, but no recipe, loot table or quest reward gives them. Most come another "
+                            + "way (a mob drop, a spell, a machine without a recipe file, trading); check the ones that "
+                            + "don't:\n" + list(quests),
                     "Give the item a recipe or a loot drop, or change the quest.", List.of()));
         }
         List<String> ingredients = unobtainableIngredients();
@@ -141,8 +164,10 @@ public final class RecipeCheck {
 
     // ---- clashes ----
 
-    private List<String> clashes() {
-        List<Recipe> live = recipes.stream().filter(r -> r.slots().stream().noneMatch(Slot::dead)).toList();
+    private List<Clash> clashes() {
+        // A mod's own ingredient type checks more than the item, so its item list would make false clashes.
+        List<Recipe> live = recipes.stream().filter(r -> r.slots().stream()
+                .noneMatch(s -> s.dead() || SPECIAL.equals(s.label()))).toList();
         // Bucket by what must match exactly, then only compare recipes that share an item in their first slot.
         Map<String, List<Recipe>> buckets = new HashMap<>();
         for (Recipe r : live) {
@@ -151,7 +176,7 @@ public final class RecipeCheck {
             if (!r.shapeless()) buckets.computeIfAbsent("n" + r.filled().size(), k -> new ArrayList<>()).add(r);
         }
         Set<String> seen = new HashSet<>();
-        List<String> out = new ArrayList<>();
+        List<Clash> out = new ArrayList<>();
         for (Map.Entry<String, List<Recipe>> bucket : buckets.entrySet()) {
             boolean byCount = bucket.getKey().startsWith("n");
             Map<String, List<Recipe>> byItem = new HashMap<>();
@@ -161,8 +186,11 @@ public final class RecipeCheck {
             for (Recipe a : bucket.getValue()) {
                 List<Slot> filled = a.filled();
                 if (filled.isEmpty()) continue;
-                Set<Recipe> partners = new LinkedHashSet<>();
-                for (String item : filled.get(0).items()) partners.addAll(byItem.getOrDefault(item, List.of()));
+                // A partner shares an item with every filled slot, so look up through the smallest one. Identity set:
+                // hashing a Recipe hashes every tag's items, which hung big packs.
+                Slot probe = filled.stream().min(java.util.Comparator.comparingInt(s -> s.items().size())).get();
+                Set<Recipe> partners = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                for (String item : probe.items()) partners.addAll(byItem.getOrDefault(item, List.of()));
                 for (Recipe b : partners) {
                     if (a == b || base(a.result()).equals(base(b.result()))) continue;
                     // Two shaped recipes are compared as grids; only pairs with a shapeless recipe go by count.
@@ -170,22 +198,31 @@ public final class RecipeCheck {
                     if (!byCount && (a.shapeless() || b.shapeless())) continue;
                     String key = a.id().compareTo(b.id()) < 0 ? a.id() + "|" + b.id() : b.id() + "|" + a.id();
                     if (seen.contains(key)) continue;
-                    boolean clash = byCount ? sameItems(a.filled(), b.filled()) : sameGrid(a, b);
+                    boolean clash = byCount ? matches(a.filled(), b.filled(), Slot::overlaps) : sameGrid(a, b, Slot::overlaps);
                     if (clash) {
                         seen.add(key);
                         Recipe first = a.id().compareTo(b.id()) < 0 ? a : b;
                         Recipe second = first == a ? b : a;
-                        out.add(clashLine(first, second));
+                        boolean exact = byCount ? matches(a.filled(), b.filled(), Slot::same) : sameGrid(a, b, Slot::same);
+                        out.add(new Clash(clashLine(first, second), exact));
                     }
                 }
             }
         }
-        out.sort(null);
+        out.sort(java.util.Comparator.comparing(Clash::line));
         return out;
     }
 
     private String clashLine(Recipe a, Recipe b) {
-        return name(a.result()) + " (" + a.id() + from(a) + ") and " + name(b.result()) + " (" + b.id() + from(b) + ")";
+        return recipeLabel(a) + " and " + recipeLabel(b);
+    }
+
+    /** Item name, then the recipe id only when it differs from the item id. */
+    private String recipeLabel(Recipe r) {
+        String label = name(r.result());
+        if (!r.id().equals(base(r.result()))) return label + " (" + r.id() + from(r) + ")";
+        String from = from(r);
+        return from.isEmpty() ? label : label + " (" + from.substring(2) + ")";
     }
 
     private static String from(Recipe r) {
@@ -194,37 +231,38 @@ public final class RecipeCheck {
     }
 
     /** Shaped recipes: slot by slot, or against the mirror image, like the crafting table checks. */
-    private static boolean sameGrid(Recipe a, Recipe b) {
+    private static boolean sameGrid(Recipe a, Recipe b, java.util.function.BiPredicate<Slot, Slot> fits) {
         if (a.width() != b.width() || a.height() != b.height()) return false;
         boolean straight = true;
         boolean mirrored = true;
         for (int y = 0; y < a.height(); y++) {
             for (int x = 0; x < a.width(); x++) {
                 Slot s = a.slots().get(y * a.width() + x);
-                if (straight && !s.overlaps(b.slots().get(y * b.width() + x))) straight = false;
-                if (mirrored && !s.overlaps(b.slots().get(y * b.width() + (b.width() - 1 - x)))) mirrored = false;
+                if (straight && !fits.test(s, b.slots().get(y * b.width() + x))) straight = false;
+                if (mirrored && !fits.test(s, b.slots().get(y * b.width() + (b.width() - 1 - x)))) mirrored = false;
                 if (!straight && !mirrored) return false;
             }
         }
         return true;
     }
 
-    /** Shapeless: is there a way to pair every slot of one with a slot of the other that takes the same item? */
-    private static boolean sameItems(List<Slot> a, List<Slot> b) {
+    /** Shapeless: is there a way to pair every slot of one with a slot of the other that fits it? */
+    private static boolean matches(List<Slot> a, List<Slot> b, java.util.function.BiPredicate<Slot, Slot> fits) {
         if (a.size() != b.size()) return false;
         int[] matchOfB = new int[b.size()];
         java.util.Arrays.fill(matchOfB, -1);
         for (int i = 0; i < a.size(); i++) {
-            if (!augment(i, a, b, matchOfB, new boolean[b.size()])) return false;
+            if (!augment(i, a, b, matchOfB, new boolean[b.size()], fits)) return false;
         }
         return true;
     }
 
-    private static boolean augment(int i, List<Slot> a, List<Slot> b, int[] matchOfB, boolean[] visited) {
+    private static boolean augment(int i, List<Slot> a, List<Slot> b, int[] matchOfB, boolean[] visited,
+                                   java.util.function.BiPredicate<Slot, Slot> fits) {
         for (int j = 0; j < b.size(); j++) {
-            if (visited[j] || !a.get(i).overlaps(b.get(j))) continue;
+            if (visited[j] || !fits.test(a.get(i), b.get(j))) continue;
             visited[j] = true;
-            if (matchOfB[j] < 0 || augment(matchOfB[j], a, b, matchOfB, visited)) {
+            if (matchOfB[j] < 0 || augment(matchOfB[j], a, b, matchOfB, visited, fits)) {
                 matchOfB[j] = i;
                 return true;
             }
@@ -288,8 +326,16 @@ public final class RecipeCheck {
 
     private String name(String item) {
         String id = base(item);
-        String name = names.apply(id);
+        String name = cleanName(names.apply(id));
         return name == null || name.isEmpty() || name.equals(id) ? id : name + " (" + id + ")";
+    }
+
+    /** Drops colour codes, and names the game never translated ("item.mod.thing", "Vial of %s"). */
+    public static String cleanName(String name) {
+        if (name == null) return null;
+        name = name.replaceAll("§.", "").trim();
+        if (name.contains("%s") || name.matches("(item|block)\\.[a-z0-9_./]+")) return null;
+        return name;
     }
 
     private static String list(List<String> lines) {

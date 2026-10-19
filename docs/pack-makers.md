@@ -16,7 +16,7 @@ The file appears after the first launch. Ship it with your pack.
 
 | Line | What it does | Example |
 | --- | --- | --- |
-| `pack_name` | Your pack's name on Check Engine's screens ("Beyond the Crank won't start") | `pack_name=Beyond the Crank` |
+| `pack_name` | Your pack's name on Check Engine's screens ("My Pack won't start") | `pack_name=My Pack` |
 | `support_link` | A "Get help" button that opens your Discord, issues page or mod page | `support_link=https://discord.gg/yourpack` |
 | `recommended_ram` | Players who give the game far less memory get a heads-up | `recommended_ram=10G` |
 | `quiet` | `true`: players only see Check Engine when something stops the game or it crashed | `quiet=false` |
