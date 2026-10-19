@@ -51,7 +51,7 @@ final class DataScan {
         // Every file for a tag, not just the top one: tags add up across mods (an empty one mustn't hide the rest).
         Map<Identifier, List<Resource>> tags = resources.listResourceStacks("tags/item", DataScan::isJson);
         // 26.1 reads crafting recipes from their files: KubeJS and CraftTweaker changes aren't seen here.
-        RecipeCheck recipeCheck = new RecipeCheck(DataScan::itemName);
+        RecipeCheck recipeCheck = new RecipeCheck(DataScan::itemName, DataScan::modName);
 
         CompletableFuture.supplyAsync(() -> {
             DataScanner scanner = new DataScanner(namespaces::contains);
@@ -145,5 +145,10 @@ final class DataScan {
         } catch (IOException e) {
             return ""; // counted as unreadable by the scanner
         }
+    }
+
+    /** A mod's display name ("Alex's Mobs"), or null. */
+    static String modName(String id) {
+        return net.neoforged.fml.ModList.get().getModContainerById(id).map(c -> c.getModInfo().getDisplayName()).orElse(null);
     }
 }

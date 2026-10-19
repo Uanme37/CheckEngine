@@ -25,7 +25,7 @@ final class RecipeReader {
 
     /** @param sources recipe id to the datapack or mod its file came from; recipes made by scripts have none */
     static RecipeCheck read(MinecraftServer server, Map<String, String> sources) {
-        RecipeCheck check = new RecipeCheck(RecipeReader::name);
+        RecipeCheck check = new RecipeCheck(RecipeReader::name, RecipeReader::modName);
         RegistryAccess access = server.registryAccess();
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
             String id = recipe.getId().toString();
@@ -103,5 +103,10 @@ final class RecipeReader {
         ResourceLocation rl = ResourceLocation.tryParse(id);
         if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) return id;
         return BuiltInRegistries.ITEM.get(rl).getDescription().getString();
+    }
+
+    /** A mod's display name ("Alex's Mobs"), or null. */
+    static String modName(String id) {
+        return net.minecraftforge.fml.ModList.get().getModContainerById(id).map(c -> c.getModInfo().getDisplayName()).orElse(null);
     }
 }

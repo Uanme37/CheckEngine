@@ -42,8 +42,8 @@ class RecipeCheckTest {
         assertEquals(1, f.size());
         assertEquals("1 recipe clash", f.get(0).title());
         assertEquals(Finding.Severity.WARNING, f.get(0).severity());
-        assertTrue(f.get(0).detail().contains("- Copper Gear (create:copper_gear) and"), f.get(0).detail());
-        assertTrue(f.get(0).detail().contains("thermal:copper_gear (thermal:gear_copper)"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- Copper Gear / thermal:copper_gear - from 4x any copper ingot"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("Copper Gear: create:copper_gear, thermal:gear_copper"), f.get(0).detail());
     }
 
     @Test
@@ -71,9 +71,9 @@ class RecipeCheckTest {
         List<Finding> f = byCode(Finding.RECIPE_CLASH);
         // e and a take exactly the same items, and so do c and d (shaped vs shapeless); the other pairs only share some.
         assertEquals("2 recipe clashes", f.get(0).title(), f.get(0).detail());
-        assertTrue(f.get(0).detail().contains("- a:dust and e:dust"), f.get(0).detail());
-        assertTrue(f.get(0).detail().contains("- c:dust and a:dust (d:dust)"), f.get(0).detail());
-        assertEquals("5 pairs of recipes share some inputs", f.get(1).title(), f.get(1).detail());
+        assertTrue(f.get(0).detail().contains("- a:dust / e:dust - from 1x x:ore + 1x any hammer"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- a:dust / c:dust - from"), f.get(0).detail());
+        assertTrue(f.get(1).title().endsWith(" some ingredients"), f.get(1).title());
         assertEquals(Finding.Severity.INFO, f.get(1).severity());
     }
 
@@ -87,7 +87,7 @@ class RecipeCheckTest {
         List<Finding> f = byCode(Finding.RECIPE_CLASH);
         assertEquals(1, f.size(), String.valueOf(f));
         assertEquals(Finding.Severity.INFO, f.get(0).severity());
-        assertEquals("1 pair of recipes shares some inputs", f.get(0).title());
+        assertEquals("1 group of recipes shares some ingredients", f.get(0).title());
     }
 
     @Test
@@ -126,7 +126,7 @@ class RecipeCheckTest {
         check.shaped("mypack:other", "kubejs", "mypack:other", 1, 1, List.of(item("mypack:dead")));
         List<Finding> f = byCode(Finding.DEAD_RECIPE);
         assertEquals(1, f.size());
-        assertTrue(f.get(0).detail().contains("mypack:tin_gear, from kubejs (makes mypack:tin_gear): #c:ingots/tin"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("mypack:tin_gear (datapack kubejs): needs #c:ingots/tin, which has no items"), f.get(0).detail());
     }
 
     @Test
@@ -139,7 +139,7 @@ class RecipeCheckTest {
         assertEquals(1, f.size());
         assertEquals("1 quest item nothing gives", f.get(0).title());
         assertEquals(Finding.Severity.INFO, f.get(0).severity());
-        assertTrue(f.get(0).detail().contains("mypack:steel_plate: chapters/steel.snbt"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("mypack:steel_plate: asked in steel"), f.get(0).detail());
         assertTrue(!f.get(0).detail().contains("honeycomb"));
     }
 
@@ -150,7 +150,7 @@ class RecipeCheckTest {
         List<Finding> f = byCode(Finding.UNOBTAINABLE_ITEM);
         assertEquals(1, f.size());
         assertEquals(Finding.Severity.INFO, f.get(0).severity());
-        assertTrue(f.get(0).detail().contains("mypack:piston: needed by mypack:engine"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("mypack:piston: needed for mypack:engine"), f.get(0).detail());
     }
 
     @Test
@@ -217,6 +217,13 @@ class RecipeCheckTest {
         // The same 3x3 shape once the empty top row is trimmed; short rows count as padded with spaces.
         assertEquals("1 recipe clash", byCode(Finding.RECIPE_CLASH).get(0).title(), String.valueOf(check.findings()));
         assertTrue(byCode(Finding.DEAD_RECIPE).get(0).detail().contains("#c:ingots/tin"));
+    }
+
+    @Test
+    void tagsInWords() {
+        assertEquals("any steel ingot", RecipeCheck.tagName("c:ingots/steel"));
+        assertEquals("any hammer", RecipeCheck.tagName("c:tools/hammers"));
+        assertEquals("any planks", RecipeCheck.tagName("minecraft:planks"));
     }
 
     @Test

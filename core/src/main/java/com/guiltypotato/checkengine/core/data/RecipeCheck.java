@@ -57,7 +57,7 @@ public final class RecipeCheck {
     }
 
     /** Two recipes some grid fits; only an exact clash means one of them can never be crafted. */
-    private record Clash(String line, boolean exact) {}
+    private record Clash(Recipe a, Recipe b, boolean exact) {}
 
     private record Recipe(String id, String source, String result, int width, int height, List<Slot> slots,
                           boolean shapeless) {
@@ -73,13 +73,20 @@ public final class RecipeCheck {
     }
 
     private final Function<String, String> names;
+    private final Function<String, String> modNames;
     private final List<Recipe> recipes = new ArrayList<>();
     private final Set<String> made = new HashSet<>();
     private final Map<String, Set<String>> questNeeds = new TreeMap<>();
 
     /** @param names item id to the name players see, or the id itself when there's no better name */
     public RecipeCheck(Function<String, String> names) {
+        this(names, id -> null);
+    }
+
+    /** @param modNames mod id to the mod's display name, or null when it isn't known */
+    public RecipeCheck(Function<String, String> names, Function<String, String> modNames) {
         this.names = names;
+        this.modNames = modNames;
     }
 
     public void shaped(String id, String source, String result, int width, int height, List<Slot> slots) {
@@ -114,30 +121,36 @@ public final class RecipeCheck {
     public List<Finding> findings() {
         List<Finding> out = new ArrayList<>();
         List<Clash> all = clashes();
-        List<String> clashes = all.stream().filter(Clash::exact).map(Clash::line).toList();
-        List<String> overlaps = all.stream().filter(c -> !c.exact()).map(Clash::line).toList();
+        List<List<Recipe>> clashes = groups(all.stream().filter(Clash::exact).toList());
+        List<List<Recipe>> overlaps = groups(all.stream().filter(c -> !c.exact()).toList());
         if (!clashes.isEmpty()) {
             out.add(new Finding(Severity.WARNING, Finding.RECIPE_CLASH,
                     clashes.size() + (clashes.size() == 1 ? " recipe clash" : " recipe clashes"),
-                    "These crafting recipes take exactly the same items but make different things, so only one of each "
-                            + "pair can ever be crafted (which one depends on load order):\n" + list(clashes),
-                    "Remove or change one recipe of each pair with KubeJS or CraftTweaker, or add Polymorph so players can pick.",
+                    "Each group below is crafting recipes with exactly the same ingredients but different results. "
+                            + "Only one recipe of each group ever works (which one depends on load order):\n\n"
+                            + list(clashes.stream().map(g -> groupLine(g, true)).toList(), true)
+                            + "\n\n" + idList(clashes),
+                    "Remove or change the extra recipes with KubeJS or CraftTweaker, or add Polymorph so players can pick.",
                     List.of()));
         }
         if (!overlaps.isEmpty()) {
             out.add(new Finding(Severity.INFO, Finding.RECIPE_CLASH,
-                    overlaps.size() + (overlaps.size() == 1 ? " pair of recipes shares" : " pairs of recipes share")
-                            + " some inputs",
-                    "Both recipes of each pair can still be crafted, but with the items they share only one of them "
-                            + "comes out, e.g. any planks for a Crafting Table and one kind of planks for a wooden one. "
-                            + "Usually fine; if players say a recipe gives the wrong thing, look here:\n" + list(overlaps),
+                    overlaps.size() + (overlaps.size() == 1 ? " group of recipes shares" : " groups of recipes share")
+                            + " some ingredients",
+                    "All of these can still be crafted, but where their ingredients overlap only one comes out, e.g. "
+                            + "any planks for a Crafting Table and one kind of planks for a wooden one. Usually fine; if "
+                            + "players say a recipe gives the wrong thing, look here:\n\n"
+                            + list(overlaps.stream().map(g -> groupLine(g, false)).toList(), true),
                     null, List.of()));
         }
-        List<String> dead = deadRecipes();
+        List<Recipe> dead = deadRecipes();
         if (!dead.isEmpty()) {
             out.add(new Finding(Severity.WARNING, Finding.DEAD_RECIPE,
                     dead.size() + (dead.size() == 1 ? " recipe can't be crafted" : " recipes can't be crafted"),
-                    "A slot asks for a tag that has no items in it, so nothing fits:\n" + list(dead),
+                    "A slot asks for a tag with no items in it, so nothing fits:\n"
+                            + list(dead.stream().map(this::deadLine).toList(), false)
+                            + "\n\nRecipe ids, for KubeJS or CraftTweaker:\n"
+                            + list(dead.stream().map(Recipe::id).toList(), false),
                     "Add an item to the tag (KubeJS tags event or a datapack), or change the recipe.", List.of()));
         }
         List<String> quests = unobtainableQuestItems();
@@ -147,7 +160,7 @@ public final class RecipeCheck {
                     quests.size() + (quests.size() == 1 ? " quest item nothing gives" : " quest items nothing gives"),
                     "A quest asks for these, but no recipe, loot table or quest reward gives them. Most come another "
                             + "way (a mob drop, a spell, a machine without a recipe file, trading); check the ones that "
-                            + "don't:\n" + list(quests),
+                            + "don't:\n" + list(quests, false),
                     "Give the item a recipe or a loot drop, or change the quest.", List.of()));
         }
         List<String> ingredients = unobtainableIngredients();
@@ -156,7 +169,7 @@ public final class RecipeCheck {
                     ingredients.size() + (ingredients.size() == 1 ? " crafting ingredient nothing gives"
                             : " crafting ingredients nothing gives"),
                     "Crafting recipes need these, but no recipe, loot table or quest reward gives them, so those "
-                            + "recipes may never be made. Often fine (mob drops, world blocks, trading):\n" + list(ingredients),
+                            + "recipes may never be made. Often fine (mob drops, world blocks, trading):\n" + list(ingredients, false),
                     null, List.of()));
         }
         return out;
@@ -204,30 +217,128 @@ public final class RecipeCheck {
                         Recipe first = a.id().compareTo(b.id()) < 0 ? a : b;
                         Recipe second = first == a ? b : a;
                         boolean exact = byCount ? matches(a.filled(), b.filled(), Slot::same) : sameGrid(a, b, Slot::same);
-                        out.add(new Clash(clashLine(first, second), exact));
+                        out.add(new Clash(first, second, exact));
                     }
                 }
             }
         }
-        out.sort(java.util.Comparator.comparing(Clash::line));
         return out;
     }
 
-    private String clashLine(Recipe a, Recipe b) {
-        return recipeLabel(a) + " and " + recipeLabel(b);
+    /** Pairs joined into groups: 4 mods with the same steel block recipe are one group, not 6 pairs. */
+    private List<List<Recipe>> groups(List<Clash> pairs) {
+        Map<Recipe, Recipe> parent = new java.util.IdentityHashMap<>();
+        for (Clash c : pairs) {
+            Recipe ra = root(parent, c.a());
+            Recipe rb = root(parent, c.b());
+            if (ra != rb) parent.put(ra, rb);
+        }
+        Map<Recipe, List<Recipe>> byRoot = new java.util.IdentityHashMap<>();
+        for (Recipe r : new ArrayList<>(parent.keySet())) byRoot.computeIfAbsent(root(parent, r), k -> new ArrayList<>()).add(r);
+        java.util.Comparator<Recipe> order = java.util.Comparator.comparing((Recipe r) -> plainName(r.result()))
+                .thenComparing(Recipe::id);
+        List<List<Recipe>> out = new ArrayList<>();
+        for (List<Recipe> g : byRoot.values()) {
+            g.sort(order);
+            out.add(g);
+        }
+        out.sort(java.util.Comparator.comparing((List<Recipe> g) -> plainName(g.get(0).result())).thenComparing(g -> g.get(0).id()));
+        return out;
     }
 
-    /** Item name, then the recipe id only when it differs from the item id. */
-    private String recipeLabel(Recipe r) {
-        String label = name(r.result());
-        if (!r.id().equals(base(r.result()))) return label + " (" + r.id() + from(r) + ")";
-        String from = from(r);
-        return from.isEmpty() ? label : label + " (" + from.substring(2) + ")";
+    private static Recipe root(Map<Recipe, Recipe> parent, Recipe r) {
+        parent.putIfAbsent(r, r);
+        Recipe p = parent.get(r);
+        while (p != parent.get(p)) p = parent.get(p);
+        parent.put(r, p);
+        return p;
     }
 
-    private static String from(Recipe r) {
-        if (r.source() == null || r.source().isEmpty() || r.source().equals("mod/" + r.mod()) || r.source().equals("mod:" + r.mod())) return "";
-        return ", from " + r.source();
+    /**
+     * Two lines per group: what's made and from what, then who added the recipes.
+     * "Block of Steel (4 versions) - from 9x any steel ingot" / "All the Ores, Oritech, ..."
+     */
+    private String groupLine(List<Recipe> g, boolean exact) {
+        List<String> made = g.stream().map(r -> plainName(r.result())).distinct().toList();
+        String what = made.size() == 1 ? made.get(0) + " (" + g.size() + " versions)" : shortList(made, " / ", 5);
+        String how = exact ? " - from " + ingredients(g.get(0)) : " - share some ingredients";
+        List<String> who = g.stream().map(this::addedBy).distinct().toList();
+        return what + how + "\n    " + shortList(who, ", ", 8);
+    }
+
+    /** "9x any steel ingot", "4x Depthrock", "1x Raw Beef + 1x Stick". */
+    private String ingredients(Recipe r) {
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (Slot s : r.filled()) counts.merge(slotName(s), 1, Integer::sum);
+        List<String> parts = new ArrayList<>();
+        counts.forEach((k, n) -> parts.add(n + "x " + k));
+        return shortList(parts, " + ", 4);
+    }
+
+    /** What a slot asks for, in words: "any steel ingot" for #c:ingots/steel, the item's name for an item. */
+    private String slotName(Slot s) {
+        if (s.label().isEmpty()) return s.items().isEmpty() ? "?" : plainName(s.items().iterator().next());
+        List<String> parts = new ArrayList<>();
+        for (String p : s.label().split(" or ")) {
+            if (p.startsWith("#")) parts.add(tagName(p.substring(1)));
+            else if (p.indexOf(':') > 0) parts.add(plainName(p));
+            else parts.add(p);
+        }
+        return String.join(" or ", parts);
+    }
+
+    /** "c:ingots/steel" to "any steel ingot", "minecraft:planks" to "any planks". */
+    public static String tagName(String tag) {
+        int colon = tag.indexOf(':');
+        String[] path = (colon >= 0 ? tag.substring(colon + 1) : tag).split("/");
+        String last = path[path.length - 1].replace('_', ' ');
+        if (path.length == 1) return "any " + last;
+        // "tools/hammers" says it all in the last part; "ingots/steel" needs both: "steel ingot".
+        if (plural(last)) return "any " + last.substring(0, last.length() - 1);
+        String kind = path[0].replace('_', ' ');
+        if (plural(kind)) kind = kind.substring(0, kind.length() - 1);
+        return "any " + last + " " + kind;
+    }
+
+    private static boolean plural(String word) {
+        return word.endsWith("s") && !word.endsWith("ss");
+    }
+
+    /** Who put a recipe in the pack, in words: a mod's name, "your CraftTweaker script", "datapack x". */
+    private String addedBy(Recipe r) {
+        String src = r.source();
+        if (src == null || src.isEmpty() || src.equals("a script")) {
+            if (r.mod().equals("crafttweaker")) return "your CraftTweaker script";
+            if (r.mod().equals("kubejs")) return "your KubeJS script";
+            return "a script";
+        }
+        if (src.equals("vanilla")) return "Minecraft";
+        if (src.startsWith("mod/") || src.startsWith("mod:")) {
+            String id = src.substring(4);
+            int comma = id.indexOf(',');
+            return modName(comma > 0 ? id.substring(0, comma) : id);
+        }
+        if (src.endsWith(".jar")) return modName(r.mod());
+        String pack = src.startsWith("file/") || src.startsWith("data/") ? src.substring(5) : src;
+        return "datapack " + pack;
+    }
+
+    private String modName(String id) {
+        if (id.equals("minecraft")) return "Minecraft";
+        String name = modNames.apply(id);
+        return name == null || name.isBlank() ? id : name;
+    }
+
+    /** One line per group: "Block of Steel: alltheores:crafting/steel_block, oritech:steelblock". */
+    private String idList(List<List<Recipe>> groups) {
+        List<String> lines = groups.stream().map(g -> plainName(g.get(0).result()) + ": "
+                + String.join(", ", g.stream().map(Recipe::id).toList())).toList();
+        return "Recipe ids, for KubeJS or CraftTweaker:\n" + list(lines, false);
+    }
+
+    private static String shortList(List<String> items, String sep, int max) {
+        if (items.size() <= max) return String.join(sep, items);
+        return String.join(sep, items.subList(0, max)) + sep + "+" + (items.size() - max) + " more";
     }
 
     /** Shaped recipes: slot by slot, or against the mirror image, like the crafting table checks. */
@@ -272,39 +383,43 @@ public final class RecipeCheck {
 
     // ---- recipes and items nobody can get ----
 
-    private List<String> deadRecipes() {
-        List<String> out = new ArrayList<>();
-        for (Recipe r : recipes) {
-            List<String> labels = r.slots().stream().filter(Slot::dead).map(Slot::label).distinct().toList();
-            if (!labels.isEmpty()) out.add(r.id() + from(r) + " (makes " + name(r.result()) + "): " + String.join(", ", labels));
-        }
-        out.sort(null);
+    private List<Recipe> deadRecipes() {
+        List<Recipe> out = new ArrayList<>();
+        for (Recipe r : recipes) if (r.slots().stream().anyMatch(Slot::dead)) out.add(r);
+        out.sort(java.util.Comparator.comparing((Recipe r) -> plainName(r.result())).thenComparing(Recipe::id));
         return out;
+    }
+
+    /** "Metro Window (Bells & Whistles): needs #c:glass, which has no items" */
+    private String deadLine(Recipe r) {
+        List<String> labels = r.slots().stream().filter(Slot::dead).map(Slot::label).distinct().toList();
+        return plainName(r.result()) + " (" + addedBy(r) + "): needs " + String.join(", ", labels)
+                + (labels.size() == 1 ? ", which has no items" : ", which have no items");
     }
 
     private List<String> unobtainableQuestItems() {
         List<String> out = new ArrayList<>();
         questNeeds.forEach((item, files) -> {
             if (gettable(item)) return;
-            out.add(name(item) + ": " + String.join(", ", files));
+            out.add(itemWithMod(item) + ": asked in " + String.join(", ", files.stream().map(RecipeCheck::questName).toList()));
         });
         return out;
     }
 
     private List<String> unobtainableIngredients() {
-        Map<String, Set<String>> neededBy = new TreeMap<>();
+        Map<String, Set<Recipe>> neededBy = new TreeMap<>();
         for (Recipe r : recipes) {
             for (Slot s : r.slots()) {
                 if (s.isEmpty() || s.dead() || s.items().stream().anyMatch(this::gettable)) continue;
                 // A slot that takes several items lists the first; one item is enough to make it craftable.
                 String item = s.items().iterator().next();
                 if (questNeeds.containsKey(base(item))) continue; // already in the quest finding
-                neededBy.computeIfAbsent(base(item), k -> new LinkedHashSet<>()).add(r.id());
+                neededBy.computeIfAbsent(base(item), k -> new LinkedHashSet<>()).add(r);
             }
         }
         List<String> out = new ArrayList<>();
-        neededBy.forEach((item, ids) -> out.add(name(item) + ": needed by " + ids.iterator().next()
-                + (ids.size() > 1 ? " and " + (ids.size() - 1) + " more" : "")));
+        neededBy.forEach((item, rs) -> out.add(itemWithMod(item) + ": needed for "
+                + plainName(rs.iterator().next().result()) + (rs.size() > 1 ? " and " + (rs.size() - 1) + " more" : "")));
         return out;
     }
 
@@ -324,10 +439,26 @@ public final class RecipeCheck {
         return brace >= 0 ? item.substring(0, brace) : item;
     }
 
-    private String name(String item) {
+    /** The name players see, or the id when there's no better name. */
+    private String plainName(String item) {
         String id = base(item);
         String name = cleanName(names.apply(id));
-        return name == null || name.isEmpty() || name.equals(id) ? id : name + " (" + id + ")";
+        return name == null || name.isEmpty() ? id : name;
+    }
+
+    /** "Ambergris (Alex's Mobs)", or the id when the item has no name. */
+    private String itemWithMod(String item) {
+        String id = base(item);
+        String name = plainName(id);
+        if (name.equals(id)) return id;
+        int colon = id.indexOf(':');
+        return colon > 0 ? name + " (" + modName(id.substring(0, colon)) + ")" : name;
+    }
+
+    /** "chapters/act_iv.snbt" to "act_iv". */
+    private static String questName(String file) {
+        String f = file.startsWith("chapters/") ? file.substring(9) : file;
+        return f.endsWith(".snbt") ? f.substring(0, f.length() - 5) : f;
     }
 
     /** Drops colour codes, and names the game never translated ("item.mod.thing", "Vial of %s"). */
@@ -338,9 +469,12 @@ public final class RecipeCheck {
         return name;
     }
 
-    private static String list(List<String> lines) {
+    private static String list(List<String> lines, boolean spaced) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.size() && i < MAX_LISTED; i++) sb.append("- ").append(lines.get(i)).append('\n');
+        for (int i = 0; i < lines.size() && i < MAX_LISTED; i++) {
+            if (spaced && i > 0) sb.append('\n');
+            sb.append("- ").append(lines.get(i)).append('\n');
+        }
         if (lines.size() > MAX_LISTED) sb.append("...and ").append(lines.size() - MAX_LISTED).append(" more\n");
         return sb.toString().stripTrailing();
     }
