@@ -57,7 +57,8 @@ public final class CheckEngine {
             String path = HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get()).toAbsolutePath().toString();
             source.sendSuccess(() -> Component.literal("Check Engine: help file saved: ").append(Component.literal(
                     path.substring(path.lastIndexOf(java.io.File.separatorChar) + 1)).withStyle(s -> s.withUnderlined(true)
-                    .withClickEvent(new ClickEvent.OpenFile(BootCheck.outputFolder().toString()))
+                    .withClickEvent(source.getServer().isDedicatedServer() ? null
+                            : new ClickEvent.OpenFile(BootCheck.outputFolder().toString()))
                     .withHoverEvent(new HoverEvent.ShowText(Component.literal(path))))), false);
             source.sendSuccess(() -> Component.literal("Send it to whoever is helping you. Your Windows user name, "
                     + "player name and IP addresses were blanked out."), false);
@@ -82,7 +83,8 @@ public final class CheckEngine {
         String path = BootCheck.outputFolder().resolve(StartupTimes.REPORT_FILE).toAbsolutePath().toString();
         source.sendSuccess(() -> Component.literal("Full report: ").append(Component.literal("checkengine/"
                 + StartupTimes.REPORT_FILE).withStyle(s -> s.withUnderlined(true)
-                .withClickEvent(new ClickEvent.OpenFile(path))
+                .withClickEvent(source.getServer().isDedicatedServer() ? null
+                            : new ClickEvent.OpenFile(path))
                 .withHoverEvent(new HoverEvent.ShowText(Component.literal(path))))), false);
         return 1;
     }

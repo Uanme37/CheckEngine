@@ -105,6 +105,17 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         }
     }
 
+    /**
+     * For chat: the summary plus what the problems and warnings are, e.g. "0 problems, 2 warnings: 25 recipe clashes,
+     * 1 recipe can't be crafted". Up to 3 named, then "+N more".
+     */
+    public static String chatSummary(List<Finding> findings) {
+        List<String> names = findings.stream().filter(f -> f.severity() != Finding.Severity.INFO).map(Finding::title).toList();
+        if (names.isEmpty()) return findings.isEmpty() ? "no problems found" : summary(findings) + " (only notes)";
+        String listed = String.join(", ", names.subList(0, Math.min(3, names.size())));
+        return summary(findings) + ": " + listed + (names.size() > 3 ? " +" + (names.size() - 3) + " more" : "");
+    }
+
     /** e.g. "2 problems, 1 warning" (notes are left out). */
     public static String summary(List<Finding> findings) {
         long errors = findings.stream().filter(f -> f.severity() == Finding.Severity.ERROR).count();

@@ -21,6 +21,7 @@ import net.minecraftforge.client.gui.ModMismatchDisconnectedScreen;
 public final class ClientEvents {
     private static boolean checked;
     private static boolean crashSeen;
+    private static boolean openReport;
 
     private ClientEvents() {}
 
@@ -107,6 +108,26 @@ public final class ClientEvents {
                     new CrashDoctorScreen(title, report == null ? crash : crash.withChanges(report.changes()))));
         } catch (Throwable t) {
             CheckEngine.LOGGER.error("Check Engine: couldn't show its screen, carrying on without it", t);
+        }
+    }
+
+    /** "Open report" in the scan's chat line runs this; the screen opens on the next tick, after chat closes. */
+    @SubscribeEvent
+    public static void onClientCommands(net.minecraftforge.client.event.RegisterClientCommandsEvent event) {
+        event.getDispatcher().register(net.minecraft.commands.Commands.literal("cereport").executes(c -> {
+            openReport = true;
+            return 1;
+        }));
+    }
+
+    @SubscribeEvent
+    public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || !openReport) return;
+        openReport = false;
+        try {
+            Minecraft.getInstance().setScreen(ReportScreen.open());
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: couldn't show the report, it's in checkengine/scan-report.txt", t);
         }
     }
 }

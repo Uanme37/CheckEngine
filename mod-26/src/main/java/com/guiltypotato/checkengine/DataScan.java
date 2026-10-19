@@ -73,19 +73,20 @@ final class DataScan {
             recipes.forEach((path, r) -> recipeFiles.recipe(recipeCheck, id(path, "recipe/"), r.sourcePackId(), read(r)));
             recipeCheck.madeAll(scanner.gives());
             scanner.questTaskItems().forEach((item, files) -> files.forEach(f -> recipeCheck.questNeeds(f, item)));
-            return save(scanner, recipeCheck);
+            return save(scanner, recipeCheck, server.isDedicatedServer());
         }, Util.backgroundExecutor()).whenComplete((done, error) -> server.execute(() -> {
             if (error != null) {
                 CheckEngine.LOGGER.error("Check Engine: data scan failed", error);
                 source.sendFailure(Component.literal("Check Engine: scan failed: " + error.getMessage()));
             } else {
-                source.sendSuccess(() -> done, true);
+                source.sendSuccess(() -> done, !server.isDedicatedServer());
             }
         }));
         return 1;
     }
 
-    private static Component save(DataScanner scanner, RecipeCheck recipeCheck) {
+    /** @param dedicated on a dedicated server: plain text, no file links (they can't be sent to players) */
+    private static Component save(DataScanner scanner, RecipeCheck recipeCheck, boolean dedicated) {
         List<Finding> findings = new ArrayList<>(scanner.findings());
         findings.addAll(recipeCheck.findings());
         findings.sort(Comparator.comparing(Finding::severity));
@@ -106,7 +107,15 @@ final class DataScan {
         Component link = Component.literal("checkengine/scan-report.txt").withStyle(s -> s.withUnderlined(true)
                 .withClickEvent(new ClickEvent.OpenFile(path))
                 .withHoverEvent(new HoverEvent.ShowText(Component.literal(path))));
-        return Component.literal("Check Engine: " + Report.summary(findings) + ". Report: ").append(link);
+        if (dedicated) {
+            return Component.literal("Check Engine: " + Report.chatSummary(findings)
+                    + ". Report saved on the server: checkengine/scan-report.txt");
+        }
+        Component open = Component.literal("[Open report]").withStyle(s -> s.withColor(net.minecraft.ChatFormatting.GREEN)
+                .withClickEvent(new ClickEvent.RunCommand("/cereport"))
+                .withHoverEvent(new HoverEvent.ShowText(Component.literal("Shows the report in game"))));
+        return Component.literal("Check Engine: " + Report.chatSummary(findings) + ". ").append(open)
+                .append(Component.literal(" or as text: ")).append(link);
     }
 
     /** "minecraft", every loaded mod id, and any namespace that registered items, blocks, fluids or recipes. */
