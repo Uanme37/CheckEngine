@@ -8,6 +8,7 @@ import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import com.guiltypotato.checkengine.core.strip.StripMine;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.neoforged.api.distmarker.Dist;
@@ -22,6 +23,7 @@ public final class ClientEvents {
     static boolean done;
     private static boolean memoryRecorded;
     private static boolean crashShown;
+    private static boolean crashSeen;
 
     private ClientEvents() {}
 
@@ -108,5 +110,30 @@ public final class ClientEvents {
             return;
         }
         event.setNewScreen(next);
+    }
+
+    /**
+     * Backup for Crash Doctor: in some big packs another mod puts the plain title screen back over ours before it's
+     * seen. If the title screen gets drawn while an unseen crash is waiting, open Crash Doctor on top of it.
+     */
+    @SubscribeEvent
+    public static void onScreenInit(ScreenEvent.Init.Post event) {
+        try {
+            if (event.getScreen() instanceof CrashDoctorScreen) {
+                crashSeen = true;
+                return;
+            }
+            if (!(event.getScreen() instanceof TitleScreen title) || crashSeen || done) return;
+            LastCrash crash = BootCheck.lastCrash();
+            if (crash == null || StripMine.running(BootCheck.outputFolder()) != null) return;
+            crashSeen = true;
+            crashShown = true;
+            Report report = BootCheck.get();
+            CheckEngine.LOGGER.info("Check Engine: the title screen covered Crash Doctor, opening it again");
+            Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(
+                    new CrashDoctorScreen(title, report == null ? crash : crash.withChanges(report.changes()))));
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: couldn't show its screen, carrying on without it", t);
+        }
     }
 }
