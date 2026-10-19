@@ -42,7 +42,7 @@ class RecipeCheckTest {
         assertEquals(1, f.size());
         assertEquals("1 recipe clash", f.get(0).title());
         assertEquals(Finding.Severity.WARNING, f.get(0).severity());
-        assertTrue(f.get(0).detail().contains("Copper Gear (create:copper_gear) (create:copper_gear)"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- Copper Gear (create:copper_gear) and"), f.get(0).detail());
         assertTrue(f.get(0).detail().contains("thermal:copper_gear (thermal:gear_copper)"), f.get(0).detail());
     }
 
@@ -71,8 +71,8 @@ class RecipeCheckTest {
         List<Finding> f = byCode(Finding.RECIPE_CLASH);
         // e and a take exactly the same items, and so do c and d (shaped vs shapeless); the other pairs only share some.
         assertEquals("2 recipe clashes", f.get(0).title(), f.get(0).detail());
-        assertTrue(f.get(0).detail().contains("a:dust (a:dust) and e:dust (e:dust)"), f.get(0).detail());
-        assertTrue(f.get(0).detail().contains("c:dust (c:dust) and a:dust (d:dust)"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- a:dust and e:dust"), f.get(0).detail());
+        assertTrue(f.get(0).detail().contains("- c:dust and a:dust (d:dust)"), f.get(0).detail());
         assertEquals("5 pairs of recipes share some inputs", f.get(1).title(), f.get(1).detail());
         assertEquals(Finding.Severity.INFO, f.get(1).severity());
     }

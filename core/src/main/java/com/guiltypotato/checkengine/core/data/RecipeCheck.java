@@ -214,7 +214,15 @@ public final class RecipeCheck {
     }
 
     private String clashLine(Recipe a, Recipe b) {
-        return name(a.result()) + " (" + a.id() + from(a) + ") and " + name(b.result()) + " (" + b.id() + from(b) + ")";
+        return recipeLabel(a) + " and " + recipeLabel(b);
+    }
+
+    /** Item name, then the recipe id only when it differs from the item id. */
+    private String recipeLabel(Recipe r) {
+        String label = name(r.result());
+        if (!r.id().equals(base(r.result()))) return label + " (" + r.id() + from(r) + ")";
+        String from = from(r);
+        return from.isEmpty() ? label : label + " (" + from.substring(2) + ")";
     }
 
     private static String from(Recipe r) {
