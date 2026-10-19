@@ -326,7 +326,7 @@ public final class RecipeCheck {
     private String modName(String id) {
         if (id.equals("minecraft")) return "Minecraft";
         String name = modNames.apply(id);
-        return name == null || name.isBlank() ? id : name;
+        return name == null || name.isBlank() ? id : name.strip();
     }
 
     /** One line per group: "Block of Steel: alltheores:crafting/steel_block, oritech:steelblock". */
