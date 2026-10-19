@@ -122,8 +122,9 @@ public final class ClientEvents {
 
     @SubscribeEvent
     public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
-        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || !openReport) return;
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || (!openReport && !CheckEngine.reportRequested)) return;
         openReport = false;
+        CheckEngine.reportRequested = false;
         try {
             Minecraft.getInstance().setScreen(ReportScreen.open());
         } catch (Throwable t) {

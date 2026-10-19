@@ -149,8 +149,9 @@ public final class ClientEvents {
 
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
-        if (!openReport) return;
+        if (!openReport && !CheckEngine.reportRequested) return;
         openReport = false;
+        CheckEngine.reportRequested = false;
         try {
             Minecraft.getInstance().setScreen(ReportScreen.open());
         } catch (Throwable t) {

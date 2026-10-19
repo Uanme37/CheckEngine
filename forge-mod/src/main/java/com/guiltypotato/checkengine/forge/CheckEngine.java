@@ -18,6 +18,11 @@ import org.slf4j.Logger;
 /** Forge 1.20.1 entry point. Same features as the NeoForge mod: boot check, warning screen, /checkengine scan. */
 @Mod(CheckEngine.MOD_ID)
 public final class CheckEngine {
+    /**
+     * Set by /cereport on a singleplayer world: the game's own server runs in the same program, so the player's side
+     * picks this up and opens the report screen. Chat mods send clicked commands to the server, so this always works.
+     */
+    public static volatile boolean reportRequested;
     public static final String MOD_ID = "checkengine";
     public static final Logger LOGGER = LogUtils.getLogger();
 
@@ -36,6 +41,10 @@ public final class CheckEngine {
 
     private static void registerCommands(RegisterCommandsEvent event) {
         // Ops only, except export in singleplayer: that's when a player needs it most.
+        event.getDispatcher().register(Commands.literal("cereport").executes(ctx -> {
+            if (!ctx.getSource().getServer().isDedicatedServer()) reportRequested = true;
+            return 1;
+        }));
         event.getDispatcher().register(Commands.literal("checkengine")
                 .then(Commands.literal("scan").requires(s -> s.hasPermission(2))
                         .executes(ctx -> DataScan.run(ctx.getSource())))
