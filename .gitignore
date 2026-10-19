@@ -49,3 +49,7 @@ mod-26/runs/
 
 # Public crash reports from other people (local test data, never committed)
 crash-library/
+
+# Working notes for Claude: stay on the PC, not on GitHub
+HANDOFF.md
+CLAUDE.md
