@@ -2,6 +2,14 @@
 
 Read this instead of re-exploring. Plan and history: `Check Engine - Overview.md` (the 0.13 list has [x] marks). Rules: `MC\CLAUDE.md`.
 
+## Paused: 0.14 Recipe check (2026-10-18)
+- Branch `recipe-check`, PR #3 (not merged, not released). Cloud wrote it; A3's PC built it (no compile fixes) and fixed a big-pack hang in `RecipeCheck.clashes()` (63cdf15).
+- Passed: dev scans on 1.21.1, 26.1, Forge (test datapack: 1 clash + 1 dead recipe found). ATM10 mods copy: scan done in seconds.
+- Blocking release: false alarms. ATM10 gave 2231 "clashes" (mostly tag-vs-specific overlaps, e.g. Crafting Table vs Aspen Crafting Table) and 93 "quest items nothing gives". Details in PR #3 comments; full report `recipe-check-test/atm10-scan-report.txt` (not in git).
+- Not done (A3 asked): BTC 1.2.2 test and in-game screenshots for the upload. BTC in a dev game needs Numismatics (log4j path), Create Central Kitchen (game tests forced on by Fabric API in dev) switched off; then campfires error and Neruina stops the world. Dev server copy also needs Iris, IrisSearch, Colorwheel, Formations off. Better next time: A3 launches the real BTC instance with the 0.14 jar and runs `/checkengine scan`, or use a dedicated server made from a CurseForge instance (serverpack needs `minecraftinstance.json` to spot client-only mods).
+- Bug found: Crash Doctor reads a client crash (NoClassDefFoundError in GameTestHooks) as "Client-only mod on the server" with fix "Remove cpw.mods.modlauncher". Crash file + screenshots in `recipe-check-test/`.
+- Test copies parked in `MC\_to_delete\checkengine-recipe-test\` (about 3 GB). Dev run folders are back as they were.
+
 ## State (2026-10-14)
 - GitHub: v0.13.0 released 2026-10-14 (all of 0.13). Push only when A3 asks.
 - CurseForge: nothing new until all of 0.13 is done (A3's call), then one Craft to Exile 2 launch, upload, outreach.
