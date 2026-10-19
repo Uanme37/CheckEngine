@@ -27,9 +27,9 @@ import java.util.Map;
 
 /**
  * The "Fix" button on the can't-join screen. Mods the server doesn't have are switched off (renamed to .disabled,
- * nothing deleted). Mods the server has in another version, or that the player lacks, are downloaded from Modrinth
- * when the server's exact version is known and Modrinth has that file; otherwise the player gets the mod's page.
- * Only runs when the player presses the button: that's the only time Check Engine goes online for this.
+ * nothing deleted). For mods the server has in another version, or that the player lacks, the player gets the Modrinth
+ * page of the server's exact version when Modrinth has it, else the mod's page. Check Engine never downloads mods
+ * itself (mod sites don't allow mods that install other mods). Only looks things up when the player presses the button.
  */
 public final class JoinFix {
     static final String API = "https://api.modrinth.com/v2/";
@@ -38,22 +38,18 @@ public final class JoinFix {
 
     private JoinFix() {}
 
-    public enum Action { SWITCH_OFF, DOWNLOAD, OPEN_PAGE }
+    public enum Action { SWITCH_OFF, OPEN_PAGE }
 
     /**
      * One thing the fix will do.
      *
-     * @param jar      the player's jar to switch off (SWITCH_OFF, and DOWNLOAD replacing an old copy), else null
-     * @param url      the file to download (DOWNLOAD) or the page to open (OPEN_PAGE)
-     * @param fileName the downloaded file's name
-     * @param sha1     the downloaded file's expected SHA-1
+     * @param jar the player's jar to switch off (SWITCH_OFF), else null
+     * @param url the page to open (OPEN_PAGE)
      */
-    public record Step(Action action, String modId, String name, String version, Path jar, String url, String fileName,
-                       String sha1) {
+    public record Step(Action action, String modId, String name, String version, Path jar, String url) {
         public String describe() {
             return switch (action) {
                 case SWITCH_OFF -> "Switch off " + name + " (the server doesn't have it)";
-                case DOWNLOAD -> "Download " + name + " " + version + " from Modrinth" + (jar != null ? ", switching off your copy" : "");
                 case OPEN_PAGE -> "Get " + name + (version != null ? " " + version : "") + " yourself: " + url;
             };
         }
@@ -63,8 +59,6 @@ public final class JoinFix {
     public interface Web {
         /** The body of a 200 response, or null for anything else. */
         String get(String url) throws IOException;
-
-        void download(String url, Path to) throws IOException;
     }
 
     /**
@@ -86,7 +80,7 @@ public final class JoinFix {
             String serverVersion = f.serverVersion() == null || f.serverVersion().isBlank() ? null : f.serverVersion();
             Kind kind = f.kind() == Kind.MISSING_ON_PLAYER && jar != null ? Kind.DIFFERENT : f.kind();
             if (kind == Kind.MISSING_ON_SERVER) {
-                if (jar != null) steps.add(new Step(Action.SWITCH_OFF, id, name, null, jar, null, null, null));
+                if (jar != null) steps.add(new Step(Action.SWITCH_OFF, id, name, null, jar, null));
                 return;
             }
             if (kind != Kind.MISSING_ON_PLAYER && kind != Kind.DIFFERENT) return;
@@ -98,15 +92,15 @@ public final class JoinFix {
                 project = null;
             }
             if (project != null && serverVersion != null) {
-                Step download = findVersion(project, id, name, serverVersion, jar, minecraftVersion, loader, web);
-                if (download != null) {
-                    steps.add(download);
+                String versionPage = versionPage(project, serverVersion, minecraftVersion, loader, web);
+                if (versionPage != null) {
+                    steps.add(new Step(Action.OPEN_PAGE, id, name, serverVersion, null, versionPage));
                     return;
                 }
             }
             String page = project != null ? "https://modrinth.com/mod/" + project
                     : "https://modrinth.com/mods?q=" + URLEncoder.encode(id, StandardCharsets.UTF_8);
-            steps.add(new Step(Action.OPEN_PAGE, id, name, serverVersion, null, page, null, null));
+            steps.add(new Step(Action.OPEN_PAGE, id, name, serverVersion, null, page));
         });
         return steps;
     }
@@ -125,8 +119,8 @@ public final class JoinFix {
         return Json.parseObject(body).get("id") instanceof String s ? s : null;
     }
 
-    private static Step findVersion(String project, String id, String name, String serverVersion, Path jar,
-                                    String minecraftVersion, String loader, Web web) {
+    /** The Modrinth page of the server's exact version for this Minecraft and loader, or null. */
+    private static String versionPage(String project, String serverVersion, String minecraftVersion, String loader, Web web) {
         try {
             String url = API + "project/" + project + "/version?loaders="
                     + URLEncoder.encode("[\"" + loader + "\"]", StandardCharsets.UTF_8) + "&game_versions="
@@ -135,18 +129,8 @@ public final class JoinFix {
             if (body == null) return null;
             for (Object o : (List<?>) Json.parse(body)) {
                 if (!(o instanceof Map<?, ?> v) || !(v.get("version_number") instanceof String number)) continue;
-                if (!sameVersion(number, serverVersion)) continue;
-                if (!(v.get("files") instanceof List<?> files)) continue;
-                Map<?, ?> file = null;
-                for (Object f : files) {
-                    if (f instanceof Map<?, ?> m && (file == null || Boolean.TRUE.equals(m.get("primary")))) file = m;
-                }
-                if (file == null || !(file.get("url") instanceof String fileUrl)
-                        || !(file.get("filename") instanceof String fileName)) {
-                    continue;
-                }
-                String sha1 = file.get("hashes") instanceof Map<?, ?> h && h.get("sha1") instanceof String s ? s : null;
-                return new Step(Action.DOWNLOAD, id, name, serverVersion, jar, fileUrl, fileName, sha1);
+                if (!sameVersion(number, serverVersion) || !(v.get("id") instanceof String versionId)) continue;
+                return "https://modrinth.com/mod/" + project + "/version/" + versionId;
             }
         } catch (IOException | RuntimeException e) {
             return null;
@@ -162,12 +146,11 @@ public final class JoinFix {
     }
 
     /**
-     * Does the steps that need no player: switch-offs and downloads. Each download is checked (SHA-1, and that it is
-     * really that mod at that version) before the old copy is switched off. Writes an undo list.
+     * Does the steps that need no player: switch-offs. Writes an undo list.
      *
      * @return one line per step: what was done, or why not
      */
-    public static List<String> apply(List<Step> steps, Path modsDir, Path checkEngineFolder, Web web) throws IOException {
+    public static List<String> apply(List<Step> steps, Path modsDir, Path checkEngineFolder) throws IOException {
         List<String> done = new ArrayList<>();
         List<String> undo = new ArrayList<>();
         for (Step s : steps) {
@@ -176,23 +159,6 @@ public final class JoinFix {
                     case SWITCH_OFF -> {
                         undo.add("enable\t" + switchOff(s.jar()).getFileName());
                         done.add("Switched off " + s.name());
-                    }
-                    case DOWNLOAD -> {
-                        Path target = modsDir.resolve(s.fileName());
-                        Path tmp = modsDir.resolve(s.fileName() + ".download");
-                        web.download(s.url(), tmp);
-                        String problem = check(tmp, s);
-                        if (problem != null) {
-                            Files.deleteIfExists(tmp);
-                            done.add("Didn't install " + s.name() + ": " + problem);
-                            continue;
-                        }
-                        if (s.jar() != null && !s.jar().getFileName().equals(target.getFileName())) {
-                            undo.add("enable\t" + switchOff(s.jar()).getFileName());
-                        }
-                        Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-                        undo.add("remove\t" + target.getFileName());
-                        done.add("Installed " + s.name() + " " + s.version());
                     }
                     case OPEN_PAGE -> done.add("Get " + s.name() + (s.version() != null ? " " + s.version() : "") + " yourself: " + s.url());
                 }
@@ -207,7 +173,7 @@ public final class JoinFix {
         return done;
     }
 
-    /** Puts back what the last fix changed: re-enables switched-off jars and switches off the downloaded ones. */
+    /** Puts back what the last fix changed: re-enables switched-off jars (and switches off jars older versions downloaded). */
     public static int undo(Path modsDir, Path checkEngineFolder) throws IOException {
         Path file = checkEngineFolder.resolve(UNDO_FILE);
         if (!Files.isRegularFile(file)) return 0;
@@ -235,18 +201,6 @@ public final class JoinFix {
         return Files.move(jar, off, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    /** Null when the download is what we asked for, else what's wrong with it. */
-    static String check(Path file, Step s) throws IOException {
-        if (s.sha1() != null && !s.sha1().equalsIgnoreCase(sha1(file))) return "the download was damaged";
-        ModJar jar = JarReader.read(file);
-        ModInfo mod = jar.mods().stream().filter(m -> m.modId().equals(s.modId())).findFirst().orElse(null);
-        if (mod == null) return "the file on Modrinth isn't the mod \"" + s.modId() + "\"";
-        if (s.version() != null && !s.version().equals(mod.version())) {
-            return "the file on Modrinth is version " + mod.version() + ", not " + s.version();
-        }
-        return null;
-    }
-
     static String sha1(Path file) throws IOException {
         try (InputStream in = Files.newInputStream(file)) {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
@@ -270,21 +224,6 @@ public final class JoinFix {
                     HttpResponse<String> r = client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15))
                             .header("User-Agent", agent).GET().build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
                     return r.statusCode() == 200 ? r.body() : null;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted", e);
-                }
-            }
-
-            @Override
-            public void download(String url, Path to) throws IOException {
-                try {
-                    HttpResponse<Path> r = client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofMinutes(2))
-                            .header("User-Agent", agent).GET().build(), HttpResponse.BodyHandlers.ofFile(to));
-                    if (r.statusCode() != 200) {
-                        Files.deleteIfExists(to);
-                        throw new IOException("Modrinth answered " + r.statusCode());
-                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted", e);

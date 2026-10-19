@@ -27,7 +27,7 @@ final class JoinFixScreens {
         Minecraft mc = Minecraft.getInstance();
         mc.setScreen(new DashScreen(DashScreen.BLUE, "FIXING YOUR MODS", null, null,
                 List.of(new Section("WORKING", DashScreen.BLUE, "i", List.of(
-                        Line.text("Checking Modrinth for the server's versions and switching off extra mods..."),
+                        Line.text("Switching off extra mods and finding the server's versions on Modrinth..."),
                         Line.dim("This only takes a few seconds.")))),
                 List.of(), () -> {}));
         Thread t = new Thread(() -> {
@@ -47,7 +47,7 @@ final class JoinFixScreens {
                         .map(c -> c.getModInfo().getVersion().toString()).orElse("dev");
                 JoinFix.Web web = JoinFix.internet(version);
                 steps = JoinFix.plan(failures, jars, names, ModList.get().getModContainerById("minecraft").map(c -> c.getModInfo().getVersion().toString()).orElse(""), "forge", web);
-                done = JoinFix.apply(steps, mods, BootCheck.outputFolder(), web);
+                done = JoinFix.apply(steps, mods, BootCheck.outputFolder());
             } catch (Exception e) {
                 CheckEngine.LOGGER.warn("Check Engine: join fix failed", e);
                 done = List.of("Couldn't fix the mods: " + e.getMessage());
