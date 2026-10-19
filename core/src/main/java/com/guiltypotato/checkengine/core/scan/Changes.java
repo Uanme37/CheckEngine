@@ -67,22 +67,49 @@ public record Changes(String since, List<Change> changes) {
     private void line(StringBuilder sb, String label, Type type, boolean downgrades) {
         List<Change> list = changes.stream().filter(c -> c.type() == type && c.downgrade() == downgrades).toList();
         if (list.isEmpty()) return;
+        List<String> entries = type == Type.CONFIG ? configEntries(list) : list.stream().map(c -> c.name() + ' '
+                + (type == Type.UPDATED ? c.from() + " -> " + c.to() : type == Type.ADDED ? c.to() : c.from())).toList();
         sb.append(label).append(": ");
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0; i < entries.size(); i++) {
             if (i == LIST_LIMIT) {
-                sb.append(", and ").append(list.size() - LIST_LIMIT).append(" more");
+                sb.append(", and ").append(entries.size() - LIST_LIMIT).append(" more");
                 break;
             }
-            Change c = list.get(i);
             if (i > 0) sb.append(", ");
-            if (type == Type.CONFIG) {
-                sb.append(c.name()).append(" (").append(c.to()).append(')');
-                continue;
-            }
-            sb.append(c.name()).append(' ').append(type == Type.UPDATED ? c.from() + " -> " + c.to()
-                    : type == Type.ADDED ? c.to() : c.from());
+            sb.append(entries.get(i));
         }
         sb.append('\n');
+    }
+
+    /**
+     * Config files, with 3 or more in one mod's folder as one entry: "config/fancymenu (18 files: 18 added)" instead
+     * of 18 paths.
+     */
+    static List<String> configEntries(List<Change> configs) {
+        java.util.Map<String, List<Change>> byFolder = new java.util.LinkedHashMap<>();
+        for (Change c : configs) byFolder.computeIfAbsent(folder(c.name()), k -> new ArrayList<>()).add(c);
+        List<String> out = new ArrayList<>();
+        byFolder.forEach((folder, files) -> {
+            if (folder == null || files.size() < 3) {
+                for (Change c : files) out.add(c.name() + " (" + c.to() + ")");
+                return;
+            }
+            java.util.Map<String, Integer> how = new java.util.LinkedHashMap<>();
+            for (Change c : files) how.merge(c.to(), 1, Integer::sum);
+            List<String> parts = new ArrayList<>();
+            how.forEach((what, n) -> parts.add(n + " " + what));
+            out.add(folder + " (" + files.size() + " files: " + String.join(", ", parts) + ")");
+        });
+        return out;
+    }
+
+    /** "config/fancymenu/ui_themes/x.json" -> "config/fancymenu"; a file right in config/ has no folder (null). */
+    private static String folder(String path) {
+        String p = path.replace('\\', '/');
+        int first = p.indexOf('/');
+        if (first < 0) return null;
+        int second = p.indexOf('/', first + 1);
+        return second < 0 ? null : p.substring(0, second);
     }
 
     /**

@@ -39,6 +39,19 @@ class SetupCheckTest {
         assertNull(SetupCheck.memory(game, 12544));
     }
 
+    /** Real ATM11: CurseForge said 4 GB, loading alone used 2.7 GB, 4 GB crashed with out of memory: warn. */
+    @Test
+    void measuredUseBeatsATooLowCurseForgeNumber() throws Exception {
+        Files.createDirectories(game.resolve("mods"));
+        Files.createDirectories(game.resolve("checkengine"));
+        Files.writeString(game.resolve("minecraftinstance.json"), "{\"name\":\"All the Mods 11\",\"recommendedRam\":4096}");
+        Files.writeString(game.resolve("checkengine").resolve("ram.properties"), "max_mb=12544\nused_after_load_mb=2714\n");
+        SetupCheck.Warning w = SetupCheck.memory(game, 4096);
+        assertNotNull(w);
+        assertTrue(w.problem().contains("measured on your last launch"), w.problem());
+        assertNull(SetupCheck.memory(game, 8192));
+    }
+
     /** The pack maker's recommended_ram wins over CurseForge's number and Check Engine's measurement. */
     @Test
     void thePackMakersRecommendationWins() throws Exception {

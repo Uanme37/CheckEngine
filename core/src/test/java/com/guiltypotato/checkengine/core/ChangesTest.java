@@ -106,4 +106,15 @@ class ChangesTest {
         assertTrue(r.changes().summary().contains("Downgraded: Create 6.0.4 -> 6.0.2"), r.changes().summary());
         assertTrue(r.changes().summary().contains("Updated: Jei 19.0 -> 19.1"), r.changes().summary());
     }
+
+    /** Real ATM11: 20 FancyMenu files after adding the mod read as one entry, a lone file stays named. */
+    @Test
+    void manyConfigFilesInOneFolderAreOneEntry() {
+        java.util.List<Changes.Change> list = new java.util.ArrayList<>();
+        for (int i = 0; i < 18; i++) list.add(new Changes.Change(Changes.Type.CONFIG, null, "config/fancymenu/ui_themes/t" + i + ".json", null, "added", null));
+        list.add(new Changes.Change(Changes.Type.CONFIG, null, "config/ftbquests/quests/chapters/space.snbt", null, "changed", null));
+        list.add(new Changes.Change(Changes.Type.CONFIG, null, "config/jei/options.ini", null, "changed", null));
+        String summary = new Changes("2026-10-19T17:00", list).summary();
+        assertEquals("Configs: config/fancymenu (18 files: 18 added), config/ftbquests/quests/chapters/space.snbt (changed), config/jei/options.ini (changed)", summary);
+    }
 }

@@ -54,10 +54,17 @@ public final class SetupCheck {
         // of the last launch, then an estimate from the mod count.
         PackInfo info = PackInfo.load(gameDir);
         long authors = info.recommendedMb() > 0 ? info.recommendedMb() : curseForgeRecommendedMb(gameDir);
-        long need = authors > 0 ? authors : RamAdvisor.recommendedMb(facts);
-        String basis = authors > 0 ? "" : facts.measuredMb() > 0 ? " (measured on your last launch)"
+        long measuredNeed = facts.measuredMb() > 0 ? RamAdvisor.recommendedMb(facts) : 0;
+        // A real measurement beats CurseForge's old or too-low number (a 290-mod pack "recommending" 4 GB crashed);
+        // the pack maker's own recommended_ram still wins.
+        boolean measuredWins = info.recommendedMb() <= 0 && measuredNeed > authors;
+        long need = measuredWins ? measuredNeed : authors > 0 ? authors : RamAdvisor.recommendedMb(facts);
+        String basis = authors > 0 && !measuredWins ? "" : facts.measuredMb() > 0 ? " (measured on your last launch)"
                 : " for " + facts.modCount() + " mods";
-        if (maxHeapMb <= 0 || maxHeapMb >= need * 60 / 100 || need - maxHeapMb < 1536) return null;
+        // Less than 2 GB on top of what loading alone used leaves no room for a world: that's an out-of-memory crash.
+        boolean noRoom = facts.measuredMb() > 0 && maxHeapMb < facts.measuredMb() + 2048;
+        if (maxHeapMb <= 0) return null;
+        if (!noRoom && (maxHeapMb >= need * 60 / 100 || need - maxHeapMb < 1536)) return null;
         // The recommendation is what plays best, not a must: not every PC has that much. The least that should load
         // is about 60% of it, so that's what the fix asks for first.
         long pc = facts.systemMb();
