@@ -24,7 +24,7 @@ java -jar checkengine-cli-0.14.0.jar exportcheck <export .zip or .mrpack>
 
 ## Or use it as a mod
 Put the jar for your version in the pack's `mods` folder:
-- **checkengine-neoforge-26.1-0.14.0.jar** for NeoForge 26.1.2 and newer 26.1.x
+- **checkengine-neoforge-26.1-0.14.0.jar** for NeoForge 26.1.2 and newer, including 26.2
 - **checkengine-neoforge-1.21.1-0.14.0.jar** for NeoForge 1.21.1
 - **checkengine-forge-1.20.1-0.14.0.jar** for Forge 1.20.1
 
@@ -35,6 +35,8 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 - **Recipe clashes:** two crafting recipes that take exactly the same items in the same grid (or its mirror image, or in any order) but make different things. Only one of each pair can ever be crafted. The fix is to remove one with KubeJS or CraftTweaker, or to add Polymorph. Recipes that only share some inputs (any planks vs one kind of planks) are listed as info.
 - **Recipes nobody can craft:** a slot asks for a tag that has no items in it.
 - Also listed, as info: quest items and crafting ingredients that no recipe, loot table or quest reward gives (often mob drops or spells, so worth a look rather than a fix).
-- Fast in big packs: ATM10 (46,000 crafting recipes) scans in seconds.
+- Fast in big packs: 46,000 crafting recipes scan in seconds.
 
-On 1.21.1 and Forge 1.20.1 it checks the recipes the game actually loaded, so KubeJS and CraftTweaker changes count. On 26.1 it reads the recipe files, so script changes aren't seen there yet.
+Also new: the 26.1 jar now works on Minecraft 26.2 too.
+
+On 1.21.1 and Forge 1.20.1 it checks the recipes the game actually loaded, so KubeJS and CraftTweaker changes count. On 26.1 and 26.2 it reads the recipe files, so script changes aren't seen there yet.
