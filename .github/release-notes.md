@@ -38,7 +38,7 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 - Low memory is caught before it crashes, even when the pack page recommends too little.
 - Crash Doctor shows up even when another mod covers the title screen, on every version.
 - "Changed since it last worked" lists a mod's config folder as one line.
-- Fix it on the can't-join screen now opens the right Modrinth pages instead of downloading mods itself.
+- Fix it on the can't-join screen now opens the Modrinth pages of the mods you need instead of downloading them, and Check Engine never goes online anymore.
 
 **Also in this version (from 0.14 to 0.16)**
 
@@ -50,9 +50,9 @@ Problems show on a screen before the title screen and are saved to `checkengine/
 
 On 1.21.1 and Forge 1.20.1 it checks the recipes the game actually loaded, so KubeJS and CraftTweaker changes count. On 26.1 and 26.2 it reads the recipe files, so script changes aren't seen there yet.
 
-**Known crashes:** Crash Doctor now knows crashes other people already solved and shows their fix first ("Known crash: ..."). The list ships inside the mod. If you want the newest list every day, add `crash_fix_updates=true` to `checkengine/settings.properties`. It's off by default: Check Engine never goes online on its own.
+**Known crashes:** Crash Doctor now knows crashes other people already solved and shows their fix first ("Known crash: ..."). The list ships inside the mod and grows with every update. Check Engine never goes online.
 
-**Fix it on the can't-join screen:** when a server won't let you in because your mods don't match, press Fix it. Check Engine switches off the mods the server doesn't have and opens the Modrinth page of each version you need. Nothing is deleted, and one button puts everything back.
+**Fix it on the can't-join screen:** when a server won't let you in because your mods don't match, press Fix it. Check Engine switches off the mods the server doesn't have and opens the Modrinth page of each mod you need, with the version the server wants. Nothing is deleted, and one button puts everything back.
 
 **Also new**
 - The 26.1 jar now works on Minecraft 26.2 too.

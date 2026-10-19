@@ -14,7 +14,7 @@ The first matching entry wins, so put narrow entries above broad ones. Raise `ve
 
 ## Getting updates
 
-Every jar ships with a copy of the list. Players who add `crash_fix_updates=true` to `checkengine/settings.properties` also get the newest list from GitHub, at most once a day, in the background. It's off by default: Check Engine never goes online on its own.
+Every jar ships with a copy of the list, and each Check Engine update brings the newest one. A newer copy saved as `checkengine/known-crashes.json` is used instead. Check Engine never goes online.
 
 ## Adding a fix
 

@@ -27,7 +27,7 @@ final class JoinFixScreens {
         Minecraft mc = Minecraft.getInstance();
         mc.setScreen(new DashScreen(DashScreen.BLUE, "FIXING YOUR MODS", null, null,
                 List.of(new Section("WORKING", DashScreen.BLUE, "i", List.of(
-                        Line.text("Switching off extra mods and finding the server's versions on Modrinth..."),
+                        Line.text("Switching off the mods the server doesn't have..."),
                         Line.dim("This only takes a few seconds.")))),
                 List.of(), () -> {}));
         Thread t = new Thread(() -> {
@@ -43,10 +43,7 @@ final class JoinFixScreens {
                     // Only jars sitting in mods/, not mods packed inside another jar.
                     if (file != null && mods.equals(file.getParent()) && Files.isRegularFile(file)) jars.put(m.getModId(), file);
                 });
-                String version = ModList.get().getModContainerById(CheckEngine.MOD_ID)
-                        .map(c -> c.getModInfo().getVersion().toString()).orElse("dev");
-                JoinFix.Web web = JoinFix.internet(version);
-                steps = JoinFix.plan(failures, jars, names, ModList.get().getModContainerById("minecraft").map(c -> c.getModInfo().getVersion().toString()).orElse(""), "forge", web);
+                steps = JoinFix.plan(failures, jars, names);
                 done = JoinFix.apply(steps, mods, BootCheck.outputFolder());
             } catch (Exception e) {
                 CheckEngine.LOGGER.warn("Check Engine: join fix failed", e);

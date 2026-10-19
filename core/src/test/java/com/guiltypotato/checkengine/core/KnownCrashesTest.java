@@ -58,7 +58,7 @@ class KnownCrashesTest {
     }
 
     @Test
-    void downloadedListWinsOnlyWhenNewer(@TempDir Path dir) throws Exception {
+    void savedListWinsOnlyWhenNewer(@TempDir Path dir) throws Exception {
         Files.writeString(dir.resolve(KnownCrashes.FILE), """
                 {"version": 99999, "crashes": [{"id": "new", "title": "New", "fix": "x", "any": ["zzz"]}]}
                 """);
@@ -69,16 +69,6 @@ class KnownCrashesTest {
         assertNull(KnownCrashes.use(dir).match("zzz"));
         KnownCrashes.use(null);
     }
-
-    @Test
-    void updatesAreOffUnlessThePlayerTurnsThemOn(@TempDir Path dir) throws Exception {
-        assertTrue(!KnownCrashes.updatesOn(dir));
-        Files.writeString(dir.resolve("settings.properties"), "launch_popup=true\n");
-        assertTrue(!KnownCrashes.updatesOn(dir));
-        Files.writeString(dir.resolve("settings.properties"), "crash_fix_updates=true\n");
-        assertTrue(KnownCrashes.updatesOn(dir));
-    }
-
     @Test
     void signatureKeepsTheErrorAndModFrames() {
         String sig = KnownCrashes.signature("""

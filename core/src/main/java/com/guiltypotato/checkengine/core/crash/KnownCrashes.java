@@ -6,15 +6,9 @@ import com.guiltypotato.checkengine.core.scan.Finding.Severity;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,19 +16,14 @@ import java.util.Properties;
 
 /**
  * The Known Crash Library: crashes someone already solved, each with its fix, kept in known-crashes.json in the
- * CheckEngine GitHub repo so anyone can add one. Every jar ships with a copy; players who turn on
- * {@code crash_fix_updates} in checkengine/settings.properties also get newer copies from GitHub.
+ * CheckEngine GitHub repo so anyone can add one. Every jar ships with a copy, and a newer copy saved as
+ * checkengine/known-crashes.json is used instead. Check Engine never goes online for it.
  */
 public final class KnownCrashes {
-    /** Where the latest list lives. Raw file, no API, no account. */
-    public static final String UPDATE_URL = "https://raw.githubusercontent.com/Uanme37/CheckEngine/main/known-crashes.json";
-    /** The downloaded copy, in the checkengine folder. */
+    /** A newer copy someone saved in the checkengine folder. */
     public static final String FILE = "known-crashes.json";
-    /** Off by default: Check Engine doesn't go online unless the player says so. */
-    public static final String SETTING = "crash_fix_updates";
     public static final String CODE = "known-crash";
     private static final String BUNDLED = "/com/guiltypotato/checkengine/core/crash/known-crashes.json";
-    private static final Duration UPDATE_EVERY = Duration.ofDays(1);
 
     /**
      * One solved crash.
@@ -135,50 +124,6 @@ public final class KnownCrashes {
             }
         }
         return new KnownCrashes(version, List.copyOf(out));
-    }
-
-    /** Whether the player turned on updates (checkengine/settings.properties, crash_fix_updates=true). */
-    public static boolean updatesOn(Path checkEngineFolder) {
-        Path file = checkEngineFolder.resolve("settings.properties");
-        if (!Files.isRegularFile(file)) return false;
-        Properties p = new Properties();
-        try (Reader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            p.load(in);
-        } catch (IOException | IllegalArgumentException e) {
-            return false;
-        }
-        return "true".equalsIgnoreCase(p.getProperty(SETTING, "false").strip());
-    }
-
-    /**
-     * Downloads the latest list when updates are on and the copy is more than a day old. Blocking: call it from a
-     * background thread. Never throws; a failed download keeps whatever copy there was.
-     */
-    public static void updateIfDue(Path checkEngineFolder) {
-        try {
-            if (!updatesOn(checkEngineFolder)) return;
-            Path file = checkEngineFolder.resolve(FILE);
-            if (Files.isRegularFile(file)
-                    && Files.getLastModifiedTime(file).toInstant().plus(UPDATE_EVERY).isAfter(java.time.Instant.now())) {
-                return;
-            }
-            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
-                    .followRedirects(HttpClient.Redirect.NORMAL).build();
-            HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(UPDATE_URL))
-                    .timeout(Duration.ofSeconds(10)).header("User-Agent", "CheckEngine").GET().build(),
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) return;
-            parse(response.body()); // only keep a list that reads
-            Files.createDirectories(checkEngineFolder);
-            Path tmp = file.resolveSibling(FILE + ".tmp");
-            Files.writeString(tmp, response.body(), StandardCharsets.UTF_8);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            use(checkEngineFolder);
-        } catch (IOException | RuntimeException e) {
-            // offline, blocked, or a bad file: the jar's list still works
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     /**

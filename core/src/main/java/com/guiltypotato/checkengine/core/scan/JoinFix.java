@@ -1,26 +1,14 @@
 package com.guiltypotato.checkengine.core.scan;
 
-import com.guiltypotato.checkengine.core.json.Json;
-import com.guiltypotato.checkengine.core.model.ModInfo;
-import com.guiltypotato.checkengine.core.model.ModJar;
 import com.guiltypotato.checkengine.core.scan.JoinMismatch.Failure;
 import com.guiltypotato.checkengine.core.scan.JoinMismatch.Kind;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +16,8 @@ import java.util.Map;
 /**
  * The "Fix" button on the can't-join screen. Mods the server doesn't have are switched off (renamed to .disabled,
  * nothing deleted). For mods the server has in another version, or that the player lacks, the player gets the Modrinth
- * page of the server's exact version when Modrinth has it, else the mod's page. Check Engine never downloads mods
- * itself (mod sites don't allow mods that install other mods). Only looks things up when the player presses the button.
+ * search page for the mod, with the version the server wants. Check Engine never goes online and never downloads mods
+ * (mod sites don't allow mods that install other mods): the player's browser does the rest.
  */
 public final class JoinFix {
     static final String API = "https://api.modrinth.com/v2/";
@@ -55,21 +43,12 @@ public final class JoinFix {
         }
     }
 
-    /** The internet, swappable for tests. */
-    public interface Web {
-        /** The body of a 200 response, or null for anything else. */
-        String get(String url) throws IOException;
-    }
-
     /**
-     * Works out the steps. Needs the internet for anything but switching mods off.
+     * Works out the steps. Offline: nothing is looked up.
      *
-     * @param jars             the player's mod jars by mod id
-     * @param minecraftVersion e.g. "1.21.1"
-     * @param loader           "neoforge" or "forge", as Modrinth names them
+     * @param jars the player's mod jars by mod id
      */
-    public static List<Step> plan(List<Failure> failures, Map<String, Path> jars, Map<String, String> names,
-                                  String minecraftVersion, String loader, Web web) {
+    public static List<Step> plan(List<Failure> failures, Map<String, Path> jars, Map<String, String> names) {
         Map<String, Failure> byMod = new LinkedHashMap<>();
         for (Failure f : failures) byMod.putIfAbsent(f.namespace(), f);
         List<Step> steps = new ArrayList<>();
@@ -84,65 +63,11 @@ public final class JoinFix {
                 return;
             }
             if (kind != Kind.MISSING_ON_PLAYER && kind != Kind.DIFFERENT) return;
-            String project = null;
-            try {
-                project = jar != null ? projectByHash(jar, web) : null;
-                if (project == null) project = projectBySlug(id, web);
-            } catch (IOException | RuntimeException e) {
-                project = null;
-            }
-            if (project != null && serverVersion != null) {
-                String versionPage = versionPage(project, serverVersion, minecraftVersion, loader, web);
-                if (versionPage != null) {
-                    steps.add(new Step(Action.OPEN_PAGE, id, name, serverVersion, null, versionPage));
-                    return;
-                }
-            }
-            String page = project != null ? "https://modrinth.com/mod/" + project
-                    : "https://modrinth.com/mods?q=" + URLEncoder.encode(id, StandardCharsets.UTF_8);
+            // Modrinth's search for the mod: it's usually the first result.
+            String page = "https://modrinth.com/mods?q=" + URLEncoder.encode(name, StandardCharsets.UTF_8);
             steps.add(new Step(Action.OPEN_PAGE, id, name, serverVersion, null, page));
         });
         return steps;
-    }
-
-    /** The Modrinth project a jar came from, by its SHA-1, or null. */
-    static String projectByHash(Path jar, Web web) throws IOException {
-        String body = web.get(API + "version_file/" + sha1(jar) + "?algorithm=sha1");
-        if (body == null) return null;
-        return Json.parseObject(body).get("project_id") instanceof String s ? s : null;
-    }
-
-    /** Many mods use their mod id as the Modrinth slug; the download is checked against the id anyway. */
-    static String projectBySlug(String modId, Web web) throws IOException {
-        String body = web.get(API + "project/" + URLEncoder.encode(modId, StandardCharsets.UTF_8));
-        if (body == null) return null;
-        return Json.parseObject(body).get("id") instanceof String s ? s : null;
-    }
-
-    /** The Modrinth page of the server's exact version for this Minecraft and loader, or null. */
-    private static String versionPage(String project, String serverVersion, String minecraftVersion, String loader, Web web) {
-        try {
-            String url = API + "project/" + project + "/version?loaders="
-                    + URLEncoder.encode("[\"" + loader + "\"]", StandardCharsets.UTF_8) + "&game_versions="
-                    + URLEncoder.encode("[\"" + minecraftVersion + "\"]", StandardCharsets.UTF_8);
-            String body = web.get(url);
-            if (body == null) return null;
-            for (Object o : (List<?>) Json.parse(body)) {
-                if (!(o instanceof Map<?, ?> v) || !(v.get("version_number") instanceof String number)) continue;
-                if (!sameVersion(number, serverVersion) || !(v.get("id") instanceof String versionId)) continue;
-                return "https://modrinth.com/mod/" + project + "/version/" + versionId;
-            }
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
-        return null;
-    }
-
-    /** "6.0.6" matches "6.0.6", "mc1.21.1-6.0.6" and "6.0.6+mc1.21.1", but not "6.0.60". */
-    static boolean sameVersion(String modrinth, String server) {
-        if (modrinth.equals(server)) return true;
-        for (String part : modrinth.split("[-+_ ]")) if (part.equals(server)) return true;
-        return false;
     }
 
     /**
@@ -199,36 +124,5 @@ public final class JoinFix {
     private static Path switchOff(Path jar) throws IOException {
         Path off = jar.resolveSibling(jar.getFileName() + ".disabled");
         return Files.move(jar, off, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    static String sha1(Path file) throws IOException {
-        try (InputStream in = Files.newInputStream(file)) {
-            MessageDigest md = MessageDigest.getInstance("SHA-1");
-            byte[] buf = new byte[65536];
-            for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
-            return HexFormat.of().formatHex(md.digest());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IOException(e);
-        }
-    }
-
-    /** The real internet: Modrinth asks for a User-Agent that names the app. */
-    public static Web internet(String checkEngineVersion) {
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL).build();
-        String agent = "Uanme37/CheckEngine/" + checkEngineVersion + " (github.com/Uanme37/CheckEngine)";
-        return new Web() {
-            @Override
-            public String get(String url) throws IOException {
-                try {
-                    HttpResponse<String> r = client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15))
-                            .header("User-Agent", agent).GET().build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                    return r.statusCode() == 200 ? r.body() : null;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted", e);
-                }
-            }
-        };
     }
 }

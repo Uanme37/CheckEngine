@@ -60,7 +60,7 @@ public final class JoinMismatchScreen extends DashScreen {
         List<Btn> out = new ArrayList<>();
         if (failures.stream().anyMatch(f -> f.kind() != Kind.OTHER)) {
             out.add(new Btn("Fix it", () -> JoinFixScreens.start(failures, back), true,
-                    "Switches off mods the server doesn't have, and finds the server's versions on Modrinth for you to"
+                    "Switches off mods the server doesn't have, and opens Modrinth for the versions you need to"
                             + " download. Nothing is deleted, and Undo puts it all back."));
         }
         out.addAll(List.of(

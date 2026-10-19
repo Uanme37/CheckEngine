@@ -95,10 +95,6 @@ public final class CrashDoctor {
      */
     private static void useCrashLibrary(Path checkEngineFolder) {
         KnownCrashes.use(checkEngineFolder);
-        if (!KnownCrashes.updatesOn(checkEngineFolder)) return;
-        Thread t = new Thread(() -> KnownCrashes.updateIfDue(checkEngineFolder), "Check Engine crash library update");
-        t.setDaemon(true);
-        t.start();
     }
 
     /**
