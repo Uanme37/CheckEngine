@@ -60,7 +60,8 @@ public final class DataScanner {
     public record Ref(Kind kind, String file, String source, String item) {
         /** True when the reference ships inside a mod's own jar (the mod's problem, not the pack maker's). */
         boolean fromMod() {
-            return source != null && (source.startsWith("mod:") || source.startsWith("mod/"));
+            // NeoForge names a mod's built-in data "mod/<id>" or "mod:<id>", Forge 1.20.1 by its jar file.
+            return source != null && (source.startsWith("mod:") || source.startsWith("mod/") || source.endsWith(".jar"));
         }
     }
 

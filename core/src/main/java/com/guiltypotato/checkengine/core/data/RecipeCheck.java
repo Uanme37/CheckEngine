@@ -326,8 +326,16 @@ public final class RecipeCheck {
 
     private String name(String item) {
         String id = base(item);
-        String name = names.apply(id);
+        String name = cleanName(names.apply(id));
         return name == null || name.isEmpty() || name.equals(id) ? id : name + " (" + id + ")";
+    }
+
+    /** Drops colour codes, and names the game never translated ("item.mod.thing", "Vial of %s"). */
+    public static String cleanName(String name) {
+        if (name == null) return null;
+        name = name.replaceAll("§.", "").trim();
+        if (name.contains("%s") || name.matches("(item|block)\\.[a-z0-9_./]+")) return null;
+        return name;
     }
 
     private static String list(List<String> lines) {

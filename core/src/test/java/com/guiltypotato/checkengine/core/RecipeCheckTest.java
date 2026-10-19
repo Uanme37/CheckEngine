@@ -218,4 +218,12 @@ class RecipeCheckTest {
         assertEquals("1 recipe clash", byCode(Finding.RECIPE_CLASH).get(0).title(), String.valueOf(check.findings()));
         assertTrue(byCode(Finding.DEAD_RECIPE).get(0).detail().contains("#c:ingots/tin"));
     }
+
+    @Test
+    void namesWithoutColourCodesOrUntranslatedKeys() {
+        assertEquals("Chaos Component", RecipeCheck.cleanName("§cChaos Component"));
+        assertEquals(null, RecipeCheck.cleanName("item.mmorpg.buff_potion.common_arcane"));
+        assertEquals(null, RecipeCheck.cleanName("Vial of %s (%s)"));
+        assertEquals("Copper Gear", RecipeCheck.cleanName("Copper Gear"));
+    }
 }
