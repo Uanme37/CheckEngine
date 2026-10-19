@@ -157,4 +157,26 @@ public final class ClientEvents {
             CheckEngine.LOGGER.error("Check Engine: couldn't show the report, it's in checkengine/scan-report.txt", t);
         }
     }
+
+    /**
+     * Clicking "[Open report]" in chat. Caught here on the player's side, because a clicked command can go straight
+     * to the server (Forge does that), which doesn't know it.
+     */
+    @SubscribeEvent
+    public static void onChatClick(ScreenEvent.MouseButtonPressed.Pre event) {
+        try {
+            if (!(event.getScreen() instanceof net.minecraft.client.gui.screens.ChatScreen chat)) return;
+            Minecraft mc = Minecraft.getInstance();
+            var finder = new net.minecraft.client.gui.ActiveTextCollector.ClickableStyleFinder(chat.getFont(),
+                    (int) event.getMouseX(), (int) event.getMouseY());
+            mc.gui.getChat().captureClickableText(finder, mc.getWindow().getGuiScaledHeight(), mc.gui.getGuiTicks(),
+                    net.minecraft.client.gui.components.ChatComponent.DisplayMode.FOREGROUND);
+            net.minecraft.network.chat.Style style = finder.result();
+            if (style == null || !(style.getClickEvent() instanceof net.minecraft.network.chat.ClickEvent.RunCommand run && "/cereport".equals(run.command()))) return;
+            openReport = true;
+            event.setCanceled(true);
+        } catch (Throwable t) {
+            CheckEngine.LOGGER.error("Check Engine: couldn't open the report", t);
+        }
+    }
 }
