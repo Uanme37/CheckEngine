@@ -1,10 +1,9 @@
 name: build
 
 on:
+  # Only version releases run here, so the Actions tab stays short.
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
   # Run by hand with a version (e.g. v0.1.0) to tag the current commit and release it.
   workflow_dispatch:
     inputs:
