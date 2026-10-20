@@ -2,7 +2,6 @@ package com.guiltypotato.checkengine;
 
 import com.guiltypotato.checkengine.core.data.DataScanner;
 import com.guiltypotato.checkengine.core.data.RecipeCheck;
-import com.guiltypotato.checkengine.core.data.RecipeFiles;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.Report;
 import java.io.IOException;
@@ -12,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,10 +48,11 @@ final class DataScan {
         Map<Identifier, Resource> recipes = resources.listResources("recipe", DataScan::isJson);
         Map<Identifier, Resource> lootTables = resources.listResources("loot_table", DataScan::isJson);
         Set<String> namespaces = knownNamespaces();
-        // Every file for a tag, not just the top one: tags add up across mods (an empty one mustn't hide the rest).
-        Map<Identifier, List<Resource>> tags = resources.listResourceStacks("tags/item", DataScan::isJson);
-        // 26.1 reads crafting recipes from their files: KubeJS and CraftTweaker changes aren't seen here.
-        RecipeCheck recipeCheck = new RecipeCheck(DataScan::itemName, DataScan::modName);
+        Map<String, String> sources = new HashMap<>();
+        recipes.forEach((path, r) -> sources.put(id(path, "recipe/"), r.sourcePackId()));
+        // The recipes the game loaded, so KubeJS, CraftTweaker and Almost Unified changes count.
+        RecipeCheck recipeCheck = RecipeReader.read(server, sources);
+        recipeCheck.playersCanPick(ModList.get().isLoaded("polymorph")); // players choose clashing results
 
         CompletableFuture.supplyAsync(() -> {
             DataScanner scanner = new DataScanner(namespaces::contains);
@@ -68,9 +69,6 @@ final class DataScan {
                     throw new RuntimeException("couldn't read FTB Quests files: " + e.getMessage(), e);
                 }
             }
-            RecipeFiles recipeFiles = new RecipeFiles();
-            tags.forEach((path, stack) -> stack.forEach(r -> recipeFiles.tag(id(path, "tags/item/"), read(r))));
-            recipes.forEach((path, r) -> recipeFiles.recipe(recipeCheck, id(path, "recipe/"), r.sourcePackId(), read(r)));
             recipeCheck.madeAll(scanner.gives());
             scanner.questTaskItems().forEach((item, files) -> files.forEach(f -> recipeCheck.questNeeds(f, item)));
             return save(scanner, recipeCheck, server.isDedicatedServer());
@@ -129,7 +127,7 @@ final class DataScan {
         return out;
     }
 
-    private static String itemName(String id) {
+    static String itemName(String id) {
         Identifier rl = Identifier.tryParse(id);
         if (rl == null) return id;
         return BuiltInRegistries.ITEM.getOptional(rl).map(item -> new ItemStack(item).getHoverName().getString()).orElse(id);

@@ -81,10 +81,34 @@ public final class JarReader {
                     return in.readAllBytes();
                 }
             };
-            return read(file, entries, 0, legacy);
+            return read(file, entries, 0, legacy).withJava(javaFor(zip));
         } catch (IOException | RuntimeException e) {
             return new ModJar(file, ModJar.Kind.BROKEN, List.of(), List.of(), describe(e));
         }
+    }
+
+    /**
+     * The Java a jar's code was built for (class file version 65 = Java 21), from its first few classes; the lowest
+     * of them, so one odd class doesn't count. 0 with fewer than 3 classes: a data jar with a tiny helper class
+     * (never loaded) isn't a mod that needs that Java. Multi-release copies in META-INF are skipped.
+     */
+    static int javaFor(ZipFile zip) {
+        int lowest = Integer.MAX_VALUE;
+        int seen = 0;
+        for (java.util.Enumeration<? extends ZipEntry> e = zip.entries(); e.hasMoreElements() && seen < 5; ) {
+            ZipEntry entry = e.nextElement();
+            String name = entry.getName();
+            if (!name.endsWith(".class") || name.startsWith("META-INF/") || name.endsWith("module-info.class")) continue;
+            try (InputStream in = zip.getInputStream(entry)) {
+                byte[] head = in.readNBytes(8);
+                if (head.length < 8 || (head[0] & 0xFF) != 0xCA || (head[1] & 0xFF) != 0xFE) continue;
+                lowest = Math.min(lowest, (((head[6] & 0xFF) << 8) | (head[7] & 0xFF)) - 44);
+                seen++;
+            } catch (IOException | RuntimeException ex) {
+                return 0;
+            }
+        }
+        return seen < 3 ? 0 : lowest;
     }
 
     private static ModJar read(Path file, Entries entries, int depth, boolean legacy) throws IOException {

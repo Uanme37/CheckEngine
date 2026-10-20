@@ -50,6 +50,7 @@ final class DataScan {
         Map<String, String> sources = new HashMap<>();
         recipes.forEach((path, r) -> sources.put(id(path, "recipes/"), r.sourcePackId()));
         RecipeCheck recipeCheck = RecipeReader.read(server, sources);
+        recipeCheck.playersCanPick(ModList.get().isLoaded("polymorph")); // players choose clashing results
 
         CompletableFuture.supplyAsync(() -> {
             DataScanner scanner = new DataScanner(namespaces::contains);

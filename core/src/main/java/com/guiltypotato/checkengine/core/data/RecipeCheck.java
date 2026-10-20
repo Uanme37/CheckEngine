@@ -114,6 +114,13 @@ public final class RecipeCheck {
         questNeeds.computeIfAbsent(base(item), k -> new LinkedHashSet<>()).add(questFile);
     }
 
+    private boolean playersCanPick;
+
+    /** Polymorph (or a mod like it) is installed: players choose between clashing recipes, so clashes are only info. */
+    public void playersCanPick(boolean canPick) {
+        this.playersCanPick = canPick;
+    }
+
     public int checked() {
         return recipes.size();
     }
@@ -123,7 +130,17 @@ public final class RecipeCheck {
         List<Clash> all = clashes();
         List<List<Recipe>> clashes = groups(all.stream().filter(Clash::exact).toList());
         List<List<Recipe>> overlaps = groups(all.stream().filter(c -> !c.exact()).toList());
-        if (!clashes.isEmpty()) {
+        if (!clashes.isEmpty() && playersCanPick) {
+            // Polymorph lets players choose the result at the crafting table, so nothing is lost: good to know only.
+            out.add(new Finding(Severity.INFO, Finding.RECIPE_CLASH,
+                    clashes.size() + (clashes.size() == 1 ? " recipe clash" : " recipe clashes")
+                            + " (players can pick with Polymorph)",
+                    "Each group below is crafting recipes with exactly the same ingredients but different results. "
+                            + "Polymorph is installed, so players can switch between them at the crafting table:\n\n"
+                            + list(clashes.stream().map(g -> groupLine(g, true)).toList(), true)
+                            + "\n\n" + idList(clashes),
+                    null, List.of()));
+        } else if (!clashes.isEmpty()) {
             out.add(new Finding(Severity.WARNING, Finding.RECIPE_CLASH,
                     clashes.size() + (clashes.size() == 1 ? " recipe clash" : " recipe clashes"),
                     "Each group below is crafting recipes with exactly the same ingredients but different results. "

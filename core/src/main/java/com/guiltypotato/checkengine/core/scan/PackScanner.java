@@ -183,12 +183,16 @@ public final class PackScanner {
         topLevel.forEach((id, list) -> installedMods.put(id, new SameJob.Installed(list.get(0).mod().name(),
                 list.get(0).jar().fileName())));
         findings.addAll(SameJob.check(installedMods));
+        findings.addAll(BadPairs.check(installedMods));
+        newerJavaMods(jars, options, findings);
         List<ModInfo> loadedMods = dependents.stream().map(Provider::mod).toList();
         List<RootProblem> roots = new ArrayList<>(LoadBlockers.analyze(blockers, loadedMods, jars, modsFolder));
         addOtherProblems(roots, findings, explainedByRoots);
         Changes changes = changesSinceLastGoodLaunch(modsFolder, jars, options);
         List<RootProblem> linked = changes == null ? roots : changes.annotate(roots);
         if (changes != null) findings.addAll(changes.downgradeFindings());
+        if (changes != null) findings.addAll(SettingsReset.check(changes, modsFolder.getParent(),
+                modsFolder.getParent().resolve("checkengine")));
 
         // Two copies of one mod would report its dependency problems twice.
         List<Finding> unique = new ArrayList<>(new java.util.LinkedHashSet<>(findings));
@@ -197,6 +201,48 @@ public final class PackScanner {
     }
 
     private record Provider(ModInfo mod, ModJar jar) {}
+
+    public static final String NEWER_JAVA = "mod-needs-newer-java";
+
+    /**
+     * Mods built for a newer Java than the game runs on: they can't load and the game crashes. In game that's the
+     * Java of this launch; outside it (the CLI), the Java this Minecraft version uses.
+     */
+    private static void newerJavaMods(List<ModJar> jars, ScanOptions options, List<Finding> findings) {
+        int java = inGame() ? Runtime.version().feature() : javaFor(options.minecraftVersion());
+        if (java <= 0) return;
+        List<ModJar> newer = jars.stream().filter(j -> j.java() > java && !j.mods().isEmpty()).toList();
+        for (ModJar j : newer) {
+            findings.add(new Finding(Severity.ERROR, NEWER_JAVA, j.mods().get(0).name() + " needs Java " + j.java(),
+                    j.fileName() + " is made for Java " + j.java() + ", but this pack runs on Java " + java
+                            + ". It can't load, so the game will crash.",
+                    "Use the version of " + j.mods().get(0).name() + " made for this Minecraft, or set the launcher "
+                            + "to Java " + j.java() + " if this Minecraft supports it.", List.of(j.fileName())));
+        }
+    }
+
+    private static boolean inGame() {
+        for (String c : List.of("net.neoforged.fml.loading.FMLLoader", "net.minecraftforge.fml.loading.FMLLoader")) {
+            try {
+                Class.forName(c, false, PackScanner.class.getClassLoader());
+                return true;
+            } catch (ClassNotFoundException | LinkageError ignored) {
+                // not this loader
+            }
+        }
+        return false;
+    }
+
+    /** The Java a Minecraft version runs on (0 when unknown): 26.x needs 25, 1.20.5+ 21, 1.18 to 1.20.4 17. */
+    static int javaFor(String minecraft) {
+        if (minecraft == null) return 0;
+        ModVersion v = ModVersion.parse(minecraft);
+        if (minecraft.matches("2\\d\\..*")) return 25;
+        if (v.compareTo(ModVersion.parse("1.20.5")) >= 0) return 21;
+        if (v.compareTo(ModVersion.parse("1.18")) >= 0) return 17;
+        if (v.compareTo(ModVersion.parse("1.17")) >= 0) return 16;
+        return 8;
+    }
 
     /** Compares the pack with the last launch that worked (saved by the mod in checkengine/ next to mods/). */
     private static Changes changesSinceLastGoodLaunch(Path modsFolder, List<ModJar> jars, ScanOptions options) {

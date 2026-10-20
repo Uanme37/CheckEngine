@@ -12,7 +12,16 @@ import java.util.List;
  * @param nestedMods mods shipped inside it (jar-in-jar); these satisfy dependencies but are never "duplicates"
  * @param error      why the jar couldn't be read, or null
  */
-public record ModJar(Path file, Kind kind, List<ModInfo> mods, List<ModInfo> nestedMods, String error) {
+public record ModJar(Path file, Kind kind, List<ModInfo> mods, List<ModInfo> nestedMods, String error, int java) {
+
+    /** @param java the Java its code was built for (0 when unknown or too few classes to tell) */
+    public ModJar(Path file, Kind kind, List<ModInfo> mods, List<ModInfo> nestedMods, String error) {
+        this(file, kind, mods, nestedMods, error, 0);
+    }
+
+    public ModJar withJava(int java) {
+        return new ModJar(file, kind, mods, nestedMods, error, java);
+    }
 
     public enum Kind {
         /** Has META-INF/neoforge.mods.toml. */
