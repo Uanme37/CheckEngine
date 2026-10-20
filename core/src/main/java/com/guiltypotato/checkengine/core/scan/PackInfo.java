@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 /**
- * Who the pack is, for Check Engine's screens: "Beyond the Crank won't start", and where players can get help.
+ * Who the pack is, for Check Engine's screens: "Test Pack won't start", and where players can get help.
  * The pack maker sets both in config/checkengine-pack.properties (shipped with the pack's config folder). Without a
  * name there, it's read from the launcher's instance (CurseForge's minecraftinstance.json, Prism's instance.cfg).
  *
@@ -82,7 +82,7 @@ public record PackInfo(String name, String supportLink, long recommendedMb, bool
         return Math.round(gb ? n * 1024 : n);
     }
 
-    /** The name in upper case for a headline ("BEYOND THE CRANK"), or null when unknown or too long. */
+    /** The name in upper case for a headline ("TEST PACK"), or null when unknown or too long. */
     public String headlineName() {
         return name == null || name.length() > MAX_HEADLINE_NAME ? null : name.toUpperCase(Locale.ROOT);
     }
@@ -196,7 +196,7 @@ public record PackInfo(String name, String supportLink, long recommendedMb, bool
         return out.toString();
     }
 
-    /** "Beyond The Crank (1)": the launcher's second copy of a pack, still the same pack. */
+    /** "Test Pack (1)": the launcher's second copy of a pack, still the same pack. */
     static String withoutCopyNumber(String name) {
         return name == null ? null : blankToNull(name.replaceFirst("\\s*\\(\\d+\\)$", ""));
     }

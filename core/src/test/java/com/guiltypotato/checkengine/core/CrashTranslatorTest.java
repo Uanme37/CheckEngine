@@ -8,7 +8,7 @@ import com.guiltypotato.checkengine.core.scan.Finding;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Excerpts of real crash reports from Beyond The Crank (1.21.1 NeoForge). */
+/** Excerpts of real crash reports from a big 1.21.1 NeoForge pack. */
 class CrashTranslatorTest {
 
     private static List<Finding> translate(String report) {
@@ -90,7 +90,7 @@ class CrashTranslatorTest {
         List<Finding> f = translate(LOADING_HEAD + """
                 -- Mod loading issue for: create_submarine --
                 Details:
-                	Mod file: /C:/Users/Gaming/curseforge/minecraft/Instances/TheCreate/mods/create_submarine-2.2.4.jar
+                	Mod file: /C:/Games/Instances/MyPack/mods/create_submarine-2.2.4.jar
                 	Failure message: Mod create_submarine requires aeronautics 1.1.3 or above
                 		Currently, aeronautics is not installed
 
@@ -213,7 +213,7 @@ class CrashTranslatorTest {
 
     @Test
     void mixinCrashNamesTheModWhosePatchFailed() {
-        // Soulrend (Forge 1.20.1 + Connector): no module tags in frames, "Suspected Mods: NONE".
+        // A Forge 1.20.1 pack with Connector: no module tags in frames, "Suspected Mods: NONE".
         List<Finding> f = translate("""
                 Description: Initializing game
 
@@ -279,7 +279,7 @@ class CrashTranslatorTest {
 
     @Test
     void sameModRegisteringTwiceSaysInstalledTwiceOrSetupRanTwice() {
-        // Beyond the Crank, 2026-10-08 (Check Engine 0.9.1 made Create's setup run twice).
+        // Test Pack, 2026-10-08 (Check Engine 0.9.1 made Create's setup run twice).
         List<Finding> f = translate("""
                 Description: Initializing game
 
@@ -330,7 +330,7 @@ class CrashTranslatorTest {
 
     @Test
     void listBrokenByTwoModsAtOnceIsARandomTimingCrash() {
-        // Craft to Exile 2 (Forge 1.20.1), 2026-10-11: the next launch loaded fine.
+        // A Forge 1.20.1 pack, 2026-10-11: the next launch loaded fine.
         List<Finding> f = translate("""
                 Description: Mod loading error has occurred
 
@@ -338,7 +338,7 @@ class CrashTranslatorTest {
 
                 -- MOD chillout --
                 Details:
-                	Mod File: /C:/Users/Gaming/curseforge/minecraft/Instances/Craft to Exile 2 (VR Support)/mods/SitChill 1.0.3.jar
+                	Mod File: /C:/Games/Instances/Forge Pack/mods/SitChill 1.0.3.jar
                 	Failure message: ChillOut (chillout) encountered an error during the sided_setup event phase
                 		java.lang.ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 0
                 	Mod Version: 1.0.0

@@ -195,7 +195,7 @@ final class Popup {
                 + (m.stripMineConfigs() ? " CONFIGS" : " MODS") : null);
     }
 
-    /** "BEYOND THE CRANK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
+    /** "TEST PACK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
     static String headline(Message m, PackInfo pack) {
         String name = pack.headlineName();
         if (name == null) return m.headline();

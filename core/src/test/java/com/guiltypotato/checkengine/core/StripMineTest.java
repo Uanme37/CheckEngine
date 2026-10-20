@@ -119,7 +119,7 @@ class StripMineTest {
     }
 
     /**
-     * Like Beyond the Crank: "hidden" uses "sneaky"'s code without declaring it, so switching sneaky off alone makes
+     * Like Test Pack: "hidden" uses "sneaky"'s code without declaring it, so switching sneaky off alone makes
      * hidden crash differently. Strip Mine must notice that isn't the original crash, keep sneaky on, and still find bad.
      */
     @Test
@@ -164,7 +164,7 @@ class StripMineTest {
     }
 
     /**
-     * Beyond the Crank: any mod failing to load ends in the same knock-on crash report ("Mod 'arch' is not
+     * Test Pack: any mod failing to load ends in the same knock-on crash report ("Mod 'arch' is not
      * available"). Only latest.log says which mod failed, so that's what tells the original crash from new ones.
      */
     @Test

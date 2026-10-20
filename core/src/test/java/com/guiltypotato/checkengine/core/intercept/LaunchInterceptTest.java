@@ -22,7 +22,7 @@ class LaunchInterceptTest {
 
     @Test
     void launchThatReachedTheTitleScreenThenCrashedIsNotAStartupProblem() throws Exception {
-        // Beyond the Crank: started 19:04, title screen 19:06, crashed later while playing.
+        // Test Pack: started 19:04, title screen 19:06, crashed later while playing.
         write(LaunchIntercept.LAST_LAUNCH_FILE, 10);
         write(PackSnapshot.FILE, 8);
         assertTrue(LaunchIntercept.reachedTitleScreen(folder));

@@ -107,7 +107,7 @@ class ChangesTest {
         assertTrue(r.changes().summary().contains("Updated: Jei 19.0 -> 19.1"), r.changes().summary());
     }
 
-    /** Real ATM11: 20 FancyMenu files after adding the mod read as one entry, a lone file stays named. */
+    /** A real 26.1 pack: 20 FancyMenu files after adding the mod read as one entry, a lone file stays named. */
     @Test
     void manyConfigFilesInOneFolderAreOneEntry() {
         java.util.List<Changes.Change> list = new java.util.ArrayList<>();

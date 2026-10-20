@@ -20,10 +20,10 @@ class PackInfoTest {
         Files.writeString(game.resolve("minecraftinstance.json"), """
                 {"baseModLoader":{"name":"neoforge-21.1.209","forgeVersion":"21.1.209"},
                  "installedAddons":[{"name":"Create","addonID":1}],
-                 "name":"Beyond The Crank","isUnlocked":true}""");
+                 "name":"Test Pack","isUnlocked":true}""");
         PackInfo p = PackInfo.load(game);
-        assertEquals("Beyond The Crank", p.name());
-        assertEquals("BEYOND THE CRANK", p.headlineName());
+        assertEquals("Test Pack", p.name());
+        assertEquals("TEST PACK", p.headlineName());
         assertNull(p.supportLink());
     }
 
@@ -40,11 +40,11 @@ class PackInfoTest {
     @Test
     void thePackMakersSettingsWin() throws Exception {
         Files.createDirectories(game.resolve("config"));
-        Files.writeString(game.resolve("minecraftinstance.json"), "{\"name\":\"Beyond The Crank (1)\"}");
+        Files.writeString(game.resolve("minecraftinstance.json"), "{\"name\":\"Test Pack (1)\"}");
         Files.writeString(game.resolve("config").resolve(PackInfo.FILE),
-                "pack_name=Beyond the Crank\nsupport_link=https://discord.gg/example\n");
+                "pack_name=Test Pack\nsupport_link=https://discord.gg/example\n");
         PackInfo p = PackInfo.load(game);
-        assertEquals("Beyond the Crank", p.name());
+        assertEquals("Test Pack", p.name());
         assertEquals("https://discord.gg/example", p.supportLink());
 
         Files.writeString(game.resolve("config").resolve(PackInfo.FILE), "support_link=javascript:alert(1)\n");

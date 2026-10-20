@@ -42,7 +42,7 @@ class ExportCheckTest {
                 "overrides/servers.dat", "x",
                 "overrides/saves/My World/level.dat", "x",
                 "overrides/mods/extra-1.0.jar", "x",
-                "overrides/config/somemod.json", "{\"folder\": \"C:\\\\Users\\\\Gaming\\\\Desktop\\\\stuff\"}"));
+                "overrides/config/somemod.json", "{\"folder\": \"C:\\\\Users\\\\Alex\\\\Desktop\\\\stuff\"}"));
         List<Finding> f = ExportCheck.check(z);
         String titles = f.stream().map(Finding::title).toList().toString();
         assertTrue(titles.contains("your game settings"), titles);

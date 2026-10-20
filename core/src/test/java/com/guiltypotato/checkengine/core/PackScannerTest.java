@@ -121,7 +121,7 @@ class PackScannerTest {
 
     @Test
     void monocleLetsIrisRunOnEmbeddium() throws IOException {
-        // Real FTB Skies 2: Iris says it needs Sodium and hates Embeddium; Monocle strips both rules at load time.
+        // A real pack: Iris says it needs Sodium and hates Embeddium; Monocle strips both rules at load time.
         neoMod("embeddium", "1.0.15", null).writeTo(mods, "embeddium.jar");
         neoMod("iris", "1.8.12", dep("iris", "embeddium", "incompatible", "[0.0.1,)", "CLIENT")
                 + dep("iris", "sodium", "required", "[0.6,)", "CLIENT")).writeTo(mods, "iris.jar");

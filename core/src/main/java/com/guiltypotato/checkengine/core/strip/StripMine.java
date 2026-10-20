@@ -615,7 +615,7 @@ public final class StripMine {
         while (changed) {
             changed = false;
             // A real mod being switched off is only replaced by another real one: a copy packed inside some other jar is
-            // often older (Beyond the Crank: Architectury 13.0.6 inside another mod took over when 13.0.11 was off,
+            // often older (Test Pack: Architectury 13.0.6 inside another mod took over when 13.0.11 was off,
             // and its addons refused to load). A library that was only ever packed is fine if any jar still packs it.
             Set<String> offReal = new HashSet<>();
             Set<String> offPacked = new HashSet<>();

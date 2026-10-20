@@ -88,7 +88,7 @@ class DataScannerTest {
         scanner.lootTable("create:chests/compat", "mod:create", """
                 {"pools": [{"entries": [{"type": "minecraft:item", "name": "farmersdelight:tomato"}]}]}
                 """);
-        // 1.21.1 names mod data packs "mod/<id>" (real FTB Skies 2: Farming for Blockheads market recipes).
+        // 1.21.1 names mod data packs "mod/<id>" (a real pack: Farming for Blockheads market recipes).
         scanner.recipe("farmingforblockheads:market/byg/aspen_sapling", "mod/farmingforblockheads",
                 "{\"type\":\"farmingforblockheads:market\",\"result\":{\"item\":\"byg:aspen_sapling\"}}");
         scanner.recipe("farmingforblockheads:market/quark/blue_blossom_sapling", "mod/farmingforblockheads",
@@ -101,7 +101,7 @@ class DataScannerTest {
 
     @Test
     void forgeNamesModDataByJar() {
-        // Forge 1.20.1 gives the jar file name as the source (real Craft to Exile 2: Lightman's Currency).
+        // Forge 1.20.1 gives the jar file name as the source (a real Forge 1.20.1 pack: Lightman's Currency).
         scanner.recipe("lightmanscurrency:auction_stand/biomesoplenty/fir", "lightmanscurrency-1.20.1-2.3.0.5.jar",
                 "{\"type\":\"minecraft:crafting_shapeless\",\"ingredients\":[{\"item\":\"biomesoplenty:fir_log\"}],"
                         + "\"result\":{\"item\":\"lightmanscurrency:auction_stand\"}}");
@@ -111,7 +111,7 @@ class DataScannerTest {
     }
 
     @Test
-    void questsFromAtm10Shape() {
+    void questsFromBigPackShape() {
         scanner.questFile("productive_bees.snbt", """
                 {
                 	icon: {

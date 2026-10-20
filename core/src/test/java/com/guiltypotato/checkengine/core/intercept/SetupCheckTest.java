@@ -20,10 +20,10 @@ class SetupCheckTest {
     void farTooLittleMemoryIsCaught() throws Exception {
         Files.createDirectories(game.resolve("mods"));
         Files.writeString(game.resolve("minecraftinstance.json"),
-                "{\"name\":\"Beyond The Crank\",\"recommendedRam\":11776,\"isUnlocked\":true}");
+                "{\"name\":\"Test Pack\",\"recommendedRam\":11776,\"isUnlocked\":true}");
         SetupCheck.Warning w = SetupCheck.memory(game, 4096);
         assertNotNull(w);
-        assertEquals("LOW MEMORY FOR BEYOND THE CRANK", w.headline());
+        assertEquals("LOW MEMORY FOR TEST PACK", w.headline());
         assertTrue(w.problem().contains("4 GB") && w.problem().contains("11.5 GB"), w.problem());
         assertTrue(w.fixNote().startsWith("CurseForge:"), w.fixNote());
         assertTrue(w.fix().contains("helps") && w.detail().contains("can run on less"), w.fix());
@@ -39,12 +39,12 @@ class SetupCheckTest {
         assertNull(SetupCheck.memory(game, 12544));
     }
 
-    /** Real ATM11: CurseForge said 4 GB, loading alone used 2.7 GB, 4 GB crashed with out of memory: warn. */
+    /** A real 26.1 pack: CurseForge said 4 GB, loading alone used 2.7 GB, 4 GB crashed with out of memory: warn. */
     @Test
     void measuredUseBeatsATooLowCurseForgeNumber() throws Exception {
         Files.createDirectories(game.resolve("mods"));
         Files.createDirectories(game.resolve("checkengine"));
-        Files.writeString(game.resolve("minecraftinstance.json"), "{\"name\":\"All the Mods 11\",\"recommendedRam\":4096}");
+        Files.writeString(game.resolve("minecraftinstance.json"), "{\"name\":\"Big Pack\",\"recommendedRam\":4096}");
         Files.writeString(game.resolve("checkengine").resolve("ram.properties"), "max_mb=12544\nused_after_load_mb=2714\n");
         SetupCheck.Warning w = SetupCheck.memory(game, 4096);
         assertNotNull(w);

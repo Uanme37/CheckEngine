@@ -89,7 +89,7 @@ class TomlAndVersionTest {
         assertTrue(ModVersion.parse("21.1.251").compareTo(ModVersion.parse("21.1.219")) > 0);
     }
 
-    /** Cases taken from a real ATM10 install that NeoForge accepts. */
+    /** Cases taken from a real 1.21.1 pack that NeoForge accepts. */
     @Test
     void mavenRulesFromRealPacks() {
         assertTrue(VersionRange.parse("[1.21-3.5.0,)").contains("1.21.1-3.9.9"));

@@ -169,7 +169,7 @@ public final class HelpBundle {
                 t = t.replace(home, "<home>").replace(home.replace('\\', '/'), "<home>");
             }
             if (user != null) {
-                // e.g. "/C:/Users/Gaming/..." in crash reports, or the folder name on its own
+                // e.g. "/C:/Users/Alex/..." in crash reports, or the folder name on its own
                 t = Pattern.compile("([\\\\/]Users[\\\\/])" + Pattern.quote(user) + "(?=[\\\\/])", Pattern.CASE_INSENSITIVE)
                         .matcher(t).replaceAll("$1<user>");
             }

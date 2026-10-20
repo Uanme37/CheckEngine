@@ -19,7 +19,7 @@ class StripMinePlanTest {
     Path mods;
 
     /**
-     * Beyond the Crank: Architectury 13.0.11 is a mod of its own, and another mod carries an old 13.0.6 copy inside.
+     * Test Pack: Architectury 13.0.11 is a mod of its own, and another mod carries an old 13.0.6 copy inside.
      * Switching the real one off must switch its addons off too: the packed copy is too old for them.
      */
     @Test
