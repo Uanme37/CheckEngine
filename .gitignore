@@ -53,3 +53,17 @@ crash-library/
 # Working notes for Claude: stay on the PC, not on GitHub
 HANDOFF.md
 CLAUDE.md
+
+# Page images, dev tools and test notes: stay on the PC (A3, 2026-10-20)
+docs/page/
+tools/
+test-packs/
+page-images/
+page-src/
+page-preview.html
+curseforge-page.*
+modrinth-page.md
+Check Engine - Overview.md
+backups/
+early-test-poc/
+recipe-check-test/

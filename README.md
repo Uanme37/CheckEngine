@@ -8,7 +8,6 @@ Tells players and pack makers what's broken in a pack, in plain English. NeoForg
 - `core/` plain Java scanner (reads jars + `META-INF/neoforge.mods.toml`), no Minecraft code
 - `mod/` NeoForge mod: boot warning screen + `/checkengine scan`
 - `cli/` standalone jar: crash translator, server pack builder
-- `test-packs/` notes on packs we test against
 
 ## Build
 Java 21.
