@@ -23,6 +23,8 @@ public final class CheckEngine {
      * picks this up and opens the report screen. Chat mods send clicked commands to the server, so this always works.
      */
     public static volatile boolean reportRequested;
+    /** /checkengine join in singleplayer: the player's side opens the explanation screen. */
+    public static volatile boolean joinRequested;
     public static final String MOD_ID = "checkengine";
     public static final Logger LOGGER = LogUtils.getLogger();
 
@@ -50,6 +52,8 @@ public final class CheckEngine {
                         .executes(ctx -> DataScan.run(ctx.getSource())))
                 .then(Commands.literal("startup").requires(s -> s.hasPermission(2))
                         .executes(ctx -> startup(ctx.getSource())))
+                .then(Commands.literal("join").requires(s -> s.hasPermission(2) || !s.getServer().isDedicatedServer())
+                        .executes(ctx -> join(ctx.getSource())))
                 .then(Commands.literal("export")
                         .requires(s -> s.hasPermission(2) || !s.getServer().isDedicatedServer())
                         .executes(ctx -> export(ctx.getSource()))));
@@ -74,6 +78,32 @@ public final class CheckEngine {
     }
 
     /** /checkengine startup: the last launch's total and its slowest mods, with a link to the full report. */
+    /** /checkengine join: why the last player was kicked with "Invalid player data", from this server's log. */
+    private static int join(CommandSourceStack source) {
+        if (!source.getServer().isDedicatedServer()) { // singleplayer: show it on the explanation screen
+            joinRequested = true;
+            return 1;
+        }
+        java.nio.file.Path log = FMLPaths.GAMEDIR.get().resolve("logs").resolve("latest.log");
+        com.guiltypotato.checkengine.core.crash.JoinFailure.Result r;
+        try {
+            r = com.guiltypotato.checkengine.core.crash.JoinFailure.fromLog(
+                    new String(java.nio.file.Files.readAllBytes(log), java.nio.charset.StandardCharsets.UTF_8)); // lenient: logs can hold odd bytes
+        } catch (java.io.IOException | RuntimeException e) {
+            r = null;
+        }
+        if (r == null) {
+            source.sendSuccess(() -> Component.literal("Check Engine: no \"Invalid player data\" kick in this session's log."), false);
+            return 0;
+        }
+        com.guiltypotato.checkengine.core.scan.Finding f = r.finding();
+        LOGGER.warn("Check Engine: {}: {} Fix: {}", f.title(), f.detail(), f.fix());
+        source.sendSuccess(() -> Component.literal("Check Engine: " + f.title()).withStyle(net.minecraft.ChatFormatting.RED), false);
+        for (String line : f.detail().split("\n")) source.sendSuccess(() -> Component.literal(line), false);
+        source.sendSuccess(() -> Component.literal("Fix: " + f.fix()).withStyle(net.minecraft.ChatFormatting.GREEN), false);
+        return 1;
+    }
+
     private static int startup(CommandSourceStack source) {
         StartupTimes.Data d = StartupTimes.load(BootCheck.outputFolder());
         if (d == null) {

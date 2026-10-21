@@ -22,6 +22,8 @@ public final class ClientEvents {
     private static boolean checked;
     private static boolean crashSeen;
     private static boolean openReport;
+    /** The kick screen already explained (each one only once). */
+    private static Screen joinExplained;
 
     private ClientEvents() {}
 
@@ -64,11 +66,15 @@ public final class ClientEvents {
         }
         if (!first || StripMine.running(BootCheck.outputFolder()) != null) return;
         Report report = BootCheck.get();
+        fixedToast(report);
         Screen next = title;
         if (report != null) {
             // Quiet mode: the pack maker can hide warnings players don't need
             List<Finding> findings = com.guiltypotato.checkengine.core.scan.PackInfo.load(
-                    BootCheck.outputFolder().getParent()).visible(BootCheck.worthShowing(report));
+                    BootCheck.outputFolder().getParent()).visible(BootCheck.worthShowing(report)).stream()
+                    // the backup screen already says a mod went back a version: don't say it twice
+                    .filter(f -> !(f.code().equals(com.guiltypotato.checkengine.core.scan.Changes.DOWNGRADE_CODE)
+                            && DowngradeScreen.willShow(report.changes()))).toList();
             if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
         }
         // Crash Doctor first: if the last game crashed, that's what the player wants to know about.
@@ -83,6 +89,16 @@ public final class ClientEvents {
             Screen worlds = SafeRemoveScreen.of(next, BootCheck.worldsUsingRemovedMods(), report.changes());
             if (worlds != null) next = worlds;
         }
+        // A mod went back to an older version: offer a backup of the worlds played last before one is opened.
+        if (crash == null && report != null) {
+            Screen down = DowngradeScreen.of(next, report.changes());
+            if (down != null) next = down;
+        }
+        // A kick (Invalid player data) last session that the kick screen didn't explain
+        if (crash == null) {
+            Screen join = JoinFailScreen.lastSession(next);
+            if (join != null) next = join;
+        }
         if (crash != null) next = new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
         if (next != title) event.setNewScreen(next);
     }
@@ -94,6 +110,15 @@ public final class ClientEvents {
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         try {
+            explainJoinKick(event);
+            // Another mod (FancyMenu...) put the title screen over our backup screen before it was answered: back on top
+            if (event.getScreen() instanceof TitleScreen && DowngradeScreen.showing != null
+                    && Minecraft.getInstance().screen != DowngradeScreen.showing && downgradeReopens++ < 3) {
+                Screen ours = DowngradeScreen.showing;
+                CheckEngine.LOGGER.info("Check Engine: the title screen covered the backup screen, opening it again");
+                Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(ours));
+                return;
+            }
             if (event.getScreen() instanceof CrashDoctorScreen) {
                 crashSeen = true;
                 return;
@@ -111,6 +136,41 @@ public final class ClientEvents {
         }
     }
 
+    /** Kicked with "Invalid player data": open the explanation over the kick screen, once. */
+    private static void explainJoinKick(ScreenEvent.Init.Post event) {
+        Screen s = event.getScreen();
+        if (!(s instanceof net.minecraft.client.gui.screens.DisconnectedScreen) || s == joinExplained) return;
+        String reason = net.minecraft.client.resources.language.I18n.get("multiplayer.disconnect.invalid_player_data");
+        boolean found = false;
+        for (var l : event.getListenersList()) {
+            if (l instanceof net.minecraft.client.gui.components.AbstractWidget w && w.getMessage().getString().contains(reason)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return;
+        joinExplained = s;
+        CheckEngine.LOGGER.info("Check Engine: kicked with Invalid player data, explaining it");
+        Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(JoinFailScreen.of(s, true)));
+    }
+
+    private static boolean fixedChecked;
+    private static int downgradeReopens;
+
+    /** "Fixed!": a problem or warning from the last launch is gone. Once per launch, never during Strip Mine. */
+    private static void fixedToast(Report report) {
+        if (fixedChecked || report == null || StripMine.running(BootCheck.outputFolder()) != null) return;
+        fixedChecked = true;
+        java.util.List<String> fixed = com.guiltypotato.checkengine.core.scan.FixedProblems.update(BootCheck.outputFolder(),
+                BootCheck.worthShowing(report));
+        if (fixed.isEmpty()) return;
+        CheckEngine.LOGGER.info("Check Engine: fixed since last launch: {}", fixed);
+        Minecraft.getInstance().execute(() -> net.minecraft.client.gui.components.toasts.SystemToast.add(Minecraft.getInstance().getToasts(),
+                    net.minecraft.client.gui.components.toasts.SystemToast.SystemToastIds.PERIODIC_NOTIFICATION,
+                net.minecraft.network.chat.Component.literal("Check Engine: Fixed!"),
+                net.minecraft.network.chat.Component.literal(com.guiltypotato.checkengine.core.scan.FixedProblems.toastText(fixed))));
+    }
+
     /** "Open report" in the scan's chat line runs this; the screen opens on the next tick, after chat closes. */
     @SubscribeEvent
     public static void onClientCommands(net.minecraftforge.client.event.RegisterClientCommandsEvent event) {
@@ -122,7 +182,13 @@ public final class ClientEvents {
 
     @SubscribeEvent
     public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
-        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END || (!openReport && !CheckEngine.reportRequested)) return;
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) return;
+        if (CheckEngine.joinRequested) { // /checkengine join in singleplayer
+            CheckEngine.joinRequested = false;
+            Minecraft.getInstance().setScreen(JoinFailScreen.of(null, false));
+            return;
+        }
+        if (!openReport && !CheckEngine.reportRequested) return;
         openReport = false;
         CheckEngine.reportRequested = false;
         try {

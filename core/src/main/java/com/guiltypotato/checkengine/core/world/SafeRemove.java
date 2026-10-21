@@ -135,9 +135,29 @@ public final class SafeRemove {
 
     /** Copies the world next to itself in saves/ (it shows in the world list). Returns the copy. */
     public static Path backup(Path world) throws IOException {
+        return backup(world, "removing mods");
+    }
+
+    /** Same, with why in the copy's name: "My World - backup before going back a version 2026-10-21 17.30". */
+    public static Path backup(Path world, String before) throws IOException {
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm"));
-        Path to = world.resolveSibling(world.getFileName() + " - backup before removing mods " + stamp);
+        Path to = world.resolveSibling(world.getFileName() + " - backup before " + before + " " + stamp);
         com.guiltypotato.checkengine.core.crash.WorldRescue.copyFolder(world, to);
         return to;
+    }
+
+    /** The worlds played most recently (saves/ folders with a level.dat), newest first, at most {@code max}. */
+    public static List<Path> recentWorlds(Path gameDir, int max) {
+        Path saves = gameDir.resolve("saves");
+        if (!java.nio.file.Files.isDirectory(saves)) return List.of();
+        try (java.util.stream.Stream<Path> s = java.nio.file.Files.list(saves)) {
+            return s.filter(p -> java.nio.file.Files.isRegularFile(p.resolve("level.dat")))
+                    .filter(p -> !p.getFileName().toString().contains(" - backup before "))
+                    .sorted(java.util.Comparator.comparingLong((Path p) -> p.resolve("level.dat").toFile().lastModified())
+                            .reversed())
+                    .limit(max).toList();
+        } catch (IOException e) {
+            return List.of();
+        }
     }
 }

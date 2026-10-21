@@ -32,7 +32,7 @@ class HelpBundleTest {
         String home = System.getProperty("user.home");
         Files.createDirectories(pack.resolve("logs"));
         Files.writeString(pack.resolve("logs/latest.log"), """
-                [main/INFO]: Setting user: Uanmee
+                [main/INFO]: Setting user: Steve
                 [main/INFO]: Loading %s/curseforge/mods/x.jar
                 [main/INFO]: Connecting to 203.0.113.7, 25565 (local 127.0.0.1)
                 [main/INFO]: Found mod file somemod-1.20.1.2.jar version 2.0.1.4

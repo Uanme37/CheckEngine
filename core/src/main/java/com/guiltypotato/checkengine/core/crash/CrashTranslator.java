@@ -173,7 +173,12 @@ public final class CrashTranslator {
 
     /** Explains a Forge latest.log that stopped on missing or wrong-version mods, or returns null if it didn't. */
     public static Explanation translateLog(String log) {
-        if (!log.contains(FORGE_DEPS_MARKER)) return null;
+        if (!log.contains(FORGE_DEPS_MARKER)) {
+            // No crash, but a player was kicked with "Invalid player data": the log says which mod did it.
+            JoinFailure.Result join = JoinFailure.fromLog(log);
+            return join == null ? null : new Explanation("A player was kicked: Invalid player data", join.error(),
+                    List.of(join.finding()));
+        }
         List<Finding> issues = new ArrayList<>();
         Matcher m = FORGE_MISSING.matcher(log);
         java.util.Set<String> seen = new java.util.HashSet<>();
