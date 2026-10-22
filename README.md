@@ -2,6 +2,8 @@
 
 Tells players and pack makers what's broken in a pack, in plain English. NeoForge 1.21.1 and 26.1, Forge 1.20.1. No gameplay changes.
 
+**Download:** [Modrinth](https://modrinth.com/mod/check-engine) or [GitHub releases](https://github.com/Uanme37/CheckEngine/releases/latest) (the GitHub zip also has the standalone checker).
+
 **Pack makers:** [make your pack Check Engine ready](docs/pack-makers.md) (config, badge, tools).
 
 ## Layout

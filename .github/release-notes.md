@@ -1,5 +1,7 @@
 Check Engine tells you what's broken in a modpack, in plain English. It never changes gameplay.
 
+Also on [Modrinth](https://modrinth.com/mod/check-engine).
+
 ## Check a pack without starting the game (easiest)
 1. Download **CheckEngine-v0.18.1.zip** below and unzip it anywhere.
 2. Drag your modpack folder (for example a CurseForge instance folder) onto **Check Pack.bat**.
