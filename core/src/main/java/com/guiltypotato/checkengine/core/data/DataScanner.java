@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -62,6 +63,14 @@ public final class DataScanner {
         boolean fromMod() {
             // NeoForge names a mod's built-in data "mod/<id>" or "mod:<id>", Forge 1.20.1 by its jar file.
             return source != null && (source.startsWith("mod:") || source.startsWith("mod/") || source.endsWith(".jar"));
+        }
+
+        /**
+         * True when a recipe or loot table belongs to the missing mod itself ("createdieselgenerators:crafting/..."):
+         * a compat datapack's extras for a mod that isn't installed. Minecraft skips it and nothing else loses a recipe.
+         */
+        boolean forMissing(String mod) {
+            return kind != Kind.QUEST && file.startsWith(mod + ":");
         }
     }
 
@@ -222,9 +231,21 @@ public final class DataScanner {
         List<Finding> out = new ArrayList<>();
         // Mods like Farming for Blockheads ship recipes for dozens of optional mods; one note covers them all.
         List<String> leftovers = new ArrayList<>();
+        // Compat datapacks do the same under the missing mod's own name; one note per datapack says which file it is.
+        Map<String, Set<String>> packFiles = new TreeMap<>();
+        Map<String, Set<String>> packMods = new TreeMap<>();
+        Set<String> packsWithLoot = new HashSet<>();
         byMissingMod.forEach((mod, refs) -> {
-            if (refs.stream().allMatch(Ref::fromMod)) {
-                leftovers.add(mod + " (" + refs.stream().map(Ref::file).distinct().count() + ")");
+            if (refs.stream().allMatch(r -> r.fromMod() || r.forMissing(mod))) {
+                long inMods = refs.stream().filter(Ref::fromMod).map(Ref::file).distinct().count();
+                if (inMods > 0) leftovers.add(mod + " (" + inMods + ")");
+                for (Ref r : refs) {
+                    if (r.fromMod()) continue;
+                    String pack = packName(r.source());
+                    packFiles.computeIfAbsent(pack, k -> new TreeSet<>()).add(r.file());
+                    packMods.computeIfAbsent(pack, k -> new TreeSet<>()).add(mod);
+                    if (r.kind() == Kind.LOOT_TABLE) packsWithLoot.add(pack);
+                }
             } else {
                 out.add(missingMod(mod, refs));
             }
@@ -236,6 +257,16 @@ public final class DataScanner {
                             + "them, so there's nothing to fix: " + String.join(", ", leftovers) + ".",
                     null, List.of()));
         }
+        packFiles.forEach((pack, files) -> {
+            Set<String> mods = packMods.get(pack);
+            out.add(new Finding(Severity.INFO, Finding.ITEMS_FROM_MISSING_MOD,
+                    "Datapack extras for mods you don't have",
+                    pack + " has " + files.size() + (packsWithLoot.contains(pack) ? " recipes and loot tables" : files.size() == 1 ? " recipe" : " recipes")
+                            + " for " + (mods.size() == 1 ? "a mod" : mods.size() + " mods") + " you don't have ("
+                            + String.join(", ", mods) + "). Minecraft skips them, so there's nothing to fix. "
+                            + "Taking them out of the datapack only makes the log quieter.",
+                    null, List.of()));
+        });
         if (!brokenQuestItems.isEmpty()) out.add(brokenQuests());
         if (!unreadable.isEmpty()) {
             out.add(new Finding(Severity.INFO, Finding.UNREADABLE_METADATA,
@@ -245,6 +276,12 @@ public final class DataScanner {
         }
         out.sort(Comparator.comparing(Finding::severity).thenComparing(Finding::title));
         return out;
+    }
+
+    /** "file/compat.zip" -> "compat.zip" (the name the player sees in the datapack folder). */
+    private static String packName(String source) {
+        if (source == null) return "a datapack";
+        return source.startsWith("file/") ? source.substring(5) : source;
     }
 
     private Finding missingMod(String mod, List<Ref> refs) {

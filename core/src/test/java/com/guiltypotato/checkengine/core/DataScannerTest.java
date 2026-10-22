@@ -100,6 +100,40 @@ class DataScannerTest {
     }
 
     @Test
+    void datapackExtrasForAMissingModAreOnlyNotes() {
+        // A compat datapack ships recipes under the missing mod's own name (a real pack: a Rubberworks compat zip).
+        scanner.recipe("createdieselgenerators:crafting/pumpjack_head", "file/compat.zip",
+                "{\"type\":\"minecraft:crafting_shapeless\",\"ingredients\":[{\"item\":\"minecraft:iron_ingot\"}],"
+                        + "\"result\":{\"id\":\"createdieselgenerators:pumpjack_head\"}}");
+        // Same kind of missing item, but a recipe of the pack's own needs it: that one still warns.
+        scanner.recipe("mypack:engine", "file/mypack.zip",
+                "{\"type\":\"minecraft:crafting_shapeless\",\"ingredients\":[{\"item\":\"powergrid:wire\"}],"
+                        + "\"result\":{\"id\":\"create:cogwheel\"}}");
+        List<Finding> found = byCode(Finding.ITEMS_FROM_MISSING_MOD);
+        assertEquals(2, found.size(), found.toString());
+        Finding warning = found.stream().filter(f -> f.severity() == Finding.Severity.WARNING).findFirst().orElseThrow();
+        assertTrue(warning.title().contains("powergrid"), warning.title());
+        Finding note = found.stream().filter(f -> f.severity() == Finding.Severity.INFO).findFirst().orElseThrow();
+        assertEquals("Datapack extras for mods you don't have", note.title());
+        assertTrue(note.detail().startsWith("compat.zip has 1 recipe for a mod you don't have"
+                + " (createdieselgenerators)"), note.detail());
+    }
+
+    @Test
+    void oneNotePerDatapack() {
+        for (String r : List.of("offroad:crafting/wheel", "powergrid:crafting/wire", "powergrid:crafting/pole")) {
+            scanner.recipe(r, "file/CreateRubberworks_Compat_v6.zip",
+                    "{\"type\":\"minecraft:crafting_shapeless\",\"ingredients\":[{\"item\":\"minecraft:stick\"}],"
+                            + "\"result\":{\"id\":\"" + r.replace("crafting/", "") + "\"}}");
+        }
+        List<Finding> found = byCode(Finding.ITEMS_FROM_MISSING_MOD);
+        assertEquals(1, found.size(), found.toString());
+        assertEquals(Finding.Severity.INFO, found.get(0).severity());
+        assertTrue(found.get(0).detail().startsWith("CreateRubberworks_Compat_v6.zip has 3 recipes"
+                + " for 2 mods you don't have (offroad, powergrid)"), found.get(0).detail());
+    }
+
+    @Test
     void forgeNamesModDataByJar() {
         // Forge 1.20.1 gives the jar file name as the source (a real Forge 1.20.1 pack: Lightman's Currency).
         scanner.recipe("lightmanscurrency:auction_stand/biomesoplenty/fir", "lightmanscurrency-1.20.1-2.3.0.5.jar",
