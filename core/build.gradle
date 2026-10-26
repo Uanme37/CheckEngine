@@ -1,0 +1,23 @@
+// Plain Java library. NO Minecraft code in here, so it's quick to test.
+plugins {
+    id 'java-library'
+}
+
+base { archivesName = 'checkengine-core' }
+
+dependencies {
+    // Phase 2: add a TOML parser here for neoforge.mods.toml (night-config ships with NeoForge).
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test { useJUnitPlatform() }
+
+// The Forge 1.20.1 mod runs on Java 17, so the shared core must too.
+tasks.withType(JavaCompile).configureEach { options.release = 17 }
+
+// The Known Crash Library lives at the repo root (easy to find and edit on GitHub); every jar carries a copy.
+processResources {
+    from(rootProject.file('known-crashes.json')) { into 'com/guiltypotato/checkengine/core/crash' }
+}

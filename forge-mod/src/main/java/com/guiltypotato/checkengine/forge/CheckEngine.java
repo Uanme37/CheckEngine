@@ -1,0 +1,125 @@
+package com.guiltypotato.checkengine.forge;
+
+import com.guiltypotato.checkengine.core.scan.HelpBundle;
+import com.guiltypotato.checkengine.core.scan.StartupTimes;
+import com.mojang.logging.LogUtils;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.loading.FMLPaths;
+import org.slf4j.Logger;
+
+/** Forge 1.20.1 entry point. Same features as the NeoForge mod: boot check, warning screen, /checkengine scan. */
+@Mod(CheckEngine.MOD_ID)
+public final class CheckEngine {
+    /**
+     * Set by /cereport on a singleplayer world: the game's own server runs in the same program, so the player's side
+     * picks this up and opens the report screen. Chat mods send clicked commands to the server, so this always works.
+     */
+    public static volatile boolean reportRequested;
+    /** /checkengine join in singleplayer: the player's side opens the explanation screen. */
+    public static volatile boolean joinRequested;
+    public static final String MOD_ID = "checkengine";
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    public CheckEngine() {
+        StartupTimer.install(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
+        BootCheck.start();
+        MinecraftForge.EVENT_BUS.addListener(CheckEngine::registerCommands);
+        // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
+        MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {
+            if (e.getServer().isDedicatedServer()) {
+                BootCheck.launchSucceeded();
+                StartupTimer.finish(true);
+            }
+        });
+    }
+
+    private static void registerCommands(RegisterCommandsEvent event) {
+        // Ops only, except export in singleplayer: that's when a player needs it most.
+        event.getDispatcher().register(Commands.literal("cereport").executes(ctx -> {
+            if (!ctx.getSource().getServer().isDedicatedServer()) reportRequested = true;
+            return 1;
+        }));
+        event.getDispatcher().register(Commands.literal("checkengine")
+                .then(Commands.literal("scan").requires(s -> s.hasPermission(2))
+                        .executes(ctx -> DataScan.run(ctx.getSource())))
+                .then(Commands.literal("startup").requires(s -> s.hasPermission(2))
+                        .executes(ctx -> startup(ctx.getSource())))
+                .then(Commands.literal("join").requires(s -> s.hasPermission(2) || !s.getServer().isDedicatedServer())
+                        .executes(ctx -> join(ctx.getSource())))
+                .then(Commands.literal("export")
+                        .requires(s -> s.hasPermission(2) || !s.getServer().isDedicatedServer())
+                        .executes(ctx -> export(ctx.getSource()))));
+    }
+
+    /** /checkengine export: one zip with the reports, mod list and logs, to send to whoever is helping. */
+    private static int export(CommandSourceStack source) {
+        try {
+            String path = HelpBundle.create(FMLPaths.GAMEDIR.get(), BootCheck.get()).toAbsolutePath().toString();
+            source.sendSuccess(() -> Component.literal("Check Engine: help file saved: ").append(Component.literal(
+                    path.substring(path.lastIndexOf(java.io.File.separatorChar) + 1)).withStyle(s -> s.withUnderlined(true)
+                    .withClickEvent(source.getServer().isDedicatedServer() ? null
+                            : new ClickEvent(ClickEvent.Action.OPEN_FILE, BootCheck.outputFolder().toString()))
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(path))))), false);
+            source.sendSuccess(() -> Component.literal("Send it to whoever is helping you. Your Windows user name, "
+                    + "player name and IP addresses were blanked out."), false);
+            return 1;
+        } catch (java.io.IOException e) {
+            source.sendFailure(Component.literal("Check Engine: couldn't make the help file: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    /** /checkengine startup: the last launch's total and its slowest mods, with a link to the full report. */
+    /** /checkengine join: why the last player was kicked with "Invalid player data", from this server's log. */
+    private static int join(CommandSourceStack source) {
+        if (!source.getServer().isDedicatedServer()) { // singleplayer: show it on the explanation screen
+            joinRequested = true;
+            return 1;
+        }
+        java.nio.file.Path log = FMLPaths.GAMEDIR.get().resolve("logs").resolve("latest.log");
+        com.guiltypotato.checkengine.core.crash.JoinFailure.Result r;
+        try {
+            r = com.guiltypotato.checkengine.core.crash.JoinFailure.fromLog(
+                    new String(java.nio.file.Files.readAllBytes(log), java.nio.charset.StandardCharsets.UTF_8)); // lenient: logs can hold odd bytes
+        } catch (java.io.IOException | RuntimeException e) {
+            r = null;
+        }
+        if (r == null) {
+            source.sendSuccess(() -> Component.literal("Check Engine: no \"Invalid player data\" kick in this session's log."), false);
+            return 0;
+        }
+        com.guiltypotato.checkengine.core.scan.Finding f = r.finding();
+        LOGGER.warn("Check Engine: {}: {} Fix: {}", f.title(), f.detail(), f.fix());
+        source.sendSuccess(() -> Component.literal("Check Engine: " + f.title()).withStyle(net.minecraft.ChatFormatting.RED), false);
+        for (String line : f.detail().split("\n")) source.sendSuccess(() -> Component.literal(line), false);
+        source.sendSuccess(() -> Component.literal("Fix: " + f.fix()).withStyle(net.minecraft.ChatFormatting.GREEN), false);
+        return 1;
+    }
+
+    private static int startup(CommandSourceStack source) {
+        StartupTimes.Data d = StartupTimes.load(BootCheck.outputFolder());
+        if (d == null) {
+            source.sendFailure(Component.literal("Check Engine: no startup times yet. They're measured on the next launch."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Check Engine: last startup took " + StartupTimes.time(d.totalMs())
+                + " (mods " + StartupTimes.time(d.modsMs()) + ", then " + StartupTimes.time(d.finishingMs()) + ")"), false);
+        d.mods().stream().limit(5).forEach(m -> source.sendSuccess(() -> Component.literal("  " + m.name() + ": "
+                + StartupTimes.time(m.ms())), false));
+        String path = BootCheck.outputFolder().resolve(StartupTimes.REPORT_FILE).toAbsolutePath().toString();
+        source.sendSuccess(() -> Component.literal("Full report: ").append(Component.literal("checkengine/"
+                + StartupTimes.REPORT_FILE).withStyle(s -> s.withUnderlined(true)
+                .withClickEvent(source.getServer().isDedicatedServer() ? null
+                            : new ClickEvent(ClickEvent.Action.OPEN_FILE, path))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(path))))), false);
+        return 1;
+    }
+}

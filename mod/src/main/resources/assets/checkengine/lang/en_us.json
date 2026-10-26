@@ -1,0 +1,22 @@
+{
+  "checkengine.screen.title": "Check Engine found problems in this pack",
+  "checkengine.screen.title_warnings": "Check Engine has a heads-up about this pack",
+  "checkengine.screen.summary": "%s. The report has details and how to fix each one.",
+  "checkengine.screen.more": "...and %s more in the report",
+  "checkengine.screen.open_report": "Open report",
+  "checkengine.screen.dismiss": "Don't show these again",
+  "checkengine.screen.continue": "Continue",
+  "checkengine.join.title": "Can't join: your mods don't match the server",
+  "checkengine.join.summary": "Fix these and try again. The report has the full list.",
+  "checkengine.join.mods_folder": "Mods folder",
+  "checkengine.join.details": "Details",
+  "checkengine.crash.title": "Your last game crashed",
+  "checkengine.crash.when": "%s. Here's what Check Engine thinks happened.",
+  "checkengine.crash.fix": "Fix: ",
+  "checkengine.crash.also": "Also in the crash report:",
+  "checkengine.crash.changed": "Changed since the pack last worked:",
+  "checkengine.crash.open_details": "Open details",
+  "checkengine.crash.open_crash": "Crash report",
+  "checkengine.crash.help": "Make help file",
+  "checkengine.crash.strip_mine": "Strip Mine"
+}

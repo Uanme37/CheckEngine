@@ -1,0 +1,80 @@
+### Gradle ###
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/**/out/
+
+.run/
+
+### Eclipse ###
+.apt_generated
+.classpath
+.eclipse/
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/**/bin/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+### Minecraft Modding ###
+run/
+!**/src/**/run/
+**/src/generated/**/.cache/
+repo/
+!**/src/**/repo/
+
+# Check Engine
+mod/runs/
+test-packs/**/*.jar
+test-packs/**/*.zip
+curseforge-upload/
+demo/
+mod-26/runs/
+
+# Public crash reports from other people (local test data, never committed)
+crash-library/
+
+# Working notes for Claude: stay on the PC, not on GitHub
+HANDOFF.md
+CLAUDE.md
+
+# Page images, dev tools and test notes: stay on the PC (A3, 2026-10-20)
+docs/page/
+tools/
+test-packs/
+page-images/
+page-src/
+page-preview.html
+curseforge-page.*
+modrinth-page.md
+Check Engine - Overview.md
+backups/
+early-test-poc/
+recipe-check-test/
+early-test/
+early-test-26/
+early-test-forge/
+STATE.md
+LOG.md
+scans/
+BRIEFING.md
+README.md
+.github/release-notes.md
+docs/
+modrinth-page.html

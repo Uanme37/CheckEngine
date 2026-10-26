@@ -1,0 +1,49 @@
+name: build
+
+on:
+  # Only version releases run here, so the Actions tab stays short.
+  push:
+    tags: ['v*']
+  # Run by hand with a version (e.g. v0.1.0) to tag the current commit and release it.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.1.0
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          # 25 for the Minecraft 26.1 build (mod-26), 21 for everything else (listed last = default).
+          java-version: |
+            25
+            21
+      - uses: gradle/actions/setup-gradle@v6
+      - run: chmod +x gradlew
+      - run: ./gradlew build
+      # One download with everything a player needs: the mods (from early/, early-26/ and early-forge/, each with the mod packed inside), the standalone checker and its launcher.
+      - name: Collect files
+        run: |
+          mkdir dist
+          cp early/build/libs/*.jar early-26/build/libs/*.jar early-forge/build/libs/*.jar cli/build/libs/*.jar "Check Pack.bat" dist/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: checkengine
+          path: dist/
+      # On a v* tag (or a manual run with a tag), publish a GitHub release with the same files plus one zip of all of them.
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          (cd dist && zip -r "../CheckEngine-${TAG}.zip" .)
+          gh release create "$TAG" dist/* "CheckEngine-${TAG}.zip" --target "$GITHUB_SHA" \
+            --title "Check Engine ${TAG#v}" --generate-notes
