@@ -36,6 +36,10 @@ public final class CheckEngine {
         LoadingClues.add();
         modEventBus.addListener((FMLLoadCompleteEvent e) -> LoadingClues.remove());
         NeoForge.EVENT_BUS.addListener(CheckEngine::registerCommands);
+        // Mods > Check Engine > Config: the player's warnings switch
+        if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) {
+            com.guiltypotato.checkengine.client.ClientEvents.configScreen(modContainer);
+        }
         // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {
             if (e.getServer().isDedicatedServer()) {

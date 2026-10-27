@@ -56,13 +56,33 @@ public final class LogSpam {
      * @param lines     warnings and errors in them, in all
      * @param sources   the noisiest first
      * @param bigLogs   logs over 50 MB: "latest.log (350 MB)"
+     * @param normal    noisy mods left out because they were this noisy while the pack worked
+     * @param when      where that comes from: "when the pack worked" or "in earlier launches"
      */
-    public record Result(int launches, int lines, List<Source> sources, List<String> bigLogs) {
-        /** The mods worth naming: on average {@value #NOISY_PER_LAUNCH}+ lines per launch, at most 5. */
+    public record Result(int launches, int lines, List<Source> sources, List<String> bigLogs, List<String> normal,
+                         String when) {
+        public Result(int launches, int lines, List<Source> sources, List<String> bigLogs) {
+            this(launches, lines, sources, bigLogs, List.of(), "");
+        }
+
+        /**
+         * The mods worth naming: on average {@value #NOISY_PER_LAUNCH}+ lines per launch, at most 5, and not ones
+         * that were this noisy while the pack worked.
+         */
         public List<Source> noisy() {
+            return loud().filter(s -> !normal.contains(s.name())).limit(5).toList();
+        }
+
+        private java.util.stream.Stream<Source> loud() {
             // Minecraft and the loader itself: not something to update or remove
-            return sources.stream().filter(s -> !s.mod().equals("minecraft") && s.perLaunch(launches) >= NOISY_PER_LAUNCH)
-                    .limit(5).toList();
+            return sources.stream().filter(s -> !s.mod().equals("minecraft") && s.perLaunch(launches) >= NOISY_PER_LAUNCH);
+        }
+
+        /** Leaves out the noisy mods that were just as noisy while the pack worked (see {@link LogBaseline}). */
+        public Result onlyNew(LogBaseline.Normal before) {
+            List<String> same = loud().filter(s -> !LogBaseline.isNew(before.spam().get(s.mod()), s.perLaunch(launches)))
+                    .map(Source::name).toList();
+            return new Result(launches, lines, sources, bigLogs, same, before.when());
         }
 
         public boolean isEmpty() {
@@ -75,11 +95,18 @@ public final class LogSpam {
                     + " warnings and errors)\n");
             for (String b : bigLogs) sb.append("Big log: ").append(b).append(". Normal is under 20 MB.\n");
             List<Source> noisy = noisy();
+            if (!normal.isEmpty()) {
+                sb.append("Noisy, but just as noisy " + when + " (normal for this pack, left out): ")
+                        .append(String.join(", ", normal.subList(0, Math.min(8, normal.size()))))
+                        .append(normal.size() > 8 ? " and " + (normal.size() - 8) + " more" : "").append('\n');
+            }
             if (noisy.isEmpty()) {
-                sb.append("No mod floods the log.\n");
+                sb.append(normal.isEmpty() ? "No mod floods the log.\n" : "No new log noise.\n");
                 return sb.toString();
             }
-            sb.append("Mods writing the most warnings and errors (per launch):\n");
+            if (launches == 1) sb.append("Only one launch to read: can't tell yet what's normal for this pack.\n");
+            sb.append(normal.isEmpty() ? "Mods writing the most warnings and errors (per launch):\n"
+                    : "New noise (per launch):\n");
             for (Source s : noisy) {
                 sb.append(String.format(Locale.ROOT, "  %s: about %,d", s.name(), s.perLaunch(launches)));
                 if (s.errors() > 0) sb.append(String.format(Locale.ROOT, " (%,d errors in all)", s.errors()));
@@ -111,7 +138,7 @@ public final class LogSpam {
             if (text != null) logs.add(text);
         }
         Result r = analyze(logs);
-        return new Result(r.launches(), r.lines(), r.sources(), big);
+        return new Result(r.launches(), r.lines(), r.sources(), big).onlyNew(LogBaseline.forPack(gameDir, logs));
     }
 
     /** Counts warnings and errors per mod over these logs (one per launch). */
@@ -126,7 +153,7 @@ public final class LogSpam {
             for (String line : log.split("\r?\n")) {
                 if (line.isEmpty() || line.charAt(0) != '[') continue;
                 Matcher m = LINE.matcher(line);
-                if (!m.matches()) continue;
+                if (!m.matches() || KnownHarmless.logLine(line)) continue;
                 String message = m.group(3);
                 String mod = source(m.group(2), message, names);
                 total++;

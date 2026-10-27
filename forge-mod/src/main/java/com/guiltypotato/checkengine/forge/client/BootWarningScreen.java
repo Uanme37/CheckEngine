@@ -3,10 +3,8 @@ package com.guiltypotato.checkengine.forge.client;
 import com.guiltypotato.checkengine.forge.BootCheck;
 import com.guiltypotato.checkengine.forge.CheckEngine;
 import com.guiltypotato.checkengine.core.scan.Finding;
+import com.guiltypotato.checkengine.core.scan.Quiet;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.Util;
@@ -58,36 +56,24 @@ public final class BootWarningScreen extends DashScreen {
     private static List<Btn> buttons(Screen next, List<Finding> findings) {
         return List.of(
                 new Btn("Continue", () -> leave(next), true),
-                new Btn("Don't show again", () -> {
+                new Btn("Got it", () -> {
+                    Quiet.gotIt(BootCheck.outputFolder(), findings);
+                    leave(next);
+                }, true, "Hides these. A new warning still shows, on its own."),
+                new Btn("Only tell me when it breaks", () -> {
                     try {
-                        Files.writeString(dismissedFile(), fingerprint(findings), StandardCharsets.UTF_8);
+                        Quiet.setOnlyWhenItBreaks(BootCheck.outputFolder(), true);
                     } catch (IOException e) {
-                        CheckEngine.LOGGER.warn("Check Engine: couldn't save dismissal", e);
+                        CheckEngine.LOGGER.warn("Check Engine: couldn't save the warnings switch", e);
                     }
                     leave(next);
-                }, false, "Hides these until something in the pack changes."),
+                }, false, "No more warnings. Crashes and problems that stop the game still show. "
+                        + "Turn warnings back on: Mods > Check Engine > Config."),
                 new Btn("Open report", () -> Util.getPlatform().openFile(BootCheck.reportFile().toFile()), false,
                         "Opens the full check of the pack in a text file."));
     }
 
     private static void leave(Screen next) {
         Minecraft.getInstance().setScreen(next);
-    }
-
-    /** Remembers which findings the player dismissed, so the screen only comes back when something changes. */
-    static Path dismissedFile() {
-        return BootCheck.outputFolder().resolve("dismissed.txt");
-    }
-
-    static String fingerprint(List<Finding> findings) {
-        return Integer.toHexString(findings.stream().map(Finding::title).sorted().toList().hashCode());
-    }
-
-    static boolean dismissed(List<Finding> findings) {
-        try {
-            return Files.readString(dismissedFile(), StandardCharsets.UTF_8).strip().equals(fingerprint(findings));
-        } catch (IOException e) {
-            return false;
-        }
     }
 }

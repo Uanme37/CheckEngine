@@ -75,12 +75,16 @@ public final class ClientEvents {
                     // the backup screen already says a mod went back a version: don't say it twice
                     .filter(f -> !(f.code().equals(com.guiltypotato.checkengine.core.scan.Changes.DOWNGRADE_CODE)
                             && DowngradeScreen.willShow(report.changes()))).toList();
-            if (!findings.isEmpty() && !BootWarningScreen.dismissed(findings)) next = new BootWarningScreen(title, findings);
+            // the player's own choices: warnings they said "Got it" to, or warnings off altogether
+            findings = com.guiltypotato.checkengine.core.scan.Quiet.toShow(BootCheck.outputFolder(), findings);
+            if (!findings.isEmpty()) next = new BootWarningScreen(title, findings);
         }
         // Crash Doctor first: if the last game crashed, that's what the player wants to know about.
         LastCrash crash = BootCheck.lastCrash();
         // After a pack update, once: what's new, updated and gone (Crash Doctor comes first if the last game crashed).
-        if (crash == null && report != null) {
+        // Not for a player who only wants to hear from Check Engine when something breaks.
+        if (crash == null && report != null
+                && !com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) {
             Screen updated = PackUpdatedScreen.of(next, report.changes());
             if (updated != null) next = updated;
         }
@@ -177,13 +181,19 @@ public final class ClientEvents {
         return new CrashDoctorScreen(next, report == null ? crash : crash.withChanges(report.changes()));
     }
 
+    /** Mods > Check Engine > Config opens the player's warnings switch. Called on the player's side only. */
+    public static void configScreen(net.neoforged.fml.ModContainer container) {
+        container.registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
+                (net.neoforged.neoforge.client.gui.IConfigScreenFactory) (c, parent) -> WarningsScreen.of(parent));
+    }
+
     /** "Fixed!": a problem or warning from the last launch is gone. Once per launch, never during Strip Mine. */
     private static void fixedToast(Report report) {
         if (fixedChecked || report == null || StripMine.running(BootCheck.outputFolder()) != null) return;
         fixedChecked = true;
         java.util.List<String> fixed = com.guiltypotato.checkengine.core.scan.FixedProblems.update(BootCheck.outputFolder(),
                 BootCheck.worthShowing(report));
-        if (fixed.isEmpty()) return;
+        if (fixed.isEmpty() || com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) return;
         CheckEngine.LOGGER.info("Check Engine: fixed since last launch: {}", fixed);
         Minecraft.getInstance().execute(() -> net.minecraft.client.gui.components.toasts.SystemToast.add(Minecraft.getInstance().getToasts(),
                     new net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId(10000L),

@@ -141,6 +141,17 @@ public final class BootCheck {
         } catch (IOException | RuntimeException e) {
             CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
         }
+        // The log noise of a launch that worked is normal for this pack: the log checks only name what's new.
+        // Reading the log takes a moment in big packs, so not on the game's thread.
+        Thread t = new Thread(() -> {
+            try {
+                com.guiltypotato.checkengine.core.scan.LogBaseline.save(outputFolder(), outputFolder().getParent());
+            } catch (IOException | RuntimeException e) {
+                CheckEngine.LOGGER.warn("Check Engine: couldn't save the log baseline", e);
+            }
+        }, "Check Engine log baseline");
+        t.setDaemon(true);
+        t.start();
     }
 
     /**

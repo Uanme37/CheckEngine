@@ -32,6 +32,10 @@ public final class CheckEngine {
         StartupTimer.install(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         BootCheck.start();
         MinecraftForge.EVENT_BUS.addListener(CheckEngine::registerCommands);
+        // Mods > Check Engine > Config: the player's warnings switch
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
+            com.guiltypotato.checkengine.forge.client.ClientEvents.configScreen();
+        }
         // Dedicated servers measure once they're up (players measure at the title screen, see ClientEvents).
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent e) -> {
             if (e.getServer().isDedicatedServer()) {

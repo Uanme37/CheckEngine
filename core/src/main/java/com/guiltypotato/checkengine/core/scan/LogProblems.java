@@ -46,8 +46,26 @@ public final class LogProblems {
      * @param resets       config values that were thrown away
      * @param broken       config files that couldn't be read
      * @param missingAssets mod id -> how many missing textures/models it has
+     * @param normal        mods left out of missingAssets: they had as many while the pack worked
+     * @param when          where that comes from: "when the pack worked" or "in earlier launches"
      */
-    public record Result(List<Reset> resets, List<String> broken, Map<String, Integer> missingAssets) {
+    public record Result(List<Reset> resets, List<String> broken, Map<String, Integer> missingAssets,
+                         List<String> normal, String when) {
+        public Result(List<Reset> resets, List<String> broken, Map<String, Integer> missingAssets) {
+            this(resets, broken, missingAssets, List.of(), "");
+        }
+
+        /** Leaves out missing textures a mod already had while the pack worked (see {@link LogBaseline}). */
+        public Result onlyNew(LogBaseline.Normal before) {
+            Map<String, Integer> fresh = new TreeMap<>();
+            List<String> same = new ArrayList<>();
+            missingAssets.forEach((mod, n) -> {
+                if (LogBaseline.isNew(before.assets().get(mod), n)) fresh.put(mod, n);
+                else same.add(mod);
+            });
+            return new Result(resets, broken, fresh, same, before.when());
+        }
+
         public boolean isEmpty() {
             return resets.isEmpty() && broken.isEmpty() && missingAssets.isEmpty();
         }
@@ -73,6 +91,10 @@ public final class LogProblems {
                 sb.append("  Usually an addon that doesn't match its main mod's version, or a resource pack that "
                         + "overrides it.\n");
             }
+            if (!normal.isEmpty()) {
+                sb.append("Missing textures that were already missing " + when + " (left out): ")
+                        .append(normal.size()).append(normal.size() == 1 ? " mod\n" : " mods\n");
+            }
             return sb.toString();
         }
     }
@@ -89,7 +111,7 @@ public final class LogProblems {
             String text = GameLog.read(p);
             if (text != null) logs.add(text);
         }
-        return analyze(logs, gameDir);
+        return analyze(logs, gameDir).onlyNew(LogBaseline.forPack(gameDir, logs));
     }
 
     /** Logs newest first; {@code gameDir} only shortens file paths (may be null). */
@@ -118,7 +140,8 @@ public final class LogProblems {
                     resets.putIfAbsent(file + "|" + m.group(1), new Reset(file, m.group(1), was, reset));
                 } else if ((m = BROKEN_CONFIG.matcher(line)).find()) {
                     broken.add(shorten(m.group(1), gameDir));
-                } else if ((m = MISSING_ASSET.matcher(line)).find() && !m.group(1).equals("minecraft")) {
+                } else if ((m = MISSING_ASSET.matcher(line)).find() && !m.group(1).equals("minecraft")
+                        && !KnownHarmless.logLine(line)) {
                     thisLog.merge(m.group(1), 1, Integer::sum);
                 }
             }
