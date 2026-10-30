@@ -25,8 +25,8 @@ final class WarningsScreen {
         boolean quiet = Quiet.onlyWhenItBreaks(BootCheck.outputFolder());
         Runnable back = () -> Minecraft.getInstance().setScreen(parent);
         String undo = GoBack.done(BootCheck.outputFolder()) ? GoBack.undoSummary(BootCheck.outputFolder()) : null;
-        List<Section> sections = new ArrayList<>(List.of(new Section(quiet ? "ONLY WHEN IT BREAKS" : "ALL WARNINGS", quiet ? DashScreen.GREY : DashScreen.GREEN,
-                                quiet ? "-" : "✔", DashScreen.lines(quiet
+        List<Section> sections = new ArrayList<>(List.of(new Section(quiet ? "ONLY WHEN IT BREAKS" : "ALL WARNINGS", quiet ? DashScreen.GREY : DashScreen.BLUE,
+                                quiet ? "-" : "i", DashScreen.lines(quiet
                                         ? "Check Engine only shows up when the game crashed or a problem stops it."
                                         : "Check Engine shows warnings before the title screen, and what a pack update changed.",
                                 quiet ? "Warnings and pack update notes stay hidden."
@@ -41,7 +41,7 @@ final class WarningsScreen {
                             }
                             Minecraft.getInstance().setScreen(of(parent));
                         }, true),
-                        new Btn("Done", back, false)));
+                        new Btn("Continue", back, false)));
         // The Pit Stop screen, also for packs whose title screen hides the button (FancyMenu and the like)
         buttons.add(1, new Btn("Open Check Engine", () -> Minecraft.getInstance().setScreen(HubScreen.open(of(parent))),
                 true, "Start times, mods, Go back, warnings and the last crash."));
@@ -61,7 +61,7 @@ final class WarningsScreen {
             buttons.add(1, new Btn("Put it back", () -> Minecraft.getInstance().setScreen(putBack(parent, undo)),
                     true, "Undoes Go back. Asks first."));
         }
-        return new DashScreen(quiet ? DashScreen.GREY : DashScreen.GREEN, "WARNINGS " + (quiet ? "OFF" : "ON"), null,
+        return new DashScreen(quiet ? DashScreen.GREY : DashScreen.BLUE, "WARNINGS " + (quiet ? "OFF" : "ON"), null,
                 null, sections, buttons, back);
     }
 
@@ -71,7 +71,7 @@ final class WarningsScreen {
         return new DashScreen(DashScreen.AMBER, "PUT IT BACK?", null, null, List.of(
                 new Section("WHAT CHANGES", DashScreen.AMBER, "±", DashScreen.lines(undo + ".",
                         "That's the pack as it was before Go back, including what made it crash.")),
-                new Section("SAFE", DashScreen.GREEN, "✔", DashScreen.lines(
+                new Section("SAFE", DashScreen.GREEN, "✓", DashScreen.lines(
                         "Nothing is deleted: the old versions are renamed to .disabled."))),
                 List.of(new Btn("Put it back", () -> {
                     String text;
@@ -87,10 +87,10 @@ final class WarningsScreen {
                     Minecraft.getInstance().setScreen(new DashScreen(DashScreen.GREY, "PUT BACK", null, null, List.of(
                             new Section("DONE", DashScreen.GREY, "i", DashScreen.lines(text,
                                     "Restart the game so it loads your mods again."))),
-                            List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true),
-                                    new Btn("Later", () -> Minecraft.getInstance().setScreen(of(parent)), false)),
-                            () -> Minecraft.getInstance().setScreen(of(parent))));
+                            List.of(new Btn("Quit", () -> Minecraft.getInstance().stop(), true),
+                                    new Btn("Continue", () -> Minecraft.getInstance().setScreen(of(parent)), false)),
+                            () -> Minecraft.getInstance().setScreen(of(parent))).light(DashScreen.AMBER));
                 }, true), new Btn("Cancel", back, false)), // not "Back": beside "Put it back" it reads alike
-                back);
+                back).from(parent);
     }
 }

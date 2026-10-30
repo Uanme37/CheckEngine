@@ -50,10 +50,6 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         return count(Finding.Severity.ERROR) > 0;
     }
 
-    public List<Finding> byCode(String code) {
-        return findings.stream().filter(f -> f.code().equals(code)).toList();
-    }
-
     /** Plain text report for a console or a .txt file. */
     public String toText() {
         StringBuilder sb = new StringBuilder();

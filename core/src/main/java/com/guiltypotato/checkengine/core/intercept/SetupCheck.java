@@ -80,7 +80,7 @@ public final class SetupCheck {
                 ? "\nYour PC has " + pcGb + " GB, so " + gb(need) + " is fine."
                 : "\nYour PC has " + pcGb + " GB: give it about " + gb(spare) + " and close other programs while playing.");
         return new Warning("ignore_memory", "CE-08", "LOW MEMORY",
-                headName != null ? "LOW MEMORY FOR " + headName : "NOT ENOUGH MEMORY",
+                headName != null ? "Low memory for " + headName : "NOT ENOUGH MEMORY",
                 "MEMORY", "The game has " + gb(maxHeapMb) + ". " + name + (authors > 0 ? " recommends " : " needs about ")
                         + gb(need) + basis + ".",
                 "It can run on less, but with " + facts.modCount() + " mods " + gb(maxHeapMb) + " will probably freeze "

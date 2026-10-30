@@ -13,10 +13,6 @@ public final class CheckEngineCore {
 
     private CheckEngineCore() {}
 
-    public static String hello() {
-        return NAME + " core is alive";
-    }
-
     /** Scans a pack folder (or its mods folder) and returns everything that's wrong with it. */
     public static Report scan(Path packOrModsFolder, Side side) throws IOException {
         PackFolder pack = PackFolder.locate(packOrModsFolder, side);

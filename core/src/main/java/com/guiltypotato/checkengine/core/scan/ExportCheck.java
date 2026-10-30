@@ -59,12 +59,6 @@ public final class ExportCheck {
 
     private ExportCheck() {}
 
-    /** True for the files Check Pack.bat should treat as an export. */
-    public static boolean isExport(Path p) {
-        String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
-        return n.endsWith(".zip") || n.endsWith(".mrpack");
-    }
-
     public static List<Finding> check(Path archive) throws IOException {
         List<Finding> out = new ArrayList<>();
         try (ZipFile zip = new ZipFile(archive.toFile())) {

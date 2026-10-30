@@ -103,7 +103,7 @@ final class SafeRemoveScreen {
                 Screen result = new DashScreen(done ? DashScreen.GREEN : DashScreen.RED,
                         done ? "WORLDS BACKED UP" : "SOME BACKUPS FAILED", null, null, List.of(
                         new Section(done ? "IN YOUR WORLD LIST" : "WHAT HAPPENED", done ? DashScreen.GREEN : DashScreen.RED,
-                                done ? "✔" : "!", lines)),
+                                done ? "✓" : "!", lines)),
                         List.of(new Btn("Continue", () -> go(next), true)), () -> go(next));
                 showing = result;
                 Minecraft.getInstance().setScreen(result);

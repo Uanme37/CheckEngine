@@ -182,6 +182,17 @@ public final class CrashDoctor {
     }
 
     /**
+     * Whether the newest crash report is newer than the last launch that started and closed normally: the engine light
+     * stays red until a launch works again. Only reads file dates, so it's safe on the title screen.
+     */
+    public static boolean crashedSinceItWorked(Path gameDir, Path checkEngineFolder) {
+        Path good = checkEngineFolder.resolve("last-good-launch.properties");
+        if (!Files.isRegularFile(good)) return false;
+        long worked = modified(good);
+        return crashFiles(gameDir).stream().anyMatch(p -> modified(p) > worked);
+    }
+
+    /**
      * The last crash Crash Doctor showed, explained again (the hub's Last crash tab), or null when there's none or its
      * report is gone. It stays the last one until a newer crash is shown.
      */

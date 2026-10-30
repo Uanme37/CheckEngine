@@ -63,8 +63,9 @@ final class JoinFixScreens {
         List<Line> lines = new ArrayList<>();
         done.forEach(d -> lines.add(d.startsWith("Installed") || d.startsWith("Switched off") ? Line.text(d) : Line.dim(d)));
         if (changed) lines.add(Line.strong("Restart the game to load the changes, then join again."));
+        if (lines.isEmpty()) lines.add(Line.text("No mod could be changed from here. The list on the last screen says what each one needs."));
         List<Btn> buttons = new ArrayList<>();
-        if (changed) buttons.add(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true,
+        if (changed) buttons.add(new Btn("Quit", () -> Minecraft.getInstance().stop(), true,
                 "Mods only load when the game starts. Start it again from your launcher."));
         if (!pages.isEmpty()) {
             buttons.add(new Btn("Open mod pages", () -> pages.forEach(p -> Util.getPlatform().openUri(java.net.URI.create(p.url()))), !changed,
@@ -80,9 +81,9 @@ final class JoinFixScreens {
                 Minecraft.getInstance().setScreen(back);
             }, false, "Puts your mods back the way they were."));
         }
-        buttons.add(new Btn("Back", () -> Minecraft.getInstance().setScreen(back), buttons.isEmpty()));
-        return new DashScreen(changed ? DashScreen.GREEN : DashScreen.AMBER, changed ? "MODS FIXED" : "NOTHING I COULD FIX",
-                null, null, List.of(new Section("WHAT CHECK ENGINE DID", changed ? DashScreen.GREEN : DashScreen.AMBER,
-                changed ? "✔" : "!", lines)), buttons, () -> Minecraft.getInstance().setScreen(back));
+        buttons.add(new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), buttons.isEmpty()));
+        return new DashScreen(changed ? DashScreen.GREEN : DashScreen.AMBER, changed ? "MODS FIXED" : "NOTHING TO FIX FROM HERE",
+                null, null, List.of(new Section(changed ? "WHAT CHECK ENGINE DID" : "WHAT HAPPENED", changed ? DashScreen.GREEN : DashScreen.AMBER,
+                changed ? "✓" : "!", lines)), buttons, () -> Minecraft.getInstance().setScreen(back));
     }
 }

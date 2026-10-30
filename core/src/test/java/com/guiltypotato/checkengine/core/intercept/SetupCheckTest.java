@@ -23,7 +23,7 @@ class SetupCheckTest {
                 "{\"name\":\"Test Pack\",\"recommendedRam\":11776,\"isUnlocked\":true}");
         SetupCheck.Warning w = SetupCheck.memory(game, 4096);
         assertNotNull(w);
-        assertEquals("LOW MEMORY FOR TEST PACK", w.headline());
+        assertEquals("Low memory for Test Pack", w.headline());
         assertTrue(w.problem().contains("4 GB") && w.problem().contains("11.5 GB"), w.problem());
         assertTrue(w.fixNote().startsWith("CurseForge:"), w.fixNote());
         assertTrue(w.fix().contains("helps") && w.detail().contains("can run on less"), w.fix());

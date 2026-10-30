@@ -51,15 +51,22 @@ final class HubScreen {
         tabs.add(goBack(game, ce, self, reopen).withSubtitle("GO BACK"));
         List<WarningLog.Entry> warnings = WarningLog.entries(ce);
         long open = warnings.stream().filter(WarningLog.Entry::stillThere).count();
-        tabs.add(new Tab("Warnings", "!", open > 0 ? DashScreen.AMBER : DashScreen.GREEN,
+        tabs.add(new Tab("Warnings", "!", open > 0 ? DashScreen.AMBER : DashScreen.BLUE,
                 open > 0 ? Long.toString(open) : null, List.of(warningsSection(warnings)), List.of())
                 .withSubtitle("WARNINGS"));
         tabs.add(lastCrash(game, ce, self).withSubtitle("LAST CRASH"));
-        DashScreen screen = new DashScreen(DashScreen.GREEN, "PIT STOP", null, null,
+        DashScreen screen = new DashScreen(DashScreen.BLUE, "PIT STOP", null, null,
                 () -> Minecraft.getInstance().setScreen(back), tabs,
-                List.of(new Btn("Done", () -> Minecraft.getInstance().setScreen(back), false)));
+                List.of(new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), false)))
+                .light(lamp(game, ce, open));
         self[0] = screen;
         return screen;
+    }
+
+    /** The hub's light shows the pack's real state: red after a crash, amber with warnings open or a slower start. */
+    private static int lamp(Path game, Path ce, long openWarnings) {
+        if (CrashDoctor.crashedSinceItWorked(game, ce)) return DashScreen.RED;
+        return openWarnings > 0 || LaunchHistory.slower(LaunchHistory.load(ce)) != null ? DashScreen.AMBER : DashScreen.GREEN;
     }
 
     // ---- Pit Stop ----
@@ -67,7 +74,7 @@ final class HubScreen {
     private static Tab pitStop(Path ce) {
         List<LaunchHistory.Launch> launches = LaunchHistory.load(ce);
         LaunchHistory.Slower slower = LaunchHistory.slower(launches);
-        return new Tab("Pit Stop", "»", slower != null ? DashScreen.AMBER : DashScreen.GREEN, null,
+        return new Tab("Pit Stop", "»", slower != null ? DashScreen.AMBER : DashScreen.BLUE, null,
                 startSections(StartupTimes.load(ce), launches), List.of());
     }
 
@@ -114,7 +121,7 @@ final class HubScreen {
         LaunchHistory.Slower slower = LaunchHistory.slower(launches);
         if (slower != null) start.add(Line.mark(slower.text()));
         List<Section> out = new ArrayList<>();
-        out.add(new Section("START TIME", slower != null ? DashScreen.AMBER : DashScreen.GREEN, "»", start));
+        out.add(new Section("START TIME", slower != null ? DashScreen.AMBER : DashScreen.BLUE, "»", start));
         if (!launches.isEmpty()) {
             List<Line> rows = new ArrayList<>();
             for (int i = launches.size() - 1; i >= 0; i--) {
@@ -162,7 +169,7 @@ final class HubScreen {
                     () -> Minecraft.getInstance().setScreen(CrashDoctorScreen.goBack(self[0], p)), true,
                     plan.summary() + ". Nothing is deleted, and you can put it back."));
         } else {
-            sections.add(new Section("NOTHING TO GO BACK TO", DashScreen.GREEN, "✔", DashScreen.lines(
+            sections.add(new Section("NOTHING TO GO BACK TO", DashScreen.BLUE, "i", DashScreen.lines(
                     "Nothing changed since the pack last worked.")));
         }
         String undo = GoBack.done(ce) ? GoBack.undoSummary(ce) : null;
@@ -172,7 +179,7 @@ final class HubScreen {
             buttons.add(new Btn("Put it back", () -> Minecraft.getInstance().setScreen(
                     WarningsScreen.putBack(self[0], undo)), true, "Undoes Go back. Asks first."));
         }
-        int tone = plan != null && !plan.isEmpty() ? DashScreen.AMBER : DashScreen.GREEN;
+        int tone = plan != null && !plan.isEmpty() ? DashScreen.AMBER : DashScreen.BLUE;
         return new Tab("Go back", "±", tone, null, sections, buttons);
     }
 
@@ -180,7 +187,7 @@ final class HubScreen {
 
     private static Section warningsSection(List<WarningLog.Entry> entries) {
         if (entries.isEmpty()) {
-            return new Section("WARNINGS", DashScreen.GREEN, "✔", DashScreen.lines("No warnings so far."));
+            return new Section("WARNINGS", DashScreen.BLUE, "i", DashScreen.lines("No warnings so far."));
         }
         List<Line> lines = new ArrayList<>();
         for (WarningLog.Entry e : entries) {
@@ -192,7 +199,7 @@ final class HubScreen {
         }
         lines.add(Line.dim("\"Got it\" only hides a warning. It shows as fixed once a launch no longer finds it."));
         boolean open = entries.stream().anyMatch(WarningLog.Entry::stillThere);
-        return new Section("WARNINGS", open ? DashScreen.AMBER : DashScreen.GREEN, open ? "!" : "✔", lines);
+        return new Section("WARNINGS", open ? DashScreen.AMBER : DashScreen.BLUE, open ? "!" : "i", lines);
     }
 
     // ---- Last crash ----
@@ -200,12 +207,12 @@ final class HubScreen {
     private static Tab lastCrash(Path game, Path ce, Screen[] self) {
         LastCrash crash = CrashDoctor.lastShown(game, ce);
         if (crash == null) {
-            return new Tab("Last crash", "?", DashScreen.GREY, null, List.of(new Section("LAST CRASH", DashScreen.GREEN,
-                    "✔", DashScreen.lines("No crash since Check Engine was installed, or its report is gone."))),
+            return new Tab("Last crash", "?", DashScreen.GREY, null, List.of(new Section("LAST CRASH", DashScreen.GREY,
+                    "i", DashScreen.lines("No crash since Check Engine was installed, or its report is gone."))),
                     List.of());
         }
-        return new Tab("Last crash", "?", DashScreen.GREY, null, List.of(new Section("LAST CRASH", DashScreen.AMBER,
-                "!", List.of(Line.strong(crash.main().title()), Line.dim(crash.when()),
+        return new Tab("Last crash", "?", DashScreen.GREY, null, List.of(new Section("LAST CRASH", DashScreen.GREY,
+                "i", List.of(Line.strong(crash.main().title()), Line.dim(com.guiltypotato.checkengine.core.ui.UiText.date(crash.when())),
                         Line.dim("It stays here until a newer crash replaces it.")))),
                 List.of(new Btn("Open Crash Doctor",
                         () -> Minecraft.getInstance().setScreen(new CrashDoctorScreen(self[0], crash)), true)));

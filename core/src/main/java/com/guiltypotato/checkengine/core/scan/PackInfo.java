@@ -111,7 +111,7 @@ public record PackInfo(String name, String supportLink, long recommendedMb, bool
 
     /** The name in upper case for a headline ("TEST PACK"), or null when unknown or too long. */
     public String headlineName() {
-        return name == null || name.length() > MAX_HEADLINE_NAME ? null : name.toUpperCase(Locale.ROOT);
+        return name == null || name.length() > MAX_HEADLINE_NAME ? null : name;
     }
 
     /** config/checkengine-pack.properties; written empty the first time, so pack makers can find it. */

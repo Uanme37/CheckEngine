@@ -238,9 +238,91 @@ public final class ConfigCheckpoint {
     static boolean sameButComments(Path a, Path b) {
         if (!Files.isRegularFile(b)) return false;
         try {
-            return withoutComments(a).equals(withoutComments(b));
+            if (withoutComments(a).equals(withoutComments(b))) return true;
+            // Some mods write their JSON back with the same settings in another order: nothing changed
+            return a.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json") && Canonical.same(
+                    Files.readString(a, StandardCharsets.UTF_8), Files.readString(b, StandardCharsets.UTF_8));
         } catch (IOException | RuntimeException e) {
             return false;
+        }
+    }
+
+    /** JSON with the keys of every object in a fixed order. Lists keep their order: that can matter. */
+    private static final class Canonical {
+        private final String t;
+        private int i;
+
+        private Canonical(String t) {
+            this.t = t;
+        }
+
+        static boolean same(String a, String b) {
+            return new Canonical(a).whole().equals(new Canonical(b).whole());
+        }
+
+        private String whole() {
+            String v = value();
+            space();
+            if (i != t.length()) throw new IllegalArgumentException("not JSON");
+            return v;
+        }
+
+        private void space() {
+            while (i < t.length() && Character.isWhitespace(t.charAt(i))) i++;
+        }
+
+        private String value() {
+            space();
+            char ch = t.charAt(i);
+            if (ch == '{') {
+                i++;
+                java.util.TreeMap<String, String> keys = new java.util.TreeMap<>();
+                space();
+                if (t.charAt(i) == '}') {
+                    i++;
+                    return "{}";
+                }
+                while (true) {
+                    space();
+                    String key = string();
+                    space();
+                    if (t.charAt(i++) != ':') throw new IllegalArgumentException("not JSON");
+                    keys.put(key, value());
+                    space();
+                    char next = t.charAt(i++);
+                    if (next == '}') return keys.toString();
+                    if (next != ',') throw new IllegalArgumentException("not JSON");
+                }
+            }
+            if (ch == '[') {
+                i++;
+                List<String> items = new ArrayList<>();
+                space();
+                if (t.charAt(i) == ']') {
+                    i++;
+                    return "[]";
+                }
+                while (true) {
+                    items.add(value());
+                    space();
+                    char next = t.charAt(i++);
+                    if (next == ']') return items.toString();
+                    if (next != ',') throw new IllegalArgumentException("not JSON");
+                }
+            }
+            if (ch == '"') return string();
+            int start = i;
+            while (i < t.length() && ",}] \t\r\n".indexOf(t.charAt(i)) < 0) i++;
+            if (start == i) throw new IllegalArgumentException("not JSON");
+            return t.substring(start, i);
+        }
+
+        private String string() {
+            if (t.charAt(i) != '"') throw new IllegalArgumentException("not JSON");
+            int start = i++;
+            while (t.charAt(i) != '"') i += t.charAt(i) == '\\' ? 2 : 1;
+            i++;
+            return t.substring(start, i);
         }
     }
 

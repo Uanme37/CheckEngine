@@ -22,6 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PackScannerTest {
+    private static List<Finding> byCode(Report report, String code) {
+        return report.findings().stream().filter(f -> f.code().equals(code)).toList();
+    }
+
     @TempDir
     Path mods;
 
@@ -45,7 +49,7 @@ class PackScannerTest {
     void twoVersionsOfOneModAreDuplicates() throws IOException {
         neoMod("alexscaves", "2.0.2", null).writeTo(mods, "alexscaves-2.0.2.jar");
         neoMod("alexscaves", "2.0.10", null).writeTo(mods, "alexscaves-2.0.10.jar");
-        List<Finding> dupes = scan(CLIENT_1211).byCode(Finding.DUPLICATE_MOD);
+        List<Finding> dupes = byCode(scan(CLIENT_1211), Finding.DUPLICATE_MOD);
         assertEquals(1, dupes.size());
         assertTrue(dupes.get(0).fix().contains("alexscaves-2.0.10.jar"), "should keep the newest");
     }
@@ -55,7 +59,7 @@ class PackScannerTest {
         neoMod("continuity", "3.0.0", dep("continuity", "connector", "required", "[2.0,)", "CLIENT"))
                 .writeTo(mods, "continuity.jar");
         neoMod("other", "1.0", dep("other", "connector", "required", "*", "BOTH")).writeTo(mods, "other.jar");
-        List<Finding> missing = scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY);
+        List<Finding> missing = byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY);
         assertEquals(1, missing.size());
         assertTrue(missing.get(0).detail().contains("2 mods need connector"));
     }
@@ -64,8 +68,8 @@ class PackScannerTest {
     void clientSideDependencyIsNotNeededOnServer() throws IOException {
         neoMod("create", "6.0.10", dep("create", "flywheel", "required", "[1.0,2.0)", "CLIENT"))
                 .writeTo(mods, "create.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY).size());
-        assertEquals(0, scan(CLIENT_1211.withSide(Side.SERVER)).byCode(Finding.MISSING_DEPENDENCY).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY).size());
+        assertEquals(0, byCode(scan(CLIENT_1211.withSide(Side.SERVER)), Finding.MISSING_DEPENDENCY).size());
     }
 
     @Test
@@ -74,15 +78,15 @@ class PackScannerTest {
         neoMod("lithium", "0.14.0", null).writeTo(mods, "lithium.jar");
         neoMod("create", "6.0.10", dep("create", "flywheel", "required", "[1.0.0,2.0)", "BOTH")
                 + dep("create", "lithium", "optional", "[0.14.7,)", "BOTH")).writeTo(mods, "create.jar");
-        assertEquals(2, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+        assertEquals(2, byCode(scan(CLIENT_1211), Finding.WRONG_VERSION).size());
     }
 
     @Test
     void wrongMinecraftVersion() throws IOException {
         neoMod("oldmod", "1.0", dep("oldmod", "minecraft", "required", "[1.20.1]", "BOTH")).writeTo(mods, "old.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.WRONG_VERSION).size());
         // unknown Minecraft version: can't judge, so stay quiet
-        assertEquals(0, scan(ScanOptions.of(Side.CLIENT)).byCode(Finding.WRONG_VERSION).size());
+        assertEquals(0, byCode(scan(ScanOptions.of(Side.CLIENT)), Finding.WRONG_VERSION).size());
     }
 
     @Test
@@ -102,7 +106,7 @@ class PackScannerTest {
         // A range that skips 1.21's NeoForge is still checked.
         neoMod("newmod", "1.0", dep("newmod", "neoforge", "required", "[21.1.0,21.1.200)", "BOTH"))
                 .writeTo(mods, "newmod.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.WRONG_VERSION).size());
     }
 
     @Test
@@ -112,7 +116,7 @@ class PackScannerTest {
         neoMod("connector", "2.0.0", null).writeTo(packMods, "connector.jar");
         neoMod("citresewn", "1.0", dep("citresewn", "connector", "incompatible", "*", "BOTH"))
                 .writeTo(packMods, "citresewn.jar");
-        assertEquals(1, PackScanner.scan(packMods, CLIENT_1211).byCode(Finding.INCOMPATIBLE_MOD).size());
+        assertEquals(1, byCode(PackScanner.scan(packMods, CLIENT_1211), Finding.INCOMPATIBLE_MOD).size());
         Path config = Files.createDirectories(packMods.getParent().resolve("config"));
         Files.writeString(config.resolve("fml.toml"),
                 "earlyWindowControl = true\n[dependencyOverrides]\n\tcitresewn = [\"-connector\", \"+jei\"]\n");
@@ -139,9 +143,9 @@ class PackScannerTest {
         neoMod("sodium", "0.6", dep("sodium", "optifine", "incompatible", "*", "BOTH")
                 + dep("sodium", "rubidium", "discouraged", "*", "BOTH")).writeTo(mods, "sodium.jar");
         Report r = scan(CLIENT_1211);
-        assertEquals(1, r.byCode(Finding.INCOMPATIBLE_MOD).size());
-        assertEquals(1, r.byCode(Finding.DISCOURAGED_MOD).size());
-        assertEquals(Finding.Severity.WARNING, r.byCode(Finding.DISCOURAGED_MOD).get(0).severity());
+        assertEquals(1, byCode(r, Finding.INCOMPATIBLE_MOD).size());
+        assertEquals(1, byCode(r, Finding.DISCOURAGED_MOD).size());
+        assertEquals(Finding.Severity.WARNING, byCode(r, Finding.DISCOURAGED_MOD).get(0).severity());
     }
 
     @Test
@@ -161,7 +165,7 @@ class PackScannerTest {
                 .nest("META-INF/jarjar/aeronautics.jar",
                         neoMod("aeronautics", "1.3.2", dep("aeronautics", "create", "required", "[6.0.10,)", "BOTH")))
                 .writeTo(mods, "create-aeronautics-bundled.jar");
-        List<Finding> missing = scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY);
+        List<Finding> missing = byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY);
         assertEquals(1, missing.size());
         assertEquals(List.of("create-aeronautics-bundled.jar"), missing.get(0).files());
     }
@@ -186,12 +190,12 @@ class PackScannerTest {
                         fakeModClass("MEKANISM", "isLoaded", "Lmekanism/api/Thing;",
                                 "com/robocraft999/creategoggles/compat/mekanism/CompatMekanism"))
                 .writeTo(mods, "creategoggles.jar");
-        List<Finding> hidden = scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY);
+        List<Finding> hidden = byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY);
         assertEquals(1, hidden.size(), hidden.toString());
         assertEquals("Hidden missing mod: Bobberdetector uses create", hidden.get(0).title());
         // With Create installed it's fine.
         neoMod("create", "6.0.10", null).writeTo(mods, "create.jar");
-        assertEquals(0, scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY).size());
+        assertEquals(0, byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY).size());
     }
 
     @Test
@@ -200,7 +204,7 @@ class PackScannerTest {
                 .with("META-INF/neoforge.mods.toml", TestJars.modsToml("lib", "${file.jarVersion}", null))
                 .writeTo(mods, "lib.jar");
         neoMod("user", "1.0", dep("user", "lib", "required", "[1.0,)", "BOTH")).writeTo(mods, "user.jar");
-        List<Finding> wrong = scan(CLIENT_1211).byCode(Finding.WRONG_VERSION);
+        List<Finding> wrong = byCode(scan(CLIENT_1211), Finding.WRONG_VERSION);
         assertEquals(1, wrong.size());
         assertTrue(wrong.get(0).detail().contains("0.5.0"));
     }
@@ -213,10 +217,10 @@ class PackScannerTest {
         neoMod("tagged", "1.0", null).writeTo(mods, "Tagged-1.0.jar");
         neoMod("create", "6.0.10", null).writeTo(mods, "create.jar");
         ScanOptions server = new ScanOptions(Side.SERVER, "1.21.1", "21.1.251", Set.of("tagged-1.0.jar"));
-        List<Finding> clientOnly = scan(server).byCode(Finding.CLIENT_ONLY_ON_SERVER);
+        List<Finding> clientOnly = byCode(scan(server), Finding.CLIENT_ONLY_ON_SERVER);
         assertEquals(3, clientOnly.size(), clientOnly.toString());
         assertTrue(clientOnly.stream().noneMatch(f -> f.files().contains("create.jar")));
-        assertEquals(0, scan(CLIENT_1211).byCode(Finding.CLIENT_ONLY_ON_SERVER).size());
+        assertEquals(0, byCode(scan(CLIENT_1211), Finding.CLIENT_ONLY_ON_SERVER).size());
     }
 
     @Test
@@ -224,7 +228,7 @@ class PackScannerTest {
         // Real Oh The Biomes We've Gone 4.4.0 wants 1.21.11; NeoForge refuses it on 1.21.1.
         neoMod("biomeswevegone", "4.4.0", dep("biomeswevegone", "minecraft", "required", "[1.21.11,)", "BOTH"))
                 .writeTo(mods, "bwg.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_VERSION).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.WRONG_VERSION).size());
     }
 
     @Test
@@ -237,7 +241,7 @@ class PackScannerTest {
                 versionRange="[1.1.0,)"
                 side="BOTH"
                 """).writeTo(mods, "ars_botania.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.MISSING_DEPENDENCY).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.MISSING_DEPENDENCY).size());
     }
 
     @Test
@@ -278,12 +282,12 @@ class PackScannerTest {
         neoMod("appleskin", "3.0.9", dep("appleskin", "neoforge", "required", "*", "CLIENT"))
                 .writeTo(mods, "appleskin.jar");
         ScanOptions server = new ScanOptions(Side.SERVER, "1.21.1", "21.1.251", Set.of());
-        assertEquals(0, scan(server).byCode(Finding.CLIENT_ONLY_ON_SERVER).size());
+        assertEquals(0, byCode(scan(server), Finding.CLIENT_ONLY_ON_SERVER).size());
     }
 
     @Test
     void emptyModsFolderIsNotClean() throws IOException {
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.NO_MODS).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.NO_MODS).size());
     }
 
     @Test
@@ -292,14 +296,14 @@ class PackScannerTest {
                 .writeTo(mods, "fabricthing.jar");
         jar().with("META-INF/mods.toml", TestJars.modsToml("forgething", "1.0", null)).writeTo(mods, "forgething.jar");
         neoMod("create", "6.0.10", null).writeTo(mods, "create.jar");
-        List<Finding> wrong = scan(CLIENT_1211).byCode(Finding.WRONG_LOADER);
+        List<Finding> wrong = byCode(scan(CLIENT_1211), Finding.WRONG_LOADER);
         assertEquals(2, wrong.size(), wrong.toString());
         // With Sinytra Connector, Fabric mods are fine.
         neoMod("connector", "2.0", null).writeTo(mods, "connector.jar");
-        assertEquals(1, scan(CLIENT_1211).byCode(Finding.WRONG_LOADER).size());
+        assertEquals(1, byCode(scan(CLIENT_1211), Finding.WRONG_LOADER).size());
         // On 1.20.1, mods.toml is the normal format, and NeoForge-only (1.20.5+) jars are the wrong ones.
         ScanOptions old = new ScanOptions(Side.CLIENT, "1.20.1", null, Set.of());
-        List<Finding> legacy = scan(old).byCode(Finding.WRONG_LOADER);
+        List<Finding> legacy = byCode(scan(old), Finding.WRONG_LOADER);
         assertEquals(List.of("Mod for a newer Minecraft: Connector", "Mod for a newer Minecraft: Create"),
                 legacy.stream().map(Finding::title).toList());
     }
@@ -311,9 +315,9 @@ class PackScannerTest {
         jar().with("readme.txt", "hi").writeTo(mods, "random.jar");
         Files.writeString(mods.resolve("disabled.jar.disabled"), "ignored");
         Report r = scan(CLIENT_1211);
-        assertEquals(1, r.byCode(Finding.BROKEN_JAR).size());
-        assertEquals(1, r.byCode(Finding.STRAY_FILE).size());
-        assertEquals(1, r.byCode(Finding.NOT_A_MOD).size());
+        assertEquals(1, byCode(r, Finding.BROKEN_JAR).size());
+        assertEquals(1, byCode(r, Finding.STRAY_FILE).size());
+        assertEquals(1, byCode(r, Finding.NOT_A_MOD).size());
         assertEquals(2, r.jars().size());
         assertTrue(r.hasErrors());
     }

@@ -205,10 +205,7 @@ public final class ClientEvents {
             if (toast != null) {
                 crashSeen = true; // the backup check on the title screen mustn't show it again
                 CheckEngine.LOGGER.info("{}: {}", toast[0], toast[1]);
-                Minecraft.getInstance().execute(() -> net.minecraft.client.gui.components.toasts.SystemToast.add(
-                        Minecraft.getInstance().getToastManager(), new net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId(10000L),
-                        net.minecraft.network.chat.Component.literal(toast[0]),
-                        net.minecraft.network.chat.Component.literal(toast[1])));
+                Minecraft.getInstance().execute(() -> Minecraft.getInstance().getToastManager().addToast(new CeToast(toast[1])));
                 return next;
             }
         }
@@ -243,10 +240,7 @@ public final class ClientEvents {
         String[] toast = com.guiltypotato.checkengine.core.scan.StartNotice.of(fixed, slower);
         if (toast == null) return;
         Minecraft.getInstance().execute(() -> Minecraft.getInstance().getToastManager().addToast(
-                net.minecraft.client.gui.components.toasts.SystemToast.multiline(Minecraft.getInstance(),
-                        new net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId(10000L),
-                        net.minecraft.network.chat.Component.literal(toast[0]),
-                        TitleButtons.noticeText(toast[1]))));
+                new CeToast(toast[1])));
     }
 
     /** Draws the Pit Stop button's lamp, start time and "!" over the plain button. */

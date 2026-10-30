@@ -53,6 +53,7 @@ public final class LaunchIntercept {
      *                  empty
      * @param goBackRun does it (the game then quits), or null
      * @param stripMineConfigs Strip Mine would search the changed config files, not the mods
+     * @param changedSince when the pack last worked ("29 Oct 18:00"), or null
      */
     /**
      * Go back, as the window offers it.
@@ -68,10 +69,10 @@ public final class LaunchIntercept {
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
                           java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix,
-                          List<String> goBack, GoBackOffer goBackRun, boolean stripMineConfigs) {
+                          List<String> goBack, GoBackOffer goBackRun, boolean stripMineConfigs, String changedSince) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
-            this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null, false);
+            this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null, false, null);
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
@@ -80,17 +81,22 @@ public final class LaunchIntercept {
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked, boolean configs) {
             return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix, goBack,
-                    goBackRun, configs);
+                    goBackRun, configs, changedSince);
         }
 
         Message withQuitFix(Runnable fix) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, fix, goBack, goBackRun, stripMineConfigs);
+                    stripMineLocked, fix, goBack, goBackRun, stripMineConfigs, changedSince);
         }
 
         Message withGoBack(List<String> lines, GoBackOffer run) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, quitFix, lines, run, stripMineConfigs);
+                    stripMineLocked, quitFix, lines, run, stripMineConfigs, changedSince);
+        }
+
+        Message withChangedSince(String when) {
+            return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
+                    stripMineLocked, quitFix, goBack, goBackRun, stripMineConfigs, when);
         }
 
         /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
@@ -137,7 +143,8 @@ public final class LaunchIntercept {
         if (stopped > 0) details.add("→ " + stopped + (stopped == 1 ? " mod can't load" : " mods can't load"));
         if (first.certainty() != null) details.add("How sure: " + first.certainty());
         List<String> fixes = roots.stream().map(RootProblem::fix).filter(f -> f != null).distinct().toList();
-        return new Message(Level.WILL_FAIL, problems, details, changedLines(changes), fixes, report);
+        return new Message(Level.WILL_FAIL, problems, details, changedLines(changes), fixes, report)
+                .withChangedSince(changes == null ? null : com.guiltypotato.checkengine.core.ui.UiText.date(changes.since()));
     }
 
     /** The last launch crashed and the mods are the same as then. */
@@ -162,8 +169,7 @@ public final class LaunchIntercept {
             return new Message(Level.FOUND, List.of(GAVE_UP), List.of(
                     "Test rounds kept failing in a different way: switching mods off broke other mods.",
                     notes.isEmpty() ? "" : notes.get(notes.size() - 1)), List.of(), List.of("Every mod is switched back "
-                    + "on. Make a help file (Crash Doctor's button, or /checkengine export) and send it to the pack's "
-                    + "author, with the crash report."), report);
+                    + "on. Use Help > Copy for help and send that to the pack's author, with the crash report."), report);
         }
         if (done.configs()) return configResult(done, report, modsFolder);
         String found = done.found();
@@ -190,7 +196,7 @@ public final class LaunchIntercept {
                 ? "" : "s") + " that need it (" + String.join(", ", others.stream().limit(4).toList())
                 + (others.size() > 4 ? ", ..." : "") + ")";
         List<String> fixes = List.of(
-                "QUIT AND FIX IT switches off " + what + " (renamed to .disabled, not deleted).",
+                "Quit and fix it switches off " + what + " (renamed to .disabled, not deleted).",
                 "Or update it, or send the crash report to its author.");
         Message m = new Message(Level.FOUND, problems, details, List.of(), fixes, report);
         if (modsFolder == null) return m;
@@ -212,11 +218,11 @@ public final class LaunchIntercept {
                 + " Every config file is back as you had it.");
         if (found == null) {
             return new Message(Level.FOUND, done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList(),
-                    details, List.of(), List.of("Put these back one at a time, or all at once with Go back to when it worked."),
+                    details, List.of(), List.of("Put these back one at a time, or all at once with Go back on the Pit Stop screen."),
                     report).withStripMine(null, 0, null, true);
         }
         Message m = new Message(Level.FOUND, List.of(found + " causes the crash"), details, List.of(), List.of(
-                "QUIT AND FIX IT puts back " + found + " as it was when the pack last worked. Your version is "
+                "Quit and fix it puts back " + found + " as it was when the pack last worked. Your version is "
                         + "kept in checkengine/config-undo-<date>, nothing is deleted.",
                 "Or open it and undo your last edit there."), report).withStripMine(null, 0, null, true);
         if (modsFolder == null) return m;

@@ -1,46 +1,58 @@
 package com.guiltypotato.checkengine.ui;
 
+import com.guiltypotato.checkengine.core.ui.EngineIcon;
+import com.guiltypotato.checkengine.core.ui.ScreenHelp;
+import com.guiltypotato.checkengine.core.ui.UiText;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
- * The UAN dashboard screen: a hazard stripe for warnings, the lamp and headline, a code readout, screwed-on panels with
- * an icon, side-bar tabs, an optional search box over a tab's list, the buttons and the brand footer. No mod's own
- * logic lives here (that's why it's in ui): the mod using it sets its name, lamp and footer mark with {@link #brand}.
+ * The one look of every screen, on a fixed dark background. A header bar: the engine light and "Check Engine: state"
+ * left, code and date right. A left column: tabs as words on top (or where you came from), Help at the bottom. Right
+ * of it the text, and under that the screen's own buttons, the main one first and outlined; Continue, Cancel and Quit
+ * always far right. No mod's own logic lives here (that's why it's in ui).
  */
 public class DashScreen extends Screen {
     public static final int RED = UanColors.RED, AMBER = UanColors.AMBER, GREEN = UanColors.GREEN,
             BLUE = UanColors.BLUE, GREY = UanColors.GREY;
-    private static ResourceLocation LOGO;
-    private static ResourceLocation UAN;
+    private static final ResourceLocation ENGINE_LIGHT = ResourceLocation.fromNamespaceAndPath("checkengine", "textures/gui/engine_light.png");
     private static String NAME = "";
-    private static Supplier<List<Btn>> EXTRA = List::of;
+    private static Function<DashScreen, List<Btn>> HELP = s -> List.of();
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("UAN UI");
-    private static final int LINE = 10;
-    private static final int SEARCH_H = 20;
+    private static final int LINE = 10, HEAD = 20, SIDE = 90, SIDE_BUTTON = 78, SIDE_ROW = 22, SEARCH_H = 18, ROW = 24,
+            COLUMN = 640;
+    /** Opened the same on every screen: the room behind it, almost solid, the world only faintly visible. */
+    private static final int BACKGROUND = 0xE61C1C1C, PANEL = 0x70000000, SIDE_PANEL = 0x40000000, RULE = 0xFF505050;
+    /** Tabs and places that aren't the open one. */
+    private static final float DIMMED = 0.65f;
 
     /**
-     * Sets the look every screen shares: the lamp ({@code logo}: 10 cells of 128 px, each colour lit and unlit), the
-     * footer mark, the name in the header and footer, and buttons every screen gets (a help link), or none.
+     * Sets what every screen shares: the name in the header, and the Help menu's rows under "What is this screen?".
      */
-    public static void brand(ResourceLocation logo, ResourceLocation mark, String name, Supplier<List<Btn>> extra) {
-        LOGO = logo;
-        UAN = mark;
+    public static void brand(String name, Function<DashScreen, List<Btn>> help) {
         NAME = name;
-        EXTRA = extra;
+        HELP = help;
+    }
+
+    /** The engine light with x, y its top left (the baked halo goes around that): red, amber, or else green. */
+    public static void engine(GuiGraphics g, int x, int y, int color) {
+        int cell = (color | 0xFF000000) == RED ? EngineIcon.RED : (color | 0xFF000000) == AMBER ? EngineIcon.AMBER : EngineIcon.GREEN;
+        int m = EngineIcon.MARGIN, w = EngineIcon.WIDTH + 2 * m, h = EngineIcon.HEIGHT + 2 * m;
+        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+        g.blit(ENGINE_LIGHT, x - m, y - m, w, h, 0, cell * EngineIcon.CELL_H, EngineIcon.CELL_W, EngineIcon.CELL_H, EngineIcon.CELL_W, EngineIcon.CELL_H * 3);
+        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
     }
 
     public enum Style { STRONG, TEXT, DIM, MARK, CLIP }
@@ -69,10 +81,10 @@ public class DashScreen extends Screen {
         }
     }
 
-    /** A panel. {@code icon} is one character drawn in the round badge ("!", "✔"...). */
+    /** A block of text. {@code icon} is one character before its heading ("!", "✓"...); a null title has no heading. */
     public record Section(String title, int tone, String icon, List<Line> lines) {}
 
-    /** A button. Primary ones sit on the left, the rest are smaller on the right. {@code tip} shows on hover, or null. */
+    /** A button. Main ones come first; Continue, Cancel and Quit go far right. {@code tip} shows on hover, or null. */
     public record Btn(String label, Runnable run, boolean primary, String tip) {
         public Btn(String label, Runnable run, boolean primary) {
             this(label, run, primary, null);
@@ -80,8 +92,8 @@ public class DashScreen extends Screen {
     }
 
     /**
-     * A side-bar tab: its own panels and its own buttons. {@code icon} is one character, shown alone when the window is
-     * too small for the label; {@code count} (or null) is the little number next to it, e.g. how many things changed.
+     * A tab: its own text and its own buttons. {@code count} (or null) is the little number next to its label, e.g. how
+     * many things changed. {@code icon} is kept for callers; tabs always show their words.
      */
     public record Tab(String label, String icon, int tone, String count, List<Section> sections, List<Btn> buttons,
                       Search search, String subtitle) {
@@ -101,29 +113,39 @@ public class DashScreen extends Screen {
     }
 
     /**
-     * A search box over a tab: {@code sections} turns what's typed into the panels to show ("" before anything is
+     * A search box over a tab: {@code sections} turns what's typed into the text to show ("" before anything is
      * typed). Give the list a tab of its own, so nothing else sits under the box.
      */
     public record Search(String hint, Function<String, List<Section>> sections) {}
 
-    /** Narrower than this, the side bar shows only the tab icons. */
-    private static final int FULL_LABELS = 400;
-    private static final int RAIL = 92, RAIL_ICONS = 26;
-
     private final int tone;
     private final String headline;
-    private final String code;
-    private final String codeLabel;
+    private String code;
+    private String codeLabel;
     private List<Section> sections;
     private List<Btn> buttons;
     private final Runnable escape;
-    /** Side-bar tabs, or null for a screen without them; {@code fixed} are the buttons every tab shows (Continue). */
+    /** Tabs, or null for a screen without them; {@code fixed} are the buttons every tab shows (Continue). */
     private final List<Tab> tabs;
     private final List<Btn> fixed;
     private int tab;
     private String query = "";
-    private int cardX, cardY, cardW, cardH, buttonRows = 1, contentHeight, scroll;
-    private boolean moreOpen;
+    private int colX, colW, top, bottom, contentHeight, scroll;
+    /** The main button, outlined. */
+    private int mainX, mainY, mainW = -1;
+    /** The open tab or place in the column, marked with a bar; -1 = none. */
+    private int openY = -1;
+    /** Where this screen was opened from, or null. */
+    private DashScreen from;
+    /** The light's colour when it isn't simply the headline's (the hub shows the pack's real state); 0 = none. */
+    private int light;
+    /** Copy for help on this screen: its own, or null for what the brand does; {@link #noCopy} leaves the row out. */
+    private Runnable copy;
+    private boolean noCopy;
+    private boolean helpOpen;
+    /** The open Help menu's corner: text stays out of just that box (a font mod can draw text over the buttons). */
+    private int menuTop, menuRight;
+    private boolean isHelpPage;
 
     /**
      * @param escape what Esc does (usually the same as the "back" or "continue" button)
@@ -143,8 +165,8 @@ public class DashScreen extends Screen {
     }
 
     /**
-     * A screen with side-bar tabs. It opens on the first tab; {@code fixed} buttons (Continue) are there on every tab.
-     * Tabs with nothing in them should be left out by the caller.
+     * A screen with tabs. It opens on the first tab; {@code fixed} buttons (Continue) are there on every tab. Tabs with
+     * nothing in them should be left out by the caller.
      */
     public DashScreen(int tone, String headline, String code, String codeLabel, Runnable escape, List<Tab> tabs,
                List<Btn> fixed) {
@@ -157,6 +179,81 @@ public class DashScreen extends Screen {
         this.tabs = tabs;
         this.fixed = fixed;
         show(0);
+    }
+
+    /**
+     * Opened from {@code parent}: the column shows the way here and a click goes back. Without a code of its own it
+     * shows the parent's, and it copies what the parent copies.
+     */
+    public DashScreen from(Screen parent) {
+        if (parent instanceof DashScreen p) {
+            from = p;
+            if (code == null && codeLabel == null) {
+                code = p.code;
+                codeLabel = p.codeLabel;
+            }
+            if (copy == null && !noCopy) {
+                copy = p.copy;
+                noCopy = p.noCopy;
+            }
+            // Only information (Help, what was copied): the pack's state hasn't changed, so the light stays as it was
+            if (light == 0 && tone != RED && tone != AMBER && tone != GREEN) light = p.lamp();
+        }
+        return this;
+    }
+
+    /** The colour the light shows now. */
+    private int lamp() {
+        boolean own = tabs != null && tabs.get(tab).subtitle() != null;
+        int headTone = own ? tabs.get(tab).tone() : tone;
+        return light != 0 ? light : headTone == RED || headTone == AMBER ? headTone : GREEN;
+    }
+
+    /** The light's colour, whatever the headline's is. */
+    public DashScreen light(int color) {
+        light = color;
+        return this;
+    }
+
+    /** What Help > Copy for help does here; null leaves the row out (another mod already has it). */
+    public DashScreen copies(Runnable action) {
+        copy = action;
+        noCopy = action == null;
+        return this;
+    }
+
+    /** This screen's own Copy for help, or null when the brand's general one applies. */
+    public Runnable copyAction() {
+        return copy;
+    }
+
+    public boolean hidesCopy() {
+        return noCopy;
+    }
+
+    /** The screen's short name for the column and for Help ("Crash Doctor"), or null. */
+    public String place() {
+        return ScreenHelp.place(headline);
+    }
+
+    /** The screen's text, one string per line, for Copy for help. */
+    public List<String> plainText() {
+        List<String> out = new ArrayList<>();
+        for (Section s : sections) {
+            if (s.title() != null) out.add(UiText.sentence(s.title()));
+            for (Line l : s.lines()) out.add(l.text());
+        }
+        return out;
+    }
+
+    /** What the header says, without the name. */
+    public String state() {
+        boolean own = tabs != null && tabs.get(tab).subtitle() != null;
+        return UiText.afterName(own ? tabs.get(tab).subtitle() : headline);
+    }
+
+    public String code() {
+        return code;
     }
 
     private void show(int i) {
@@ -179,128 +276,54 @@ public class DashScreen extends Screen {
         Search search = search();
         if (search == null) return;
         sections = search.sections().apply(query);
-        contentHeight = 0;
-        for (Section s : sections) contentHeight += sectionHeight(s) + 5;
+        measure();
         scroll = 0;
-    }
-
-    /** Where the panels start: under the header, and under the search box when the tab has one. */
-    private int panelsTop() {
-        return cardY + 48 + (search() != null ? SEARCH_H : 0);
     }
 
     // ---- layout ----
 
-    /** The side bar's width: labels when the card is wide enough, else icons only, none without tabs. */
-    private int rail() {
-        return tabs == null ? 0 : cardW >= FULL_LABELS ? RAIL : RAIL_ICONS;
-    }
-
-    private int textWidth() {
-        return cardW - 46 - rail();
-    }
-
     private List<FormattedCharSequence> wrap(Line l) {
         if (l.style() == Style.CLIP) {
             String t = l.text();
-            if (font.width(t) > textWidth()) t = font.plainSubstrByWidth(t, textWidth() - font.width("...")) + "...";
+            if (font.width(t) > colW) t = font.plainSubstrByWidth(t, colW - font.width("...")) + "...";
             return List.of(Component.literal(t).getVisualOrderText());
         }
         Component c = Component.literal(l.text()).withStyle(l.style() == Style.STRONG ? ChatFormatting.BOLD
                 : ChatFormatting.RESET);
-        return font.split(c, textWidth());
+        return font.split(c, colW);
     }
 
     private int sectionHeight(Section s) {
-        int h = 8 + LINE + 2;
+        int h = s.title() == null ? 0 : LINE + 2;
         for (Line l : s.lines()) h += wrap(l).size() * LINE;
-        return h + 4;
+        return h;
+    }
+
+    private void measure() {
+        int h = 0;
+        for (Section s : sections) h += sectionHeight(s) + 6;
+        contentHeight = h;
     }
 
     @Override
     protected void init() {
-        // With a side bar the card gets wider, so the panels keep about the same room for text.
-        cardW = tabs == null ? Math.min(width - 16, Math.max(320, Math.min(400, (int) (width * 0.72))))
-                : Math.min(width - 16, Math.max(320, Math.min(480, (int) (width * 0.85))));
-        cardX = (width - cardW) / 2;
-        int content = 0;
-        for (Section s : sections) content += sectionHeight(s) + 5;
-        contentHeight = content;
-        if (tabs != null) {
-            // The card keeps one size on every tab: as tall as the longest tab, and tall enough for the side bar.
-            content = tabs.size() * 24 + 4;
-            for (Tab t : tabs) {
-                int h = t.search() != null ? SEARCH_H : 0;
-                for (Section s : t.sections()) h += sectionHeight(s) + 5;
-                content = Math.max(content, h);
-            }
-        }
-        // Buttons: one row if they fit, else the small ones get a row of their own under the main ones.
-        List<Btn> row = row();
-        // Main buttons wrap onto more rows when they don't fit; the small ones go at the right of the last row.
-        int avail = cardW - 24;
-        List<List<Btn>> lines = new ArrayList<>();
-        List<Btn> line = new ArrayList<>();
-        int lineW = 0;
-        for (Btn b : row) {
-            if (!b.primary()) continue;
-            int w = buttonWidth(b);
-            if (!line.isEmpty() && lineW + 6 + w > avail) {
-                lines.add(line);
-                line = new ArrayList<>();
-                lineW = 0;
-            }
-            lineW += (line.isEmpty() ? 0 : 6) + w;
-            line.add(b);
-        }
-        lines.add(line);
-        int smallW = rowWidth(row.stream().filter(b -> !b.primary()).toList());
-        boolean smallOwnRow = smallW > 0 && !line.isEmpty() && lineW + 12 + smallW > avail;
-        buttonRows = lines.size() + (smallOwnRow ? 1 : 0);
-        cardH = Math.min(height - 12, 4 + 46 + content + 2 + 28 + 16 + (buttonRows - 1) * 24);
-        cardY = Math.max(6, (height - cardH) / 2);
+        colX = SIDE + 8;
+        colW = Math.min(width - colX - 10, COLUMN);
+        // The Help menu takes clicks first, and a click anywhere else closes it; it's drawn last, over everything
+        List<Button> menu = helpOpen ? helpMenu() : List.of();
+        for (Button b : menu) addWidget(b);
+        if (helpOpen) addWidget(Button.builder(Component.empty(), b -> closeHelp()).bounds(0, 0, width, height).build());
 
-        int y = cardY + cardH - 16 - 25 - (buttonRows - 1) * 24;
-        for (int i = 0; i < lines.size(); i++) {
-            int x = cardX + 12;
-            for (Btn b : lines.get(i)) {
-                int w = buttonWidth(b);
-                addRenderableWidget(button(b, x, y, w));
-                x += w + 6;
-            }
-            if (i < lines.size() - 1) y += 24;
-        }
-        if (smallOwnRow) y += 24;
-        int right = cardX + cardW - 12;
-        List<Btn> small = row.stream().filter(b -> !b.primary()).toList();
-        for (int i = small.size() - 1; i >= 0; i--) {
-            Btn b = small.get(i);
-            int w = buttonWidth(b);
-            right -= w;
-            addRenderableWidget(button(b, right, y, w));
-            right -= 5;
-        }
-        if (tabs != null) {
-            // The side bar: one button per tab, the open one in bold with a coloured mark beside it (see drawing).
-            boolean labels = rail() == RAIL;
-            for (int i = 0; i < tabs.size(); i++) {
-                Tab t = tabs.get(i);
-                int index = i;
-                String text = labels ? t.label() + (t.count() != null ? " " + t.count() : "") : t.icon() + (t.count() != null && t.count().length() == 1 ? t.count() : "");
-                Component label = i == tab ? Component.literal(text).withStyle(ChatFormatting.BOLD) : Component.literal(text);
-                Button.Builder b = Button.builder(label, btn -> {
-                    query = "";
-                    show(index);
-                    rebuildWidgets();
-                }).bounds(cardX + 8, cardY + 50 + i * 24, rail() - 6, 20);
-                if (!labels) b.tooltip(Tooltip.create(Component.literal(t.label() + (t.count() != null ? " (" + t.count() + ")" : ""))));
-                addRenderableWidget(b.build());
-            }
-        }
+        sideColumn();
+        addRenderableWidget(Button.builder(Component.literal("Help"), b -> {
+            helpOpen = !helpOpen;
+            rebuildWidgets();
+        }).bounds(6, height - 24, SIDE_BUTTON, 20).build());
+
+        top = HEAD + 1;
         Search search = search();
         if (search != null) {
-            EditBox box = new EditBox(font, cardX + rail() + 12, cardY + 48, cardW - rail() - 24, 16,
-                    Component.literal(search.hint()));
+            EditBox box = new EditBox(font, colX, top + 3, colW, 14, Component.literal(search.hint()));
             box.setHint(Component.literal(search.hint()));
             box.setValue(query);
             box.setResponder(text -> {
@@ -308,73 +331,171 @@ public class DashScreen extends Screen {
                 refresh();
             });
             addRenderableWidget(box);
-            refresh();
+            top += SEARCH_H;
+        }
+        buttonRow();
+        for (Button b : menu) addRenderableOnly(b);
+        measure();
+    }
+
+    /** Top of the column: the tabs, or the way to this screen with the current one bright. */
+    private void sideColumn() {
+        openY = -1;
+        int y = HEAD + 5;
+        if (tabs != null) {
+            for (int i = 0; i < tabs.size(); i++) {
+                Tab t = tabs.get(i);
+                int index = i;
+                MutableComponent label = Component.literal(t.label());
+                if (t.count() != null) label.append(Component.literal(" " + t.count()).withStyle(ChatFormatting.YELLOW));
+                sideButton(label, y, i == tab, () -> {
+                    query = "";
+                    show(index);
+                    rebuildWidgets();
+                });
+                y += SIDE_ROW;
+            }
+            return;
+        }
+        List<DashScreen> way = new ArrayList<>();
+        for (DashScreen s = this; s != null; s = s.from) way.add(0, s);
+        for (DashScreen s : way) {
+            String name = s.place();
+            if (name == null) continue;
+            sideButton(Component.literal(name), y, s == this, () -> {
+                if (s != this) Minecraft.getInstance().setScreen(s);
+            });
+            y += SIDE_ROW;
         }
     }
 
-    /**
-     * The buttons on show. With 3 or more small ones, they wait under "More" (which swaps the row to them, plus
-     * "Back"), so the main row stays short.
-     */
-    private List<Btn> row() {
-        List<Btn> buttons = new ArrayList<>(this.buttons);
-        // The pack maker's help link (config/checkengine-pack.properties), when there is one.
-        buttons.addAll(EXTRA.get());
-        // With tabs every tab has only a few buttons: they wrap onto a second row instead of hiding under More.
-        if (tabs != null) return buttons;
-        List<Btn> primary = new ArrayList<>(buttons.stream().filter(Btn::primary).toList());
-        List<Btn> small = new ArrayList<>(buttons.stream().filter(b -> !b.primary()).toList());
-        // Main buttons that don't fit in one row wait under More too (the first ones are the most important).
-        Btn moreButton = new Btn("More...", () -> {}, false);
-        while (primary.size() > 1 && rowWidth(primary) + 6 + buttonWidth(moreButton) > cardW - 24) {
-            Btn last = primary.remove(primary.size() - 1);
-            small.add(0, new Btn(last.label(), last.run(), false, last.tip()));
-        }
-        boolean moved = primary.size() < buttons.stream().filter(Btn::primary).count();
-        if (small.size() < 3 && !moved) return buttons;
-        List<Btn> out = new ArrayList<>();
-        if (!moreOpen) {
-            out.addAll(primary);
-            out.add(new Btn("More...", () -> {
-                moreOpen = true;
-                rebuildWidgets();
-            }, false));
-        } else {
-            small.forEach(b -> out.add(new Btn(b.label(), b.run(), true, b.tip())));
-            out.add(new Btn("Back", () -> {
-                moreOpen = false;
-                rebuildWidgets();
-            }, false));
-        }
-        return out;
+    private void sideButton(Component label, int y, boolean open, Runnable run) {
+        Button b = Button.builder(open ? label : label.copy().withStyle(ChatFormatting.GRAY), x -> run.run())
+                .bounds(6, y, SIDE_BUTTON, 20).build();
+        if (open) openY = y;
+        else b.setAlpha(DIMMED);
+        addRenderableWidget(b);
     }
 
-    private int rowWidth(List<Btn> row) {
-        int w = 0;
-        for (Btn b : row) w += buttonWidth(b) + 6;
-        return Math.max(0, w - 6);
+    /** The main button first, then the others, wrapping when they don't fit; what closes the screen far right. */
+    private void buttonRow() {
+        List<Btn> left = new ArrayList<>(buttons.stream().filter(b -> !UiText.closes(b.label()) && b.primary()).toList());
+        left.addAll(buttons.stream().filter(b -> !UiText.closes(b.label()) && !b.primary()).toList());
+        List<Btn> right = buttons.stream().filter(b -> UiText.closes(b.label())).toList();
+        int startX = SIDE + 6, avail = width - startX - 6, rightW = 0;
+        for (Btn b : right) rightW += buttonWidth(b.label()) + 4;
+        // A long label says less rather than taking a second row
+        int total = rightW;
+        for (Btn b : left) total += buttonWidth(b.label()) + 4;
+        boolean shorten = total > avail;
+        List<List<Btn>> rows = new ArrayList<>();
+        List<Btn> row = new ArrayList<>();
+        int rowW = 0;
+        for (Btn b : left) {
+            int w = buttonWidth(label(b, shorten));
+            if (!row.isEmpty() && rowW + w > avail) {
+                rows.add(row);
+                row = new ArrayList<>();
+                rowW = 0;
+            }
+            row.add(b);
+            rowW += w + 4;
+        }
+        rows.add(row);
+        boolean ownRow = rowW + rightW > avail;
+        int count = rows.size() + (ownRow ? 1 : 0);
+        bottom = height - count * ROW - 4;
+        int by = bottom + 5;
+        mainW = -1;
+        for (List<Btn> r : rows) {
+            int x = startX;
+            for (Btn b : r) {
+                int w = buttonWidth(label(b, shorten));
+                if (mainW < 0 && b.primary()) {
+                    mainX = x;
+                    mainY = by;
+                    mainW = w;
+                }
+                addRenderableWidget(button(b, label(b, shorten), x, by, w));
+                x += w + 4;
+            }
+            by += ROW;
+        }
+        if (!ownRow) by -= ROW;
+        int x = width - 6;
+        for (int i = right.size() - 1; i >= 0; i--) {
+            Btn b = right.get(i);
+            int w = buttonWidth(b.label());
+            x -= w;
+            if (mainW < 0 && b.primary()) {
+                mainX = x;
+                mainY = by;
+                mainW = w;
+            }
+            addRenderableWidget(button(b, b.label(), x, by, w));
+            x -= 4;
+        }
     }
 
-    private Button button(Btn b, int x, int y, int w) {
-        Button.Builder builder = Button.builder(label(b), btn -> safely(b.run())).bounds(x, y, w, 20);
+    private static String label(Btn b, boolean shorten) {
+        return shorten ? UiText.shorter(b.label()) : b.label();
+    }
+
+    private Button button(Btn b, String label, int x, int y, int w) {
+        Button.Builder builder = Button.builder(Component.literal(label), btn -> safely(b.run())).bounds(x, y, w, 20);
         if (b.tip() != null) builder.tooltip(Tooltip.create(Component.literal(b.tip())));
         return builder.build();
     }
 
-    private Component label(Btn b) {
-        return b.primary() ? Component.literal(b.label()).withStyle(ChatFormatting.BOLD) : Component.literal(b.label());
+    private int buttonWidth(String label) {
+        return Math.max(50, font.width(label) + 14);
     }
 
-    private int buttonWidth(Btn b) {
-        return b.primary() ? Math.max(70, font.width(label(b)) + 20) : Math.max(50, font.width(label(b)) + 14);
+    // ---- Help ----
+
+    /** The menu over the Help button: What is this screen? first, then the brand's rows. */
+    private List<Button> helpMenu() {
+        List<Btn> rows = new ArrayList<>();
+        if (!isHelpPage) rows.add(new Btn("What is this screen?", this::explain, false));
+        rows.addAll(HELP.apply(this));
+        int w = SIDE_BUTTON;
+        for (Btn b : rows) w = Math.max(w, font.width(b.label()) + 14);
+        w = Math.min(w, width - 12);
+        List<Button> out = new ArrayList<>();
+        int y = height - 24 - rows.size() * 20;
+        menuTop = y;
+        menuRight = 6 + w;
+        for (Btn b : rows) {
+            int fw = w;
+            out.add(Button.builder(Component.literal(b.label()), x -> {
+                helpOpen = false;
+                safely(b.run());
+                if (Minecraft.getInstance().screen == this) rebuildWidgets();
+            }).bounds(6, y, fw, 20).build());
+            y += 20;
+        }
+        return out;
     }
 
-    private int panelsBottom() {
-        return cardY + cardH - 16 - 30 - (buttonRows - 1) * 24;
+    private void closeHelp() {
+        helpOpen = false;
+        rebuildWidgets();
+    }
+
+    /** What is this screen?: plain words, from inside the jar. */
+    private void explain() {
+        String tabName = tabs == null ? null : tabs.get(tab).label();
+        List<Line> lines = new ArrayList<>();
+        for (String s : ScreenHelp.explain(place(), tabName, code)) lines.add(Line.text(s));
+        Runnable back = () -> Minecraft.getInstance().setScreen(this);
+        DashScreen page = new DashScreen(BLUE, "WHAT IS THIS SCREEN?", null, null, List.of(new Section(null, BLUE, "", lines)),
+                List.of(new Btn("Cancel", back, false)), back);
+        page.isHelpPage = true;
+        Minecraft.getInstance().setScreen(page.from(this));
     }
 
     private int maxScroll() {
-        return Math.max(0, contentHeight + 2 - (panelsBottom() - panelsTop()));
+        return Math.max(0, contentHeight + 4 - (bottom - top));
     }
 
     @Override
@@ -388,138 +509,79 @@ public class DashScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(g, mouseX, mouseY, partialTick);
-        int x = cardX, y = cardY, w = cardW, h = cardH;
-        g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF34363B); // edge
-        g.fillGradient(x, y, x + w, y + h, 0xFF232428, 0xFF131416);
-        for (int i = 0; i < w; i += 3) g.fill(x + i, y, x + i + 1, y + h, 0x07FFFFFF); // brushed metal
+        g.fill(0, 0, width, height, BACKGROUND);
+        g.fill(SIDE + 1, HEAD + 1, width, bottom, PANEL);
+        g.fill(0, HEAD + 1, SIDE, height, SIDE_PANEL);
+        g.fill(0, HEAD, width, HEAD + 1, RULE);
+        g.fill(SIDE, HEAD + 1, SIDE + 1, height, RULE);
+        g.fill(SIDE + 1, bottom, width, bottom + 1, RULE);
 
-        boolean warning = tone == RED || tone == AMBER;
-        if (warning) { // hazard tape
-            g.fill(x, y, x + w, y + 4, 0xFF141414);
-            for (int row = 0; row < 4; row++) {
-                for (int sx = -8; sx < w; sx += 12) {
-                    int a = Math.max(0, sx + (3 - row)), b = Math.min(w, sx + (3 - row) + 6);
-                    if (b > a) g.fill(x + a, y + row, x + b, y + row + 1, tone);
+        // The light: red or amber when something's wrong, else green. The words keep the screen's own colour.
+        boolean own = tabs != null && tabs.get(tab).subtitle() != null;
+        int headTone = own ? tabs.get(tab).tone() : tone;
+        String name = NAME + ": ";
+        String head = state();
+        String meta = code == null ? codeLabel == null ? "" : codeLabel
+                : codeLabel == null ? code : code + " · " + codeLabel;
+        int textX = 6 + EngineIcon.WIDTH + 5, room = width - textX - font.width(name) - 6;
+        if (font.width(head) + font.width(meta) + 8 > room) meta = code == null ? "" : code;
+        int metaW = meta.isEmpty() ? 0 : font.width(meta);
+        if (font.width(head) + metaW + 8 > room) {
+            head = font.plainSubstrByWidth(head, room - metaW - 8 - font.width("...")) + "...";
+        }
+        engine(g, 6, (HEAD - EngineIcon.HEIGHT) / 2, lamp());
+        g.drawString(font, name, textX, 6, 0xFFF0F0F0);
+        g.drawString(font, head, textX + font.width(name), 6, headTone);
+        if (metaW > 0) g.drawString(font, meta, width - metaW - 6, 6, GREY);
+
+        if (openY >= 0) g.fill(2, openY, 4, openY + 20, 0xFF000000 | headTone); // the open tab, in the header's colour
+        if (mainW > 0) { // the main button, outlined
+            g.fill(mainX - 1, mainY - 1, mainX + mainW + 1, mainY + 21, 0xFFFFFFFF);
+        }
+
+        scroll = Math.max(0, Math.min(scroll, maxScroll()));
+        if (helpOpen && menuTop < bottom) {
+            g.enableScissor(SIDE + 1, top, width, menuTop);
+            drawText(g);
+            g.disableScissor();
+            g.enableScissor(menuRight, menuTop, width, bottom);
+        } else {
+            g.enableScissor(SIDE + 1, top, width, bottom);
+        }
+        drawText(g);
+        g.disableScissor();
+        if (maxScroll() > 0) { // thin scrollbar at the panel's right edge
+            int track = bottom - top, thumb = Math.max(12, track * track / (track + maxScroll()));
+            int ty = top + (track - thumb) * scroll / maxScroll(), bx = colX + colW + 4;
+            g.fill(bx, top, bx + 2, bottom, 0x40808080);
+            g.fill(bx, ty, bx + 2, ty + thumb, 0xFFA0A0A0);
+        }
+    }
+
+    private void drawText(GuiGraphics g) {
+        int y = top + 4 - scroll;
+        for (Section s : sections) {
+            if (s.title() != null) {
+                g.drawString(font, s.icon() + " " + UiText.sentence(s.title()), colX, y, s.tone());
+                y += LINE + 2;
+            }
+            for (Line l : s.lines()) {
+                int color = l.style() == Style.DIM || l.style() == Style.CLIP ? GREY : l.style() == Style.MARK ? AMBER : 0xFFF0F0F0;
+                for (FormattedCharSequence part : wrap(l)) {
+                    g.drawString(font, part, colX, y, color);
+                    y += LINE;
                 }
             }
-        } else {
-            g.fill(x, y, x + w, y + 2, tone);
+            y += 6;
         }
-
-        // Lamp: the logo in a bezel whose ring blinks.
-        int lx = x + 12, ly = y + 12;
-        boolean on = (Util.getMillis() / 550) % 2 == 0;
-        // Drawn once, smooth, like the window's lamp (lamp.png: each colour lit and unlit, 128 px each).
-        int cell = (tone == RED ? 0 : tone == AMBER ? 1 : tone == GREEN ? 2 : tone == BLUE ? 3 : 4) * 2 + (on ? 0 : 1);
-        if (LOGO != null) {
-            com.mojang.blaze3d.systems.RenderSystem.enableBlend(); // the glow fades out: keep its see-through pixels
-            g.blit(LOGO, lx - 6, ly - 6, 44, 44, cell * 128, 0, 128, 128, 1280, 128);
-            com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-        }
-
-        g.drawString(font, Component.literal(NAME.toUpperCase(Locale.ROOT)).withStyle(ChatFormatting.BOLD), x + 54, y + 14,
-                0xFFE8E8EA);
-        boolean own = tabs != null && tabs.get(tab).subtitle() != null;
-        g.drawString(font, Component.literal(own ? tabs.get(tab).subtitle() : headline).withStyle(ChatFormatting.BOLD),
-                x + 54, y + 27, own ? tabs.get(tab).tone() : tone);
-
-        if (code != null) { // fault code readout
-            int cw = font.width(code) + 12, cx = x + w - 12 - cw;
-            g.fill(cx - 1, y + 11, cx + cw + 1, y + 27, 0xFF33353A);
-            g.fill(cx, y + 12, cx + cw, y + 26, 0xFF0A0B0C);
-            g.drawString(font, code, cx + 6, y + 15, tone, false);
-            if (codeLabel != null) small(g, codeLabel, x + w - 12, y + 30, GREY, true);
-        }
-
-        // Panels: they scroll with the mouse wheel when they don't all fit.
-        int top = panelsTop(), limit = panelsBottom();
-        if (tabs != null) { // side bar: a divider, and the open tab's colour beside its button
-            g.fill(x + rail() + 3, y + 48, x + rail() + 4, limit, 0xFF34363B);
-            g.fill(x + 3, y + 50 + tab * 24, x + 6, y + 70 + tab * 24, tabs.get(tab).tone());
-        }
-        int px = x + rail(); // the panels start right of the side bar
-        scroll = Math.max(0, Math.min(scroll, maxScroll()));
-        g.enableScissor(px, top, x + w, limit);
-        int sy = top + 2 - scroll;
-        for (Section s : sections) {
-            int bottom = sy + sectionHeight(s);
-            if (bottom > top && sy < limit) panel(g, s, px, sy, x, w);
-            sy = bottom + 5;
-        }
-        g.disableScissor();
-        if (maxScroll() > 0) { // thin scrollbar on the right edge
-            int track = limit - top, thumb = Math.max(12, track * track / (track + maxScroll()));
-            int ty = top + (track - thumb) * scroll / maxScroll();
-            g.fill(x + w - 6, top, x + w - 4, limit, 0xFF26272B);
-            g.fill(x + w - 6, ty, x + w - 4, ty + thumb, 0xFF6A6D74);
-        }
-
-        // Footer: the UAN mark and "Check Engine".
-        int fy = y + h - 15;
-        g.fill(x, fy - 1, x + w, fy, 0xFF2A2C30);
-        g.fill(x, fy, x + w, y + h, 0xFF0F1012);
-        if (UAN != null) g.blit(UAN, x + 10, fy + 3, 9, 9, 0, 0, 32, 32, 32, 32);
-        small(g, NAME, x + 23, fy + 5, 0xFF9A9CA3, false);
-    }
-
-    /** One panel at {@code sy}: its plate, badge, title and lines. */
-    private void panel(GuiGraphics g, Section s, int px, int sy, int x, int w) {
-        int bottom = sy + sectionHeight(s);
-        g.fill(px + 10, sy + 1, x + w - 10, bottom + 1, 0x60000000);
-        g.fillGradient(px + 10, sy, x + w - 10, bottom, 0xFF26272B, 0xFF212226);
-        g.fill(px + 13, sy, x + w - 13, sy + 1, 0xFF34363B);
-        badge(g, px + 16, sy + 6, s.tone(), s.icon());
-        screw(g, x + w - 16, sy + 3);
-        screw(g, x + w - 16, bottom - 5);
-        g.drawString(font, Component.literal(s.title()).withStyle(ChatFormatting.BOLD), px + 30, sy + 7, s.tone());
-        int ty = sy + 8 + LINE + 2;
-        for (Line l : s.lines()) {
-            int color = l.style() == Style.DIM || l.style() == Style.CLIP ? GREY : l.style() == Style.MARK ? AMBER : 0xFFE8E8EA;
-            for (FormattedCharSequence part : wrap(l)) {
-                g.drawString(font, part, px + 30, ty, color);
-                ty += LINE;
-            }
-        }
-    }
-
-    /** A filled circle, drawn as one line of pixels per row (screens only draw rectangles). */
-    private static void disc(GuiGraphics g, int cx, int cy, double r, int color) {
-        int ri = (int) Math.ceil(r);
-        for (int dy = -ri; dy < ri; dy++) {
-            double yy = dy + 0.5;
-            if (Math.abs(yy) > r) continue;
-            int half = (int) Math.round(Math.sqrt(r * r - yy * yy));
-            g.fill(cx - half, cy + dy, cx + half, cy + dy + 1, color);
-        }
-    }
-
-    private void badge(GuiGraphics g, int x, int y, int color, String icon) {
-        g.fill(x + 1, y, x + 9, y + 10, color);
-        g.fill(x, y + 1, x + 10, y + 9, color);
-        g.drawString(font, icon, x + 5 - font.width(icon) / 2, y + 1, 0xFF111111, false);
-    }
-
-    private static void screw(GuiGraphics g, int x, int y) {
-        g.fill(x, y, x + 3, y + 3, 0xFF6A6D74);
-        g.fill(x + 1, y + 1, x + 2, y + 2, 0xFF2A2C30);
-    }
-
-    /** Small (three-quarter size) text, left- or right-aligned at x. */
-    private void small(GuiGraphics g, String text, int x, int y, int color, boolean right) {
-        g.pose().pushPose();
-        g.pose().translate(x, y, 0);
-        g.pose().scale(0.75f, 0.75f, 1f);
-        g.drawString(font, text, right ? -font.width(text) : 0, 0, color, false);
-        g.pose().popPose();
-    }
-
-    private static int dim(int color) {
-        return 0xFF000000 | ((color >> 1) & 0x7F7F7F);
     }
 
     @Override
     public void onClose() {
+        if (helpOpen) {
+            closeHelp();
+            return;
+        }
         safely(escape);
     }
 

@@ -36,6 +36,12 @@ public final class WorldRescue {
         return main != null && "ticking-crash".equals(main.code());
     }
 
+    /** The fix without its Rescue world sentence, for when there's no world to rescue (so no button). */
+    public static String fixWithoutRescue(String fix) {
+        int cut = fix == null ? -1 : fix.indexOf(" To get the world back:");
+        return cut < 0 ? fix : fix.substring(0, cut);
+    }
+
     /** The world the player played last (the one that crashed), or null. */
     public static Path newestWorld(Path gameDir) {
         Path saves = gameDir.resolve("saves");

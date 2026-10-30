@@ -9,8 +9,9 @@ package com.guiltypotato.checkengine.core.scan;
  * @param time   "2:41", or "" before the first measured start
  * @param slower the last start was clearly slower than usual
  * @param alert  something to look at
+ * @param broken that something is a crash or a problem that stops the game (the lamp goes red)
  */
-public record TitleButtonState(String time, boolean slower, boolean alert) {
+public record TitleButtonState(String time, boolean slower, boolean alert, boolean broken) {
     /**
      * @param lastMs          the last start, or -1 when not measured
      * @param slower          {@link LaunchHistory#slower} found a slowdown
@@ -22,7 +23,7 @@ public record TitleButtonState(String time, boolean slower, boolean alert) {
     public static TitleButtonState of(long lastMs, boolean slower, int unseenWarnings, int unseenProblems,
                                       boolean crashUnseen, boolean onlyWhenBreaks) {
         boolean alert = crashUnseen || unseenProblems > 0 || (!onlyWhenBreaks && unseenWarnings > 0);
-        return new TitleButtonState(lastMs < 0 ? "" : clock(lastMs), slower, alert);
+        return new TitleButtonState(lastMs < 0 ? "" : clock(lastMs), slower, alert, crashUnseen || unseenProblems > 0);
     }
 
     /** 161_000 -> "2:41", 3_725_000 -> "1:02:05". */

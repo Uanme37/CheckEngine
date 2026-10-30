@@ -181,7 +181,7 @@ class PitStopTest {
                         new Changes.Change(Changes.Type.UPDATED, "create", "Create", "6.0.3", "6.0.4", "x"),
                         new Changes.Change(Changes.Type.ADDED, "ponder", "Ponder", null, "1.0", "x"))));
         assertEquals("1.2 s · 5 blocks + items · 2.0 MB · Updated", rows.get(0).details(true));
-        assertEquals("- · 0 blocks + items · 0.0 MB · New", rows.get(1).details(true),
+        assertEquals("- · 0 blocks + items · <0.1 MB · New", rows.get(1).details(true),
                 "the file's size counts once");
         assertEquals("5 blocks + items · 2.0 MB · Updated", rows.get(0).details(false),
                 "no times on a loader that can't measure them");

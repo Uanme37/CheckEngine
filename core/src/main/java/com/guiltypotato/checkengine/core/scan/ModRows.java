@@ -4,6 +4,7 @@ import com.guiltypotato.checkengine.core.model.ModInfo;
 import com.guiltypotato.checkengine.core.model.ModJar;
 import java.io.IOException;
 import java.nio.file.Files;
+import com.guiltypotato.checkengine.core.version.ModVersion;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,19 +48,27 @@ public record ModRows(String id, String name, long ms, int blocks, int items, do
                 else if (c.type() == Changes.Type.UPDATED) tags.put(c.id(), "Updated");
             }
         }
-        List<ModRows> out = new ArrayList<>();
+        // One row per mod: two jars of one mod (a duplicate) show as the newest, the one the loader uses
+        Map<String, ModRows> out = new java.util.LinkedHashMap<>();
+        Map<String, String> versions = new HashMap<>();
         for (ModJar jar : jars) {
             double mb = size(jar) / (1024.0 * 1024.0);
             boolean first = true;
             for (ModInfo m : jar.mods()) {
+                String old = versions.get(m.modId());
+                if (old != null && ModVersion.parse(String.valueOf(m.version())).compareTo(ModVersion.parse(old)) <= 0) {
+                    first = false;
+                    continue;
+                }
                 long ms = times == null ? -1 : times.getOrDefault(m.modId(), -1L);
-                out.add(new ModRows(m.modId(), m.name() == null ? m.modId() : m.name(), ms,
+                versions.put(m.modId(), String.valueOf(m.version()));
+                out.put(m.modId(), new ModRows(m.modId(), m.name() == null ? m.modId() : m.name(), ms,
                         blocks.getOrDefault(m.modId(), 0), items.getOrDefault(m.modId(), 0), first ? mb : 0,
                         tags.getOrDefault(m.modId(), "")));
                 first = false;
             }
         }
-        return out;
+        return new ArrayList<>(out.values());
     }
 
     private static long size(ModJar jar) {
@@ -75,7 +84,7 @@ public record ModRows(String id, String name, long ms, int blocks, int items, do
         List<String> parts = new ArrayList<>();
         if (timed) parts.add(ms < 0 ? "-" : StartupTimes.time(ms));
         parts.add(blocksAndItems() + " blocks + items");
-        parts.add(String.format(java.util.Locale.ROOT, "%.1f MB", mb));
+        parts.add(mb < 0.1 ? "<0.1 MB" : String.format(java.util.Locale.ROOT, "%.1f MB", mb));
         if (!tag.isEmpty()) parts.add(tag);
         return String.join(" · ", parts);
     }

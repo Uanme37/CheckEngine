@@ -55,10 +55,10 @@ public final class GoBack {
             return !turnOff.isEmpty() || !restore.isEmpty();
         }
 
-        /** "28 OCT 10:00" for a readout, or null when that isn't known. */
+        /** "28 Oct 10:00" for the header, or null when that isn't known. */
         public String lastWorkedShort() {
             String s = lastWorked();
-            return s == null ? null : s.substring("Last worked: ".length()).toUpperCase(java.util.Locale.ROOT);
+            return s == null ? null : s.substring("Last worked: ".length());
         }
 
         /** "Last worked: 28 Oct 10:00", or null when that isn't known. */

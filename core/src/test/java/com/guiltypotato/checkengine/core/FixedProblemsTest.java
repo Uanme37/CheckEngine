@@ -27,7 +27,6 @@ class FixedProblemsTest {
         assertTrue(FixedProblems.update(ce, List.of(warn("Missing mod: A"), warn("Same job: B"))).isEmpty(), "first launch");
         List<String> fixed = FixedProblems.update(ce, List.of(warn("Same job: B")));
         assertEquals(List.of("Missing mod: A"), fixed);
-        assertEquals("Missing mod: A", FixedProblems.toastText(fixed));
         assertTrue(FixedProblems.update(ce, List.of(warn("Same job: B"))).isEmpty(), "said once");
     }
 

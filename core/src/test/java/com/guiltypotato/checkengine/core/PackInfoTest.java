@@ -23,7 +23,7 @@ class PackInfoTest {
                  "name":"Test Pack","isUnlocked":true}""");
         PackInfo p = PackInfo.load(game);
         assertEquals("Test Pack", p.name());
-        assertEquals("TEST PACK", p.headlineName());
+        assertEquals("Test Pack", p.headlineName());
         assertNull(p.supportLink());
     }
 

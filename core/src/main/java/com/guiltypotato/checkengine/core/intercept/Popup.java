@@ -10,6 +10,10 @@ import com.guiltypotato.checkengine.core.intercept.Page.Section;
 import com.guiltypotato.checkengine.core.intercept.Page.Style;
 import com.guiltypotato.checkengine.core.intercept.Page.Tone;
 import com.guiltypotato.checkengine.core.scan.PackInfo;
+import com.guiltypotato.checkengine.core.crash.CrashHelp;
+import com.guiltypotato.checkengine.core.ui.EngineIcon;
+import com.guiltypotato.checkengine.core.ui.ScreenHelp;
+import com.guiltypotato.checkengine.core.ui.UiText;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -24,7 +28,6 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Polygon;
-import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.font.TextAttribute;
 import java.awt.geom.Arc2D;
@@ -49,37 +52,95 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JLayeredPane;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.MatteBorder;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 
 /**
- * The Check Engine window, styled like a car dashboard: a hazard stripe, the check-engine lamp in a metal bezel, the
- * fault code in a lit readout, screwed-on panels and switch-style buttons. Plain Swing, so it can open before
- * Minecraft (and its window) exists. Every page is drawn in the same frame ({@link Page}): features only decide the
- * panels and buttons.
+ * The Check Engine window, in the same zones as the in-game screens: the engine light and headline, the fault code and
+ * date small and grey, a dark list area, then Help, a divider, the choices and Quit, in a free pixel font (Pixel
+ * Operator, CC0). Plain
+ * Swing, so it can open before Minecraft (and its window) exists. Every page is drawn in the same frame ({@link Page}):
+ * features only decide the text and buttons.
  */
 final class Popup {
-    private static final Color TEXT = new Color(0xE8E8EA);
-    private static final Color DIM = new Color(0x9A9CA3);
-    private static final Color FAINT = new Color(0x6E7077);
-    private static final Color RED = new Color(0xFF4B3E);
-    private static final Color AMBER = new Color(0xFF9A1F);
-    private static final Color GREEN = new Color(0x3DDC4A);
-    private static final Color BLUE = new Color(0x3B82F6);
-    private static final Color PANEL_TOP = new Color(0x26272B);
-    private static final Color PANEL_BOTTOM = new Color(0x212226);
-    private static final Color EDGE = new Color(0x34363B);
+    private static final Color TEXT = new Color(0xF0F0F0);
+    private static final Color DIM = new Color(0xA8A8A8);
+    private static final Color RED = new Color(0xFF5555);
+    private static final Color AMBER = new Color(0xFFAA00);
+    private static final Color GREEN = new Color(0x55FF55);
+    private static final Color BLUE = new Color(0x55AAFF);
+    private static final Color WINDOW = new Color(0x1C1C1C);
+    private static final Color LIST = new Color(0x101010);
+    private static final Color RULE = new Color(0x5A5A5A);
+    private static final Color SHADOW = new Color(0x2A2A2A);
     /** Lines a panel shows before it scrolls (the window keeps its size). */
-    private static final int VISIBLE_LINES = 4;
-    private static final int WIDTH = 600;
+    private static final int VISIBLE_LINES = 8;
+    private static final String ISSUES = "https://github.com/Uanme37/CheckEngine/issues";
+    /** The first two characters of a line that starts with the check mark, drawn in pixels (the font has none). */
+    private static final String TICK = "✓ ";
+    private static final String[] TICK_SHAPE = {".....#", "....#.", "#..#..", ".#.#..", "..#..."};
+    private static final int WIDTH = 640;
+    /** The tallest page at normal size, with the title bar. */
+    private static final int TALLEST = 500;
+    /** The pixel font's own size: sharp only at this size. */
+    private static final int TEXT_SIZE = 16;
+    private static final int READING_SIZE = 12;
+    private static Font PLAIN_FONT = load("/checkengine_pixel.ttf", Font.PLAIN);
+    private static Font BOLD_FONT = load("/checkengine_pixel_bold.ttf", Font.BOLD);
+    /** The window's zoom: half as big again on a normal screen, as it is when that won't fit. */
+    private static double zoom = 1;
+    private static int lastLight = EngineIcon.GREEN;
+    /** The page showing now, so a help page can find its window. */
+    private static final AtomicReference<JPanel> CURRENT = new AtomicReference<>();
 
     private Popup() {}
+
+    /** Called once there's a screen: sizes everything for it. */
+    private static void sizeForScreen() {
+        if (zoom != 1) return;
+        int height = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice()
+                .getDefaultConfiguration().getBounds().height;
+        if (height < px(TALLEST) * 3 / 2) return;
+        zoom = 1.5;
+        // The pixel font is only sharp at whole sizes and tiring at this one: the system's own reading font instead
+        PLAIN_FONT = new Font("Segoe UI", Font.PLAIN, px(READING_SIZE));
+        BOLD_FONT = new Font("Segoe UI", Font.BOLD, px(READING_SIZE));
+    }
+
+    /** Text: smooth with the reading font; the pixel font stays crisp and gets its shadow. */
+    private static void drawText(Graphics2D g2, String text, int x, int y, Color color) {
+        if (zoom == 1) {
+            g2.setColor(SHADOW);
+            g2.drawString(text, x + 2, y + 2);
+        } else {
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        }
+        g2.setColor(color);
+        g2.drawString(text, x, y);
+    }
+
+    /** A size at this zoom; thin lines stay one pixel. */
+    private static int px(int n) {
+        return (int) (n * zoom);
+    }
+
+    private static EmptyBorder pad(int top, int left, int bottom, int right) {
+        return new EmptyBorder(px(top), px(left), px(bottom), px(right));
+    }
+
+    private static MatteBorder rule(int top, int left, int bottom, int right) {
+        return new MatteBorder(top, left, bottom, right, RULE);
+    }
 
     static Choice show(Message m, byte[] logoPng) throws Exception {
         return show(m, logoPng, new PackInfo(null, null));
@@ -88,6 +149,7 @@ final class Popup {
     static Choice show(Message m, byte[] logoPng, PackInfo pack) throws Exception {
         System.setProperty("java.awt.headless", "false");
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
+        sizeForScreen();
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         AtomicReference<Choice> choice = new AtomicReference<>(Choice.CONTINUE);
 
@@ -96,7 +158,7 @@ final class Popup {
         d.setAlwaysOnTop(true);
         Image logo = logoPng == null ? null : ImageIO.read(new ByteArrayInputStream(logoPng));
         if (logo != null) d.setIconImage(logo);
-        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>());
+        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>(), pack);
 
         AtomicReference<JPanel> main = new AtomicReference<>();
         Runnable back = () -> frame.swap(main.get());
@@ -108,10 +170,7 @@ final class Popup {
         d.pack();
         d.setResizable(false);
         d.setLocationRelativeTo(null);
-        Timer blink = new Timer(550, e -> frame.lamps().forEach(Bezel::toggle));
-        blink.start();
         d.setVisible(true); // blocks until closed
-        blink.stop();
         return choice.get();
     }
 
@@ -119,6 +178,7 @@ final class Popup {
     static Choice showSetting(SetupCheck.Warning w, byte[] logoPng, Path checkEngineFolder) throws Exception {
         System.setProperty("java.awt.headless", "false");
         if (GraphicsEnvironment.isHeadless()) throw new IllegalStateException("no screen");
+        sizeForScreen();
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         AtomicReference<Choice> choice = new AtomicReference<>(Choice.CONTINUE);
         JDialog d = new JDialog((java.awt.Frame) null, "Check Engine", true);
@@ -126,15 +186,15 @@ final class Popup {
         d.setAlwaysOnTop(true);
         Image logo = logoPng == null ? null : ImageIO.read(new ByteArrayInputStream(logoPng));
         if (logo != null) d.setIconImage(logo);
-        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>());
+        Frame frame = new Frame(d, logo, image("/checkengine_uan.png"), new ArrayList<>(),
+                PackInfo.load(checkEngineFolder.getParent()));
 
-        Action quit = new Action("QUIT", w.quitFirst() ? Tone.BLUE : Tone.GREY, () -> {
+        Action quit = new Action("Quit", Tone.GREY, () -> {
             choice.set(Choice.QUIT);
             d.dispose();
         });
-        Action go = new Action(w.quitFirst() ? "LOAD ANYWAY" : "CONTINUE", w.quitFirst() ? Tone.STEEL : Tone.BLUE,
-                d::dispose);
-        Action never = new Action("DON'T ASK AGAIN", Tone.GREY, () -> {
+        Action go = new Action(w.quitFirst() ? "Load anyway" : "Continue", Tone.GREY, d::dispose);
+        Action never = new Action("Don't ask again", Tone.GREY, () -> {
             SetupCheck.ignore(checkEngineFolder, w.key());
             d.dispose();
         });
@@ -149,17 +209,16 @@ final class Popup {
         d.pack();
         d.setResizable(false);
         d.setLocationRelativeTo(null);
-        Timer blink = new Timer(550, e -> frame.lamps().forEach(Bezel::toggle));
-        blink.start();
         d.setVisible(true);
-        blink.stop();
         return choice.get();
     }
 
     /** The first page: what's wrong, what changed, the fix. */
     static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine,
                          Runnable openGoBack) {
-        Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND ? Tone.GREEN : Tone.AMBER;
+        // Green only when Strip Mine named one culprit: narrowed down or gave up still needs the player
+        boolean named = m.problems().size() == 1 && m.problems().get(0).endsWith(" causes the crash");
+        Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND && named ? Tone.GREEN : Tone.AMBER;
         List<Section> sections = new ArrayList<>();
         List<Line> problem = new ArrayList<>();
         for (int i = 0; i < m.problems().size(); i++) {
@@ -167,10 +226,11 @@ final class Popup {
             if (i == 0) m.details().forEach(dl -> problem.add(Line.dim(dl)));
         }
         sections.add(new Section(m.level() == Level.WILL_FAIL ? "WHAT'S WRONG"
-                : m.level() == Level.FOUND ? (m.stripMineConfigs() ? "THE BAD CONFIG" : "THE FAULTY MOD") : "LAST CRASH", tone,
+                : m.level() == Level.FOUND ? (!named ? "WHAT IT FOUND" : m.stripMineConfigs() ? "THE BAD CONFIG" : "THE FAULTY MOD") : "LAST CRASH", tone,
                 m.level() == Level.FOUND ? Icon.CHECK : Icon.ALERT, problem));
         if (!m.changed().isEmpty()) {
-            sections.add(new Section("CHANGED SINCE IT LAST WORKED", Tone.AMBER, Icon.CHANGED,
+            sections.add(new Section(m.changedSince() == null ? "CHANGED SINCE IT LAST WORKED"
+                    : "Changed since it last worked (" + m.changedSince() + ")", Tone.AMBER, Icon.CHANGED,
                     m.changed().stream().map(Line::text).toList()));
         }
         if (!m.fixes().isEmpty()) {
@@ -178,21 +238,21 @@ final class Popup {
                     .map(f -> Line.text(m.fixes().size() > 1 ? "• " + f : f)).toList()));
         }
         List<Action> actions = new ArrayList<>();
-        actions.add(new Action(m.quitFix() != null ? "QUIT AND FIX IT" : "QUIT", m.quitFix() != null ? Tone.GREEN : Tone.RED, () -> {
-            if (m.quitFix() != null) m.quitFix().run();
+        if (m.quitFix() != null) actions.add(new Action("Quit and fix it", Tone.GREEN, () -> {
+            m.quitFix().run();
             choice.set(Choice.QUIT);
             d.dispose();
         }));
-        if (m.goBackRun() != null) actions.add(new Action("GO BACK", Tone.AMBER, openGoBack));
-        if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
-        // big when loading anyway is a real choice; after "won't start" it only ends in the loader's error
-        actions.add(new Action("LOAD ANYWAY", m.level() == Level.MAY_FAIL ? Tone.STEEL : Tone.GREY, d::dispose));
-        if (m.report() != null) actions.add(new Action("FULL ERROR", Tone.GREY, () -> openReport(m)));
-        if (pack.supportLink() != null) actions.add(new Action("GET HELP", Tone.GREY, () -> browse(pack.supportLink())));
+        if (m.goBackRun() != null) actions.add(new Action("Go back to when it worked", Tone.AMBER, openGoBack));
+        if (m.stripMine() != null) actions.add(new Action("Strip Mine", Tone.AMBER, openStripMine));
+        actions.add(new Action("Load anyway", Tone.GREY, d::dispose));
+        if (m.report() != null) actions.add(new Action("Full error", Tone.GREY, () -> openReport(m)));
+        actions.add(new Action("Quit", Tone.RED, () -> {
+            choice.set(Choice.QUIT);
+            d.dispose();
+        }));
         String[] fault = faultCode(m).split("·");
-        return new Page(tone, headline(m, pack), null, fault[0].strip(), fault.length > 1 ? fault[1].strip() : null,
-                sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods()
-                + (m.stripMineConfigs() ? " CONFIGS" : " MODS") : null);
+        return new Page(tone, headline(m, pack), null, fault[0].strip(), null, sections, actions, null, null);
     }
 
     /** "TEST PACK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
@@ -200,8 +260,8 @@ final class Popup {
         String name = pack.headlineName();
         if (name == null) return m.headline();
         return switch (m.level()) {
-            case WILL_FAIL -> name + " WON'T START";
-            case MAY_FAIL -> name + " WILL PROBABLY CRASH AGAIN";
+            case WILL_FAIL -> name + " won't start";
+            case MAY_FAIL -> name + " will probably crash again";
             default -> m.headline();
         };
     }
@@ -228,11 +288,11 @@ final class Popup {
                 new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
                         Line.text("The game closes. Press Play again to start round 1."))));
         List<Action> actions = List.of(
-                new Action("START STRIP MINE", Tone.AMBER, () -> {
+                new Action("Start Strip Mine", Tone.AMBER, () -> {
                     choice.set(Choice.STRIP_MINE);
                     frame.dialog().dispose();
                 }),
-                new Action("BACK", Tone.GREY, back));
+                new Action("Cancel", Tone.GREY, back));
         return new Page(Tone.AMBER, "STRIP MINE: FIND THE BAD CONFIG", "About " + m.stripMineRounds() + " launches",
                 null, null, sections, actions, null, n + " CONFIGS");
     }
@@ -267,16 +327,16 @@ final class Popup {
                 Line.dim("The CurseForge app may still list the newer versions: that's only its own list."))));
         List<Action> actions = new ArrayList<>();
         if (offer.choice()) {
-            Action all = goBackAction("MODS AND CONFIGS", offer.configsFirst() ? Tone.GREEN : Tone.STEEL, true, m,
+            Action all = goBackAction("Mods and configs", Tone.GREY, true, m,
                     choice, frame);
-            Action mods = goBackAction("MODS ONLY", offer.configsFirst() ? Tone.STEEL : Tone.GREEN, false, m, choice,
+            Action mods = goBackAction("Mods only", Tone.GREY, false, m, choice,
                     frame);
             actions.add(offer.configsFirst() ? all : mods);
             actions.add(offer.configsFirst() ? mods : all);
         } else {
-            actions.add(goBackAction("GO BACK", Tone.GREEN, true, m, choice, frame));
+            actions.add(goBackAction("Go back", Tone.GREY, true, m, choice, frame));
         }
-        actions.add(new Action("CANCEL", Tone.GREY, back)); // not "Back": beside "Go back" it reads like the same button
+        actions.add(new Action("Cancel", Tone.GREY, back)); // not "Back": beside "Go back" it reads like the same button
         return new Page(Tone.AMBER, "GO BACK TO WHEN IT WORKED?", offer.lastWorked(), null, null, sections, actions,
                 null, null);
     }
@@ -305,7 +365,7 @@ final class Popup {
                 new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
                         Line.text("Nothing is deleted. Check Pack.bat (goback putback) undoes what was done."))));
         return new Page(Tone.RED, "COULDN'T GO BACK", null, null, null, sections, List.of(
-                new Action("QUIT", Tone.RED, () -> {
+                new Action("Quit", Tone.RED, () -> {
                     choice.set(Choice.QUIT);
                     frame.dialog().dispose();
                 })), null, null);
@@ -335,7 +395,7 @@ final class Popup {
         sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
                 Line.text("The game closes. Press Play again to start round 1."))));
         List<Action> actions = List.of(
-                new Action("START STRIP MINE", Tone.AMBER, () -> {
+                new Action("Start Strip Mine", Tone.AMBER, () -> {
                     if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
                         frame.swap(frame.render(stripMinePage(m, true, choice, frame, back)));
                         return;
@@ -343,14 +403,14 @@ final class Popup {
                     choice.set(Choice.STRIP_MINE);
                     frame.dialog().dispose();
                 }),
-                new Action("BACK", Tone.GREY, back));
+                new Action("Cancel", Tone.GREY, back));
         return new Page(Tone.AMBER, "STRIP MINE: FIND THE FAULTY MOD", m.stripMineMods() > 1
                 ? "About " + m.stripMineRounds() + " launches, fewer if you changed mods lately" : null, null, null,
                 sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
     }
 
-    /** The window and what every page in it shares: the logos and the blinking lamps. */
-    private record Frame(JDialog dialog, Image logo, Image uan, List<Bezel> lamps) {
+    /** The window and what every page in it shares. */
+    private record Frame(JDialog dialog, Image logo, Image uan, List<Object> lamps, PackInfo pack) {
         /** Shows another page in the same window, sized to fit it and kept centred where it was. */
         void swap(JPanel page) {
             JDialog d = dialog;
@@ -361,383 +421,211 @@ final class Popup {
             d.repaint();
         }
 
-        /** Draws a page in the Check Engine frame. */
+        /** Help's menu, over the Help button. */
+        void openHelp(Page p, JPanel current, JComponent button) {
+            JLayeredPane layers = dialog.getLayeredPane();
+            JPanel menu = column();
+            menu.setOpaque(true);
+            menu.setBackground(WINDOW);
+            menu.setBorder(rule(1, 1, 1, 1));
+            // A click anywhere else closes it
+            JComponent outside = new JPanel();
+            outside.setOpaque(false);
+            outside.setBounds(0, 0, layers.getWidth(), layers.getHeight());
+            Runnable close = () -> {
+                layers.remove(menu);
+                layers.remove(outside);
+                layers.repaint();
+            };
+            outside.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    close.run();
+                }
+            });
+            List<Action> rows = new ArrayList<>();
+            boolean helpPage = "WHAT IS THIS SCREEN?".equals(p.headline()) || "COPIED FOR HELP".equals(p.headline());
+            if (!helpPage) rows.add(new Action("What is this screen?", Tone.GREY, () -> swap(render(explain(p, current)))));
+            if (!helpPage) rows.add(new Action("Copy for help", Tone.GREY, () -> swap(render(copied(p, current)))));
+            if (pack.supportLink() != null) {
+                rows.add(new Action(UiText.helpLinkLabel(pack.headlineName(), pack.supportLink()), Tone.GREY,
+                        () -> browse(pack.supportLink())));
+            }
+            rows.add(new Action("Report to Check Engine", Tone.GREY, () -> browse(ISSUES)));
+            for (Action a : rows) {
+                McButton row = new McButton(new Action(a.label(), a.tone(), () -> {
+                    close.run();
+                    a.run().run();
+                }), false);
+                row.setAlignmentX(0f);
+                row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+                menu.add(row);
+            }
+            Dimension size = menu.getPreferredSize();
+            java.awt.Point at = javax.swing.SwingUtilities.convertPoint(button, 0, 0, layers);
+            menu.setBounds(at.x, at.y - size.height, size.width, size.height);
+            layers.add(outside, JLayeredPane.POPUP_LAYER);
+            layers.add(menu, Integer.valueOf(JLayeredPane.POPUP_LAYER + 1));
+            layers.revalidate();
+            layers.repaint();
+        }
+
+        /** Draws a page: header line, dark list, then Help, a divider, the choices and what closes the window. */
         JPanel render(Page p) {
             Color tone = color(p.tone());
-            JPanel root = new Dashboard(new BorderLayout());
+            JPanel root = new JPanel(new BorderLayout());
+            root.setBackground(WINDOW);
 
-            JPanel top = column();
-            top.add(new Hazard(tone, p.tone() == Tone.RED || p.tone() == Tone.AMBER));
-            JPanel header = new JPanel(new BorderLayout(14, 0));
+            // Header: the light (red, amber or green), "Check Engine: ...", code and date small and grey at the right
+            // Help's pages change nothing about the pack: the light stays as it was
+            boolean helpPage = "WHAT IS THIS SCREEN?".equals(p.headline()) || "COPIED FOR HELP".equals(p.headline());
+            int light = helpPage ? lastLight
+                    : p.tone() == Tone.RED ? EngineIcon.RED : p.tone() == Tone.AMBER ? EngineIcon.AMBER : EngineIcon.GREEN;
+            lastLight = light;
+            JPanel header = new JPanel(new BorderLayout(px(12), 0));
             header.setOpaque(false);
-            header.setBorder(new EmptyBorder(10, 12, 8, 20));
-            header.setAlignmentX(0f);
-            Bezel lamp = new Bezel(logo, tone);
-            lamps.add(lamp);
-            header.add(lamp, BorderLayout.WEST);
-            JPanel titles = column();
-            titles.add(Box.createVerticalGlue());
-            titles.add(label("CHECK ENGINE", tracked(font(Font.BOLD, 23), 0.1f), TEXT));
-            titles.add(new GlowLabel(p.headline(), tracked(font(Font.BOLD, 16), 0.03f), tone));
-            if (p.subline() != null) titles.add(label(p.subline(), font(Font.PLAIN, 12), DIM));
-            titles.add(Box.createVerticalGlue());
-            header.add(titles, BorderLayout.CENTER);
-            if (p.code() != null) header.add(readout(p, tone), BorderLayout.EAST);
-            top.add(header);
-            root.add(top, BorderLayout.NORTH);
+            header.setBorder(new CompoundBorder(rule(0, 0, 1, 0), pad(9, 12, 9, 12)));
+            JPanel title = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            title.setOpaque(false);
+            title.add(new EngineLight(light));
+            title.add(label("Check Engine: ", PLAIN_FONT, TEXT));
+            title.add(label(UiText.afterName(p.headline()), PLAIN_FONT, tone));
+            header.add(title, BorderLayout.WEST);
+            String lastWorked = p.subline() != null && p.subline().startsWith("Last worked") ? p.subline() : null;
+            String meta = p.code() != null ? p.code() + " · " + UiText.now() : lastWorked;
+            if (meta != null) header.add(label(meta, PLAIN_FONT, DIM), BorderLayout.EAST);
+            root.add(header, BorderLayout.NORTH);
 
             JPanel body = column();
-            body.setBorder(new EmptyBorder(0, 18, 0, 18));
+            body.setOpaque(true);
+            body.setBackground(LIST);
+            body.setBorder(pad(10, 16, 10, 16));
+            if (p.subline() != null && lastWorked == null) {
+                body.add(label(p.subline(), PLAIN_FONT, DIM));
+                body.add(Box.createVerticalStrut(px(8)));
+            }
             for (int i = 0; i < p.sections().size(); i++) {
-                if (i > 0) body.add(Box.createVerticalStrut(9));
+                if (i > 0) body.add(Box.createVerticalStrut(px(10)));
                 body.add(section(p.sections().get(i)));
             }
             root.add(body, BorderLayout.CENTER);
 
             JPanel bottom = column();
+            bottom.setBorder(rule(1, 0, 0, 0));
             if (p.help() != null) {
-                JLabel help = label(p.help(), font(Font.PLAIN, 13), DIM);
-                help.setBorder(new EmptyBorder(10, 18, 0, 18));
+                JLabel help = label(p.help(), PLAIN_FONT, DIM);
+                help.setBorder(pad(8, 16, 0, 16));
                 bottom.add(help);
             }
+            // Help, a divider, the main button first and outlined, the other choices; what closes the window far right
             JPanel buttons = new JPanel();
             buttons.setOpaque(false);
             buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
-            buttons.setBorder(new EmptyBorder(14, 18, 14, 18));
+            buttons.setBorder(pad(8, 10, 8, 10));
             buttons.setAlignmentX(0f);
+            McButton[] help = new McButton[1];
+            help[0] = new McButton(new Action("Help", Tone.GREY, () -> openHelp(p, root, help[0])), false);
+            buttons.add(help[0]);
+            buttons.add(Box.createHorizontalStrut(px(8)));
+            buttons.add(new Divider());
+            buttons.add(Box.createHorizontalStrut(px(8)));
             boolean first = true;
             for (Action a : p.actions()) {
-                if (a.tone() == Tone.GREY) continue;
-                if (!first) buttons.add(Box.createHorizontalStrut(10));
-                buttons.add(new SwitchButton(a));
+                if (UiText.closes(a.label())) continue;
+                if (!first) buttons.add(Box.createHorizontalStrut(px(6)));
+                // Load anyway is a choice like any other, never the one to press
+                buttons.add(new McButton(a, first && !"Load anyway".equals(a.label())));
                 first = false;
             }
             buttons.add(Box.createHorizontalGlue());
             for (Action a : p.actions()) {
-                if (a.tone() != Tone.GREY) continue;
-                buttons.add(Box.createHorizontalStrut(8));
-                buttons.add(new SmallButton(a));
+                if (!UiText.closes(a.label())) continue;
+                buttons.add(Box.createHorizontalStrut(px(6)));
+                buttons.add(new McButton(a, false));
             }
             bottom.add(buttons);
-            bottom.add(footer(uan, p.note()));
             root.add(bottom, BorderLayout.SOUTH);
-            root.setPreferredSize(new Dimension(Math.max(WIDTH, root.getPreferredSize().width), root.getPreferredSize().height));
+            root.setPreferredSize(new Dimension(Math.max(px(WIDTH), root.getPreferredSize().width), root.getPreferredSize().height));
+            root.addHierarchyListener(e -> {
+                if (root.isShowing()) CURRENT.set(root);
+            });
             return root;
         }
     }
 
     // ---- pieces of the frame ----
 
-    /** Dark dashboard background: a soft top light and faint brushed-metal lines. */
-    private static final class Dashboard extends JPanel {
-        Dashboard(java.awt.LayoutManager layout) {
-            super(layout);
+    /** The engine light from the same texture as the game, its halo included, at twice the size. */
+    private static final class EngineLight extends JComponent {
+        private final int cell;
+
+        EngineLight(int cell) {
+            this.cell = cell;
+            setPreferredSize(new Dimension((EngineIcon.WIDTH + 2 * EngineIcon.MARGIN) * px(2),
+                    (EngineIcon.HEIGHT + 2 * EngineIcon.MARGIN) * px(2)));
         }
 
         @Override
         protected void paintComponent(Graphics g) {
+            Image all = image("/checkengine_engine.png");
+            if (all == null) return;
             Graphics2D g2 = (Graphics2D) g.create();
-            int w = getWidth(), h = getHeight();
-            g2.setPaint(new RadialGradientPaint(w / 2f, -h * 0.1f, Math.max(w, h) * 0.8f, new float[] {0f, 1f},
-                    new Color[] {new Color(0x2A2B30), new Color(0x131416)}));
-            g2.fillRect(0, 0, w, h);
-            g2.setColor(new Color(255, 255, 255, 7));
-            for (int x = 0; x < w; x += 3) g2.drawLine(x, 0, x, h);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            int top = cell * EngineIcon.CELL_H;
+            g2.drawImage(all, 0, 0, getWidth(), getHeight(), 0, top, EngineIcon.CELL_W, top + EngineIcon.CELL_H, null);
             g2.dispose();
         }
     }
 
-    /** The stripe across the top: hazard tape for warnings, a plain bar for good news and info. */
-    private static final class Hazard extends JComponent {
-        private final Color tone;
-        private final boolean warning;
-
-        Hazard(Color tone, boolean warning) {
-            this.tone = tone;
-            this.warning = warning;
-            int h = warning ? 6 : 4;
-            setPreferredSize(new Dimension(WIDTH, h));
-            setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
-            setAlignmentX(0f);
+    /** The thin line between Help and the choices. */
+    private static final class Divider extends JComponent {
+        Divider() {
+            setPreferredSize(new Dimension(1, px(24)));
+            setMaximumSize(new Dimension(1, Integer.MAX_VALUE));
         }
 
         @Override
         protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int h = getHeight();
-            if (!warning) {
-                g2.setColor(tone);
-                g2.fillRect(0, 0, getWidth(), h);
-                g2.dispose();
-                return;
-            }
-            g2.setColor(new Color(0x141414));
-            g2.fillRect(0, 0, getWidth(), h);
-            g2.setColor(tone);
-            for (int x = -h; x < getWidth() + h; x += 20) {
-                g2.fill(new Polygon(new int[] {x, x + 10, x + 10 + h, x + h}, new int[] {h, h, 0, 0}, 4));
-            }
-            g2.dispose();
+            g.setColor(RULE);
+            g.fillRect(0, 0, 1, getHeight());
         }
     }
 
-    /** The Check Engine logo in a round metal bezel, with a lamp ring that blinks like the real dashboard light. */
-    private static final class Bezel extends JComponent {
-        private final Image logo;
-        private final Color tone;
-        private boolean on = true;
-
-        Bezel(Image logo, Color tone) {
-            this.logo = logo;
-            this.tone = tone;
-            setPreferredSize(new Dimension(92, 92));
-        }
-
-        void toggle() {
-            on = !on;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            float c = getWidth() / 2f;
-            if (on) { // glow around the bezel
-                g2.setPaint(new RadialGradientPaint(c, c, c, new float[] {0.7f, 1f},
-                        new Color[] {alpha(tone, 110), alpha(tone, 0)}));
-                g2.fill(new Ellipse2D.Float(0, 0, 2 * c, 2 * c));
-            }
-            float r = 37; // metal ring
-            g2.setPaint(new GradientPaint(c - r, c - r, new Color(0x7A7D84), c + r, c + r, new Color(0x222428)));
-            g2.fill(new Ellipse2D.Float(c - r, c - r, 2 * r, 2 * r));
-            g2.setPaint(new GradientPaint(c - r, c + r, new Color(0x5C5F66), c + r, c - r, new Color(0x2A2C30)));
-            g2.fill(new Ellipse2D.Float(c - r + 4, c - r + 4, 2 * r - 8, 2 * r - 8));
-            float l = 30; // the lamp
-            g2.setColor(new Color(0x0D0D0F));
-            g2.fill(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
-            g2.setPaint(new RadialGradientPaint(c, c, l, new float[] {0.6f, 1f},
-                    new Color[] {alpha(tone, 0), alpha(tone, on ? 150 : 50)}));
-            g2.fill(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
-            g2.setColor(on ? tone : tone.darker().darker());
-            g2.setStroke(new BasicStroke(2f));
-            g2.draw(new Ellipse2D.Float(c - l, c - l, 2 * l, 2 * l));
-            if (logo != null) {
-                // The logo is square with a dark background: cut it to a circle, zoomed in so the block fills it.
-                int inner = 48;
-                BufferedImage img = new BufferedImage(inner, inner, BufferedImage.TYPE_INT_ARGB);
-                Graphics2D gi = img.createGraphics();
-                gi.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                gi.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                gi.fill(new Ellipse2D.Float(0, 0, inner, inner));
-                gi.setComposite(java.awt.AlphaComposite.SrcIn);
-                int zoom = inner / 8;
-                gi.drawImage(logo, -zoom, -zoom, inner + 2 * zoom, inner + 2 * zoom, null);
-                gi.dispose();
-                g2.drawImage(img, Math.round(c - inner / 2f), Math.round(c - inner / 2f), null);
-            }
-            g2.dispose();
-        }
-    }
-
-    /** The fault code in a lit LCD readout, with what it means and when. */
-    private static JComponent readout(Page p, Color tone) {
-        JPanel col = column();
-        Lcd lcd = new Lcd(p.code(), tone);
-        lcd.setAlignmentX(1f);
-        col.add(lcd);
-        col.add(Box.createVerticalStrut(5));
-        if (p.codeLabel() != null) {
-            JLabel what = label(p.codeLabel(), tracked(font(Font.PLAIN, 11), 0.08f), DIM);
-            what.setAlignmentX(1f);
-            col.add(what);
-        }
-        JLabel when = label(DateTimeNow.now().toUpperCase(), font(Font.PLAIN, 10), FAINT);
-        when.setAlignmentX(1f);
-        col.add(when);
-        JPanel wrap = new JPanel(new BorderLayout());
-        wrap.setOpaque(false);
-        wrap.setBorder(new EmptyBorder(8, 0, 0, 0));
-        wrap.add(col, BorderLayout.NORTH);
-        return wrap;
-    }
-
-    private static final class Lcd extends JComponent {
-        private final String text;
-        private final Color tone;
-        private final Font font;
-
-        Lcd(String text, Color tone) {
-            this.text = text;
-            this.tone = tone;
-            String mono = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
-                    .contains("Consolas") ? "Consolas" : Font.MONOSPACED;
-            this.font = tracked(new Font(mono, Font.BOLD, 22), 0.12f);
-            FontMetrics fm = getFontMetrics(font);
-            Dimension size = new Dimension(fm.stringWidth(text) + 24, fm.getHeight() + 6);
-            setPreferredSize(size);
-            setMaximumSize(size);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            int w = getWidth(), h = getHeight();
-            g2.setColor(new Color(0x0A0B0C));
-            g2.fill(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, 8, 8));
-            g2.setColor(new Color(0x33353A));
-            g2.draw(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, 8, 8));
-            g2.setFont(font);
-            FontMetrics fm = g2.getFontMetrics();
-            int x = (w - fm.stringWidth(text)) / 2, y = (h - fm.getHeight()) / 2 + fm.getAscent();
-            glow(g2, text, x, y, tone);
-            g2.dispose();
-        }
-    }
-
-    /** A label whose text glows a little in its colour, like a backlit gauge. */
-    private static final class GlowLabel extends JLabel {
-        GlowLabel(String text, Font f, Color c) {
-            super(text);
-            setFont(fit(f, text));
-            setForeground(c);
-            setAlignmentX(0f);
-            setBorder(new EmptyBorder(1, 0, 1, 0));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g2.setFont(getFont());
-            FontMetrics fm = g2.getFontMetrics();
-            glow(g2, getText(), 0, getInsets().top + fm.getAscent(), getForeground());
-            g2.dispose();
-        }
-    }
-
-    /** Text with a soft glow behind it. */
-    private static void glow(Graphics2D g2, String text, int x, int y, Color c) {
-        g2.setColor(alpha(c, 22));
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) if (dx != 0 || dy != 0) g2.drawString(text, x + dx, y + dy);
-        }
-        g2.setColor(c);
-        g2.drawString(text, x, y);
-    }
-
-    /** A screwed-on panel: round icon badge, coloured title, the lines. */
+    /** One block of the list: "! What's wrong" in its colour, then the lines. */
     private static JComponent section(Section s) {
         Color tone = color(s.tone());
-        JPanel p = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth(), h = getHeight();
-                g2.setColor(new Color(0, 0, 0, 90)); // shadow
-                g2.fill(new RoundRectangle2D.Float(0, 2, w, h - 2, 12, 12));
-                g2.setPaint(new GradientPaint(0, 0, PANEL_TOP, 0, h, PANEL_BOTTOM));
-                g2.fill(new RoundRectangle2D.Float(0, 0, w, h - 2, 12, 12));
-                g2.setColor(EDGE);
-                g2.drawLine(6, 0, w - 7, 0);
-                badge(g2, s.icon(), tone, 12, 11);
-                screw(g2, w - 13, 6);
-                screw(g2, w - 13, h - 15);
-                g2.dispose();
-            }
+        JPanel p = column();
+        String mark = switch (s.icon()) {
+            case ALERT -> "! ";
+            case CHANGED -> "± ";
+            case CHECK -> TICK;
+            case INFO -> "i ";
+            case NEXT -> "» ";
         };
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        p.setOpaque(false);
-        p.setBorder(new EmptyBorder(10, 46, 12, 24));
-        p.setAlignmentX(0f);
-        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        p.add(label(s.title(), tracked(font(Font.BOLD, 12), 0.1f), tone));
+        p.add(label(mark + UiText.sentence(s.title()), PLAIN_FONT, tone));
         JPanel lines = column();
         for (Line l : s.lines()) {
-            Font f = font(l.style() == Style.STRONG ? Font.BOLD : Font.PLAIN, l.style() == Style.STRONG ? 15 : 14);
+            Font f = l.style() == Style.STRONG ? BOLD_FONT : PLAIN_FONT;
             // long sentences wrap instead of stretching the window
-            for (String part : wrap(l.text(), f, MAX_LINE)) {
-                lines.add(label(part, f, l.style() == Style.DIM ? DIM : TEXT));
-            }
+            for (String part : wrap(l.text(), f, px(MAX_LINE))) lines.add(label(part, f, l.style() == Style.DIM ? DIM : TEXT));
         }
         p.add(lines.getComponentCount() > VISIBLE_LINES ? scroll(lines) : lines);
         return p;
     }
 
-    private static void badge(Graphics2D g2, Icon icon, Color tone, int x, int y) {
-        g2.setColor(tone);
-        g2.fill(new Ellipse2D.Float(x, y, 22, 22));
-        g2.setColor(new Color(0x111111));
-        g2.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        float cx = x + 11, cy = y + 11;
-        switch (icon) {
-            case ALERT -> {
-                g2.draw(new Line2D.Float(cx, cy - 6, cx, cy + 1.5f));
-                g2.fill(new Ellipse2D.Float(cx - 1.7f, cy + 3.8f, 3.4f, 3.4f));
-            }
-            case CHECK -> g2.draw(polyline(cx - 5.5f, cy, cx - 1.5f, cy + 4, cx + 6, cy - 4.5f));
-            case CHANGED -> {
-                g2.draw(new Arc2D.Float(cx - 6, cy - 6, 12, 12, 70, 270, Arc2D.OPEN));
-                g2.fill(new Polygon(new int[] {Math.round(cx + 1), Math.round(cx + 7), Math.round(cx + 2)},
-                        new int[] {Math.round(cy - 9), Math.round(cy - 6), Math.round(cy - 2)}, 3));
-            }
-            case INFO -> {
-                g2.fill(new Ellipse2D.Float(cx - 1.7f, cy - 7.5f, 3.4f, 3.4f));
-                g2.draw(new Line2D.Float(cx, cy - 1, cx, cy + 6));
-            }
-            case NEXT -> {
-                g2.draw(new Line2D.Float(cx - 6, cy, cx + 5, cy));
-                g2.draw(polyline(cx + 1, cy - 4.5f, cx + 5.5f, cy, cx + 1, cy + 4.5f));
-            }
-        }
-    }
+    /** A Minecraft-style button. The main one has a white outline. */
+    private static final class McButton extends JButton {
+        private final boolean main;
 
-    private static Path2D polyline(float... xy) {
-        Path2D.Float path = new Path2D.Float();
-        path.moveTo(xy[0], xy[1]);
-        for (int i = 2; i < xy.length; i += 2) path.lineTo(xy[i], xy[i + 1]);
-        return path;
-    }
-
-    private static void screw(Graphics2D g2, int x, int y) {
-        g2.setPaint(new RadialGradientPaint(x + 2.5f, y + 2.5f, 5, new float[] {0f, 1f},
-                new Color[] {new Color(0x8A8D94), new Color(0x3A3C41)}));
-        g2.fill(new Ellipse2D.Float(x, y, 7, 7));
-        g2.setColor(new Color(0x26282C));
-        g2.setStroke(new BasicStroke(1f));
-        g2.drawLine(x + 2, y + 5, x + 5, y + 2); // the slot
-    }
-
-    /** A chunky dashboard switch with an LED, for the main actions. */
-    private static final class SwitchButton extends JButton {
-        private final Color top, bottom, shade, led;
-
-        SwitchButton(Action a) {
+        McButton(Action a, boolean main) {
             super(a.label());
-            Color[] c = switch (a.tone()) {
-                case RED -> new Color[] {new Color(0xFF5F52), new Color(0xD93A2E), new Color(0x8E2119), new Color(0xFFD9D6)};
-                case GREEN -> new Color[] {new Color(0x34B045), new Color(0x1F7A2A), new Color(0x0F4416), new Color(0xC8FFD0)};
-                case BLUE -> new Color[] {new Color(0x5B97F7), new Color(0x2F6FE0), new Color(0x1B3F86), new Color(0xD6E6FF)};
-                case STEEL -> new Color[] {new Color(0x8E99A8), new Color(0x5C6676), new Color(0x2F3540), new Color(0xE2E8F0)};
-                default -> new Color[] {new Color(0xC98420), new Color(0x8A5A12), new Color(0x4F3309), new Color(0xFFCF86)};
-            };
-            top = c[0];
-            bottom = c[1];
-            shade = c[2];
-            led = c[3];
-            setFont(fit(tracked(font(Font.BOLD, 14), 0.06f), a.label()));
-            setForeground(Color.WHITE);
+            this.main = main;
+            setFont(PLAIN_FONT);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setFocusPainted(false);
             setOpaque(false);
-            setBorder(new EmptyBorder(10, 32, 13, 18));
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setBorder(pad(6, 12, 6, 12));
             setMaximumSize(getPreferredSize());
             addActionListener(e -> a.run().run());
         }
@@ -745,95 +633,26 @@ final class Popup {
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            int w = getWidth(), h = getHeight() - 3;
-            int dy = getModel().isPressed() ? 2 : 0;
-            g2.setColor(shade);
-            g2.fill(new RoundRectangle2D.Float(0, 3, w, h, 12, 12));
-            Color t = getModel().isRollover() ? top.brighter() : top;
-            g2.setPaint(new GradientPaint(0, dy, t, 0, h + dy, bottom));
-            g2.fill(new RoundRectangle2D.Float(0, dy, w, h, 12, 12));
-            g2.setColor(new Color(255, 255, 255, 70));
-            g2.drawLine(6, dy + 1, w - 7, dy + 1);
-            float lx = 15, ly = h / 2f + dy;
-            g2.setPaint(new RadialGradientPaint(lx, ly, 8, new float[] {0f, 1f},
-                    new Color[] {alpha(led, 200), alpha(led, 0)}));
-            g2.fill(new Ellipse2D.Float(lx - 8, ly - 8, 16, 16));
-            g2.setColor(led);
-            g2.fill(new Ellipse2D.Float(lx - 4, ly - 4, 8, 8));
+            int w = getWidth(), h = getHeight();
+            boolean hover = getModel().isRollover();
+            g2.setColor(main ? Color.WHITE : Color.BLACK);
+            g2.fillRect(0, 0, w, h);
+            int p = px(1);
+            g2.setPaint(new GradientPaint(0, p, hover ? new Color(0x8C8C9E) : new Color(0x7A7A7A), 0, h - p,
+                    hover ? new Color(0x72728A) : new Color(0x646464)));
+            g2.fillRect(p, p, w - 2 * p, h - 2 * p);
+            g2.setColor(hover ? new Color(0xB8B8D0) : new Color(0xA8A8A8));
+            g2.fillRect(p, p, w - 2 * p, p);
+            g2.fillRect(p, p, p, h - 2 * p);
+            g2.setColor(new Color(0x4A4A4A));
+            g2.fillRect(p, h - 3 * p, w - 2 * p, 2 * p);
+            g2.fillRect(w - 2 * p, p, p, h - 2 * p);
             g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
-            int ty = dy + (h - fm.getHeight()) / 2 + fm.getAscent();
-            g2.setColor(new Color(0, 0, 0, 80));
-            g2.drawString(getText(), 32, ty + 1);
-            g2.setColor(Color.WHITE);
-            g2.drawString(getText(), 32, ty);
+            int x = (w - fm.stringWidth(getText())) / 2, y = (h - 2 * p - fm.getHeight()) / 2 + fm.getAscent();
+            drawText(g2, getText(), x, y, hover ? new Color(0xFFFFA0) : Color.WHITE);
             g2.dispose();
         }
-    }
-
-    /** A small outlined button, for the less common actions. */
-    private static final class SmallButton extends JButton {
-        SmallButton(Action a) {
-            super(a.label());
-            setFont(fit(tracked(font(Font.BOLD, 12), 0.05f), a.label()));
-            setForeground(new Color(0xC9CBD1));
-            setContentAreaFilled(false);
-            setBorderPainted(false);
-            setFocusPainted(false);
-            setOpaque(false);
-            setBorder(new EmptyBorder(8, 12, 8, 12));
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            setMaximumSize(getPreferredSize());
-            addActionListener(e -> a.run().run());
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            if (getModel().isRollover()) {
-                g2.setColor(new Color(255, 255, 255, 14));
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 9, 9));
-            }
-            g2.setColor(getModel().isRollover() ? new Color(0x6A6D74) : new Color(0x3D4046));
-            g2.draw(new RoundRectangle2D.Float(0, 0, getWidth() - 1, getHeight() - 1, 9, 9));
-            g2.setFont(getFont());
-            FontMetrics fm = g2.getFontMetrics();
-            g2.setColor(getForeground());
-            g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2,
-                    (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
-            g2.dispose();
-        }
-    }
-
-    /** The bottom strip: the UAN mark and "Check Engine", and a small note on the right. */
-    private static JComponent footer(Image uan, String note) {
-        JPanel f = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                g.setColor(new Color(0x0F1012));
-                g.fillRect(0, 0, getWidth(), getHeight());
-                g.setColor(new Color(0x2A2C30));
-                g.drawLine(0, 0, getWidth(), 0);
-            }
-        };
-        f.setBorder(new EmptyBorder(8, 12, 8, 18));
-        f.setAlignmentX(0f);
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        left.setOpaque(false);
-        if (uan != null) left.add(new JLabel(new ImageIcon(uan.getScaledInstance(20, 20, Image.SCALE_SMOOTH))));
-        left.add(label("Check Engine", font(Font.BOLD, 12), new Color(0x9A9CA3)));
-        f.add(left, BorderLayout.WEST);
-        if (note != null) {
-            String mono = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
-                    .contains("Consolas") ? "Consolas" : Font.MONOSPACED;
-            f.add(label(note, tracked(new Font(mono, Font.PLAIN, 11), 0.05f), new Color(0x5F6168)), BorderLayout.EAST);
-        }
-        f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        return f;
     }
 
     // ---- helpers ----
@@ -848,15 +667,47 @@ final class Popup {
         };
     }
 
-    private static Color alpha(Color c, int a) {
-        return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(0, Math.min(255, a)));
-    }
-
     private static Image image(String resource) {
         try (java.io.InputStream in = Popup.class.getResourceAsStream(resource)) {
             return in == null ? null : ImageIO.read(in);
         } catch (java.io.IOException e) {
             return null;
+        }
+    }
+
+    /** Help > What is this screen?: plain words, from inside the jar. */
+    private static Page explain(Page p, JPanel back) {
+        List<Line> lines = ScreenHelp.explain(ScreenHelp.place(p.headline()), null, p.code()).stream().map(Line::text).toList();
+        return new Page(Tone.BLUE, "WHAT IS THIS SCREEN?", null, p.code(), null,
+                List.of(new Section("IN PLAIN WORDS", Tone.BLUE, Icon.INFO, lines)),
+                List.of(new Action("Cancel", Tone.GREY, () -> swapTo(back))), null, null);
+    }
+
+    /** Help > Copy for help: what this page says and the versions, on the clipboard; shows what was copied. */
+    private static Page copied(Page p, JPanel back) {
+        List<String> text = new ArrayList<>();
+        for (Section s : p.sections()) {
+            text.add(UiText.sentence(s.title()));
+            s.lines().forEach(l -> text.add(l.text()));
+        }
+        String message = CrashHelp.forScreen(UiText.afterName(p.headline()), p.code(), text, null, null, null);
+        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                .setContents(new java.awt.datatransfer.StringSelection(message), null);
+        return new Page(Tone.BLUE, "COPIED FOR HELP", null, p.code(), null, List.of(
+                new Section("PASTE IT IN YOUR HELP CHANNEL", Tone.BLUE, Icon.INFO, List.of(
+                        Line.text("Press Ctrl+V in your pack's Discord or in a GitHub issue."),
+                        Line.dim("Your user folder and IP are blanked out. Nothing was uploaded."))),
+                new Section("WHAT WAS COPIED", Tone.GREY, Icon.INFO,
+                        java.util.Arrays.stream(message.split("\n")).map(Line::dim).toList())),
+                List.of(new Action("Cancel", Tone.GREY, () -> swapTo(back))), null, null);
+    }
+
+    /** Back to a page that's already drawn. */
+    private static void swapTo(JPanel page) {
+        if (javax.swing.SwingUtilities.getWindowAncestor(CURRENT.get()) instanceof JDialog d) {
+            d.setContentPane(page);
+            d.pack();
+            d.repaint();
         }
     }
 
@@ -901,16 +752,16 @@ final class Popup {
         sp.getViewport().setOpaque(false);
         sp.setAlignmentX(0f);
         int row = list.getComponent(0).getPreferredSize().height;
-        sp.setPreferredSize(new Dimension(list.getPreferredSize().width + 14, row * (VISIBLE_LINES + 1) + row / 2));
+        sp.setPreferredSize(new Dimension(list.getPreferredSize().width + px(14), row * (VISIBLE_LINES + 1) + row / 2));
         JScrollBar bar = sp.getVerticalScrollBar();
         bar.setOpaque(false);
-        bar.setPreferredSize(new Dimension(8, 0));
+        bar.setPreferredSize(new Dimension(px(8), 0));
         bar.setUnitIncrement(row);
         bar.setUI(new BasicScrollBarUI() {
             @Override
             protected void configureScrollBarColors() {
                 thumbColor = new Color(0x5E6168);
-                trackColor = PANEL_BOTTOM;
+                trackColor = LIST;
             }
 
             @Override
@@ -941,7 +792,7 @@ final class Popup {
     }
 
     /** Widest a panel line gets before it wraps (pixels). */
-    private static final int MAX_LINE = 640;
+    private static final int MAX_LINE = 600;
 
     /** Splits {@code text} at spaces into lines no wider than {@code max} pixels in font {@code f}. */
     static List<String> wrap(String text, Font f, int max) {
@@ -962,36 +813,44 @@ final class Popup {
         return out;
     }
 
+    /** A line of text with Minecraft-style drop shadow. */
     private static JLabel label(String text, Font f, Color c) {
-        JLabel l = new JLabel(text);
-        l.setFont(fit(f, text));
+        boolean tick = text.startsWith(TICK);
+        String words = (tick ? text.substring(TICK.length()) : text).replace("→", "-");
+        JLabel l = new JLabel(tick ? "++ " + words : text) { // the same width as the mark and its space
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                int y = getInsets().top + fm.getAscent(), x = tick ? px(16) : 0;
+                drawText(g2, words, x, y, getForeground());
+                g2.setColor(getForeground());
+                if (tick) {
+                    int top = y - px(11);
+                    for (int r = 0; r < TICK_SHAPE.length; r++) {
+                        for (int k = 0; k < TICK_SHAPE[r].length(); k++) {
+                            if (TICK_SHAPE[r].charAt(k) == '#') g2.fillRect(k * px(2), top + r * px(2), px(2), px(2));
+                        }
+                    }
+                }
+                g2.dispose();
+            }
+        };
+        l.setFont(f.canDisplayUpTo(words) == -1 ? f : new Font(Font.SANS_SERIF, f.getStyle(), px(14)));
         l.setForeground(c);
         l.setAlignmentX(0f);
-        l.setBorder(new EmptyBorder(1, 0, 1, 0));
+        l.setBorder(pad(1, 0, 3, 2));
         return l;
     }
 
-    /** Bahnschrift has no arrows; anything it can't draw falls back to a font that can. */
-    private static Font fit(Font f, String text) {
-        return f.canDisplayUpTo(text) == -1 ? f : new Font(Font.SANS_SERIF, f.getStyle(), f.getSize());
-    }
-
-    /** Bahnschrift is Windows' dashboard-style font; anything else falls back to the system sans-serif. */
-    private static Font font(int style, int size) {
-        String name = Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())
-                .contains("Bahnschrift") ? "Bahnschrift" : "SansSerif";
-        return new Font(name, style, size);
-    }
-
-    /** The font with wider letter spacing. */
-    private static Font tracked(Font f, float amount) {
-        return f.deriveFont(Map.of(TextAttribute.TRACKING, amount));
-    }
-
-    /** "14 Oct 21:05", for the fault readout. */
-    private static final class DateTimeNow {
-        static String now() {
-            return java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM HH:mm"));
+    /** The bundled pixel font (Pixel Operator, CC0), or the system font if it cannot be read. */
+    private static Font load(String resource, int style) {
+        try (java.io.InputStream in = Popup.class.getResourceAsStream(resource)) {
+            if (in != null) return Font.createFont(Font.TRUETYPE_FONT, in).deriveFont((float) TEXT_SIZE);
+        } catch (Exception e) {
+            // the system font below still reads fine
         }
+        return new Font(Font.SANS_SERIF, style, 14);
     }
 }

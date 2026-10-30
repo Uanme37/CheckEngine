@@ -31,7 +31,7 @@ final class ReportScreen {
             return new DashScreen(DashScreen.BLUE, "NO REPORT HERE YET", null, null, List.of(new Section("WHERE IS IT",
                     DashScreen.BLUE, "i", List.of(Line.text("Run /checkengine scan first."),
                     Line.dim("On a server the report is saved on the server, in checkengine/scan-report.txt.")))),
-                    List.of(new Btn("Close", close, true)), close);
+                    List.of(new Btn("Continue", close, true)), close);
         }
         ReportSections.Parsed report = ReportSections.parse(text);
         List<Section> sections = new ArrayList<>();
@@ -58,13 +58,13 @@ final class ReportScreen {
             sections.add(new Section(b.title().toUpperCase(Locale.ROOT), tone, tone == DashScreen.BLUE ? "i" : "!", lines));
         }
         if (sections.isEmpty()) {
-            sections.add(new Section("ALL GOOD", DashScreen.GREEN, "✔", List.of(Line.text("No problems found."))));
+            sections.add(new Section("ALL GOOD", DashScreen.GREEN, "✓", List.of(Line.text("No problems found."))));
         }
         int tone = problems ? DashScreen.RED : warnings ? DashScreen.AMBER : DashScreen.GREEN;
         String summary = report.summary().isEmpty() ? "SCAN REPORT"
                 : report.summary().replaceAll("\\.$", "").toUpperCase(Locale.ROOT);
         return new DashScreen(tone, summary, null, null, sections, List.of(
-                new Btn("Close", close, true),
+                new Btn("Continue", close, true),
                 new Btn("Open as text", () -> Util.getPlatform().openFile(file.toFile()), false,
                         "The same report in a text file, to copy from or send.")), close);
     }

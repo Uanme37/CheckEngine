@@ -61,7 +61,7 @@ final class DowngradeScreen {
                 new Section("WORLDS PLAYED LAST", DashScreen.GREY, "▣", list)),
                 List.of(new Btn("Back up these worlds", () -> backUp(worlds, next), true,
                                 "Copies each world next to itself in your world list."),
-                        new Btn("Skip", go, false)), go);
+                        new Btn("Continue", go, false)), go);
     }
 
     private static void backUp(List<Path> worlds, Screen next) {
@@ -91,7 +91,7 @@ final class DowngradeScreen {
             Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(showing = new DashScreen(
                     done ? DashScreen.GREEN : DashScreen.RED, done ? "WORLDS BACKED UP" : "SOME BACKUPS FAILED", null, null,
                     List.of(new Section(done ? "IN YOUR WORLD LIST" : "WHAT HAPPENED", done ? DashScreen.GREEN : DashScreen.RED,
-                            done ? "✔" : "!", lines)),
+                            done ? "✓" : "!", lines)),
                     List.of(new Btn("Continue", go, true)), go)));
         }, "Check Engine world backup");
         t.setDaemon(true);

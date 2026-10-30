@@ -73,7 +73,7 @@ final class StripMineScreens {
                 "Check Engine switches off half of your mods, and you launch.",
                 "It crashes: the faulty mod is still on. No crash: it's in the half that was off.",
                 "Mods you changed lately are tested first.")));
-        sections.add(new Section("SAFE", GREEN, "✔", DashScreen.lines(
+        sections.add(new Section("SAFE", GREEN, "✓", DashScreen.lines(
                 "Nothing is deleted: mods are renamed to .disabled and switched back on at the end.",
                 "You can stop any time from the title screen, and every mod goes back.")));
         sections.add(new Section("WHAT HAPPENS NOW", GREY, "»", DashScreen.lines(
@@ -96,7 +96,7 @@ final class StripMineScreens {
                         go(back);
                     }
                 }, true),
-                new Btn("Back", () -> go(back), false)), () -> go(back)));
+                new Btn("Cancel", () -> go(back), false)), () -> go(back)).from(back));
     }
 
     /** "Find the bad config?": like the mod search, over the config files changed since the pack last worked. */
@@ -106,7 +106,7 @@ final class StripMineScreens {
                 new Section("HOW IT WORKS", AMBER, "?", DashScreen.lines(
                         "No mod changed since the pack last worked, but " + configs.size() + " config files did.",
                         "Check Engine puts half of them back as they were then, and you launch.")),
-                new Section("SAFE", GREEN, "✔", DashScreen.lines(
+                new Section("SAFE", GREEN, "✓", DashScreen.lines(
                         "Your own versions wait in checkengine/config-strip and all come back at the end.",
                         "You can stop any time from the title screen.")),
                 new Section("WHAT HAPPENS NOW", GREY, "»", DashScreen.lines(
@@ -123,7 +123,7 @@ final class StripMineScreens {
                         CheckEngine.LOGGER.warn("Check Engine: couldn't start Strip Mine", e);
                         go(back);
                     }
-                }, true), new Btn("Back", () -> go(back), false)), () -> go(back)));
+                }, true), new Btn("Cancel", () -> go(back), false)), () -> go(back)).from(back));
     }
 
     /** "12 mods are switched off" / "3 config files are back to how they were" */
@@ -149,7 +149,7 @@ final class StripMineScreens {
             Screen[] self = new Screen[1];
             self[0] = new DashScreen(AMBER, HEADLINE + ": NO CRASH THIS ROUND", code,
                     after <= 1 ? "FOUND" : after + " SUSPECTS LEFT", List.of(
-                    new Section("THIS ROUND", GREEN, "✔", List.of(
+                    new Section("THIS ROUND", GREEN, "✓", List.of(
                             Line.strong("With " + offText(s) + ", the pack loads fine."),
                             Line.dim(s.configs() ? "So the bad config is one of those."
                                     : "So the faulty mod is one of the mods that were off."))),
@@ -157,7 +157,7 @@ final class StripMineScreens {
                             ? "That's the one. Quit the game and press Play to see which mod it is."
                             : "Quit the game and press Play again for round " + (s.round() + 1) + ". About "
                                     + roundsAfter + (roundsAfter == 1 ? " round" : " rounds") + " to go.")))), List.of(
-                    new Btn("Quit game", () -> {
+                    new Btn("Quit", () -> {
                         open = false;
                         Minecraft.getInstance().stop();
                     }, true),
@@ -179,7 +179,7 @@ final class StripMineScreens {
                     StripMine.markWorked(folder);
                     Minecraft.getInstance().stop();
                 }, true),
-                new Btn("Keep testing", () -> go(title), true),
+                new Btn("Continue", () -> go(title), true),
                 new Btn("Stop Strip Mine", () -> askStop(self[0], title), false)), () -> go(title));
         return show(self[0]);
     }
@@ -196,11 +196,11 @@ final class StripMineScreens {
         List<Section> sections = new ArrayList<>();
         List<Btn> buttons = new ArrayList<>();
         if (found != null && s.configs()) {
-            sections.add(new Section("THE BAD CONFIG", GREEN, "✔", List.of(Line.strong(found),
+            sections.add(new Section("THE BAD CONFIG", GREEN, "✓", List.of(Line.strong(found),
                     Line.dim(s.crash().isEmpty() ? "With its old version, the pack doesn't crash."
                             : "The crash: " + s.crash()),
                     Line.dim("Found in " + s.round() + (s.round() == 1 ? " round." : " rounds.") + " Every config file is back as you had it."))));
-            sections.add(new Section("FIX", GREEN, "✔", DashScreen.lines(
+            sections.add(new Section("FIX", GREEN, "✓", DashScreen.lines(
                     "Put back its version from when the pack last worked. Yours is kept in "
                             + "checkengine/config-undo-<date>, nothing is deleted.",
                     "Or open it and undo your last edit there.")));
@@ -223,11 +223,11 @@ final class StripMineScreens {
                 // just the jar
             }
             List<String> plan = off;
-            sections.add(new Section("THE FAULTY MOD", GREEN, "✔", List.of(Line.strong(found),
+            sections.add(new Section("THE FAULTY MOD", GREEN, "✓", List.of(Line.strong(found),
                     Line.dim(s.crash().isEmpty() ? "With it switched off, the pack doesn't crash."
                             : "The crash: " + s.crash()),
                     Line.dim("Found in " + s.round() + (s.round() == 1 ? " round." : " rounds.") + " Every mod is switched back on."))));
-            sections.add(new Section("FIX", GREEN, "✔", DashScreen.lines(
+            sections.add(new Section("FIX", GREEN, "✓", DashScreen.lines(
                     "Switch it off: renamed to .disabled, nothing is deleted" + (plan.size() > 1 ? " (with the "
                             + (plan.size() - 1) + " mods that need it)." : "."),
                     "Or update it, or send the crash report to its author.")));
@@ -245,14 +245,14 @@ final class StripMineScreens {
             sections.add(new Section("COULDN'T FINISH", AMBER, "!", DashScreen.lines(
                     "Test rounds kept failing in a different way: switching mods off broke other mods, so it "
                             + "couldn't narrow anything down.",
-                    "Every mod is switched back on. Make a help file and send it to the pack's author.")));
+                    "Every mod is switched back on. Use Help > Copy for help and send that to the pack's author.")));
         } else {
             sections.add(new Section("ONE OF THESE", AMBER, "!", List.of(
                     Line.text("These mods need each other, so Strip Mine can't split them: "
                             + String.join(", ", s.suspects())),
                     Line.dim("Every mod is switched back on."))));
         }
-        buttons.add(new Btn("OK", () -> {
+        buttons.add(new Btn("Continue", () -> {
             done.run();
             go(title);
         }, found == null));
@@ -270,8 +270,8 @@ final class StripMineScreens {
         go(show(new DashScreen(RED, "STOP STRIP MINE?", null, null, List.of(
                 new Section("ARE YOU SURE?", RED, "!", DashScreen.lines(
                         "Every mod goes back on and this search is lost: you'd start again from round 1."))),
-                List.of(new Btn("Keep going", () -> go(show(round)), true),
-                        new Btn("Stop", () -> stop(title), false)), () -> go(show(round)))));
+                List.of(new Btn("Cancel", () -> go(show(round)), false),
+                        new Btn("Stop Strip Mine", () -> stop(title), true)), () -> go(show(round))).from(round)));
     }
 
     /**
@@ -308,12 +308,12 @@ final class StripMineScreens {
             CheckEngine.LOGGER.warn("Check Engine: couldn't stop Strip Mine", e);
         }
         go(show(new DashScreen(GREEN, "STRIP MINE STOPPED", null, null, List.of(
-                new Section("ALL BACK ON", GREEN, "✔", DashScreen.lines(
+                new Section("ALL BACK ON", GREEN, "✓", DashScreen.lines(
                         "Every mod is switched back on. Restart the game to load them all."))),
-                List.of(new Btn("Quit game", () -> {
+                List.of(new Btn("Quit", () -> {
                     open = false;
                     Minecraft.getInstance().stop();
-                }, true), new Btn("Later", () -> go(title), false)), () -> go(title))));
+                }, true), new Btn("Continue", () -> go(title), false)), () -> go(title))));
     }
 
     private static Screen show(Screen s) {

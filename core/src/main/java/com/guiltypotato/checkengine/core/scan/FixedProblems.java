@@ -42,10 +42,4 @@ public final class FixedProblems {
         }
         return fixed;
     }
-
-    /** "Missing mod: Architectury API" or "Missing mod: Architectury API and 2 more". */
-    public static String toastText(List<String> fixed) {
-        if (fixed.isEmpty()) return "";
-        return fixed.get(0) + (fixed.size() > 1 ? " and " + (fixed.size() - 1) + " more" : "");
-    }
 }

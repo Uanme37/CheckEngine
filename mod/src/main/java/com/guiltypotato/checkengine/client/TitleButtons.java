@@ -31,12 +31,13 @@ import net.minecraft.resources.ResourceLocation;
  * slower than usual) and "!" while something waits to be looked at. Opens the Pit Stop hub.
  */
 public final class TitleButtons {
-    private static final ResourceLocation LAMP = ResourceLocation.fromNamespaceAndPath("checkengine", "textures/gui/lamp.png");
     /** The vanilla buttons to sit beside: Accessibility first, else Language (1.21+ names, then 1.20.1 names). */
     private static final List<String> ANCHORS = List.of("options.accessibility", "narrator.button.accessibility",
             "options.language", "narrator.button.language");
     private static FadeButton button;
     private static TitleButtonState state;
+    /** A crash since the pack last worked: the lamp stays red until a launch works again. */
+    private static boolean crashed;
     /** Whether there was room for the start time beside the button. */
     private static boolean caption = true;
     /**
@@ -60,6 +61,7 @@ public final class TitleButtons {
         Path ce = BootCheck.outputFolder();
         if (!Quiet.titleButton(ce, ce.getParent()) || StripMine.running(ce) != null) return;
         state = state(crashUnseen);
+        crashed = com.guiltypotato.checkengine.core.crash.CrashDoctor.crashedSinceItWorked(ce.getParent(), ce);
         // Placed once, when the screen is built (like Create's and Quark's buttons), so a menu mod's layout
         // (FancyMenu) can move or hide it afterwards and keep it that way.
         Placement.Box spot = spot(screen, widgets, ce.getParent());
@@ -103,11 +105,11 @@ public final class TitleButtons {
         settle(screen);
         // The first title screen fades its buttons in: the lamp, time and "!" come with our button, not before it
         if (button.fade() < 0.5f) return;
+        boolean red = state.broken() || crashed;
         boolean amber = state.slower() || state.alert();
-        TitleButton.draw(g, Minecraft.getInstance().font, button.getX(), button.getY(), LAMP,
-                amber ? 2 : 4, 1280,
-                caption ? state.caption() : "", state.slower() ? UanColors.AMBER : UanColors.TEXT,
-                state.alert() ? UanColors.AMBER : 0);
+        int lamp = red ? UanColors.RED : amber ? UanColors.AMBER : UanColors.GREEN;
+        TitleButton.draw(g, Minecraft.getInstance().font, button.getX(), button.getY(), lamp,
+                caption ? state.caption() + (state.alert() ? " !" : "") : "", red || amber ? lamp : UanColors.TEXT);
     }
 
     /**
@@ -168,20 +170,6 @@ public final class TitleButtons {
         boolean slower = LaunchHistory.slower(LaunchHistory.load(ce)) != null;
         return TitleButtonState.of(data == null ? -1 : data.totalMs(), slower, warnings, problems, crashUnseen,
                 Quiet.onlyWhenItBreaks(ce));
-    }
-
-    /** The start toast's lines: "✔ Fixed: ..." in green, "↑ Started 40s slower ..." in amber. */
-    public static Component noticeText(String message) {
-        net.minecraft.network.chat.MutableComponent out = Component.empty();
-        String[] lines = message.split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            boolean fixed = lines[i].startsWith("Fixed");
-            int color = (fixed ? UanColors.GREEN : UanColors.AMBER) & 0xFFFFFF;
-            if (i > 0) out.append("\n");
-            out.append(Component.literal((fixed ? "✔ " : "↑ ") + lines[i])
-                    .withStyle(s -> s.withColor(net.minecraft.network.chat.TextColor.fromRgb(color))));
-        }
-        return out;
     }
 
     /**

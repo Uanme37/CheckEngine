@@ -38,7 +38,7 @@ final class PackUpdatedScreen {
             Minecraft.getInstance().setScreen(next);
         };
         shown = true;
-        return showing = new DashScreen(DashScreen.BLUE, (name != null ? name : "THE PACK") + " WAS UPDATED", null, null,
+        return showing = new DashScreen(DashScreen.BLUE, name != null ? name + " was updated" : "THE PACK WAS UPDATED", null, null,
                 sections, List.of(new Btn("Continue", leave, true)), leave);
     }
 

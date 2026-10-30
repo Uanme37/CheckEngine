@@ -51,10 +51,10 @@ final class JoinFailScreen {
                     Line.strong("Ask the server owner to run /checkengine join (needs Check Engine on the server),"
                             + " or to look for \"Couldn't place player in world\" in the server log."),
                     Line.dim("Often a mod that saves player data (permissions, homes, backpacks) can't read yours.")))),
-                    List.of(new Btn("Back", close, true)), close);
+                    List.of(new Btn("Continue", close, true)), close);
         }
         JoinFailure.markShown(BootCheck.outputFolder(), r);
-        return explained(r, "YOUR JOIN FAILED", close, "Back");
+        return explained(r, "YOUR JOIN FAILED", close, "Continue");
     }
 
     /** On the title screen: the last session had a kick nobody explained (the popup missed it). Null when none. */
@@ -75,7 +75,7 @@ final class JoinFailScreen {
         for (String l : f.detail().split("\n")) lines.add(l.startsWith("The error:") ? Line.clip(oneLine(l)) : Line.text(l));
         List<Section> sections = new ArrayList<>();
         // The fix first: it's what the player came for. The full error is in the log (Open logs folder).
-        sections.add(new Section("FIX", DashScreen.GREEN, "✔", List.of(Line.strong(f.fix()))));
+        sections.add(new Section("FIX", DashScreen.GREEN, "✓", List.of(Line.strong(f.fix()))));
         sections.add(new Section(f.title().toUpperCase(java.util.Locale.ROOT), DashScreen.RED, "!", lines));
         return new DashScreen(DashScreen.RED, headline, "JOIN", "INVALID PLAYER DATA", sections, List.of(
                 new Btn(closeLabel, close, true),

@@ -57,6 +57,26 @@ public final class CrashHelp {
         return text;
     }
 
+    /**
+     * Help > Copy for help on a screen without a crash: what the screen says, then the versions. Blanked out and kept
+     * under Discord's limit the same way.
+     *
+     * @param code the fault code, or null
+     */
+    public static String forScreen(String state, String code, List<String> lines, Report report, String player,
+                                   Path checkEngineFolder) {
+        PackSnapshot saved = checkEngineFolder == null ? null : PackSnapshot.load(checkEngineFolder);
+        StringBuilder sb = new StringBuilder("**Check Engine: ").append(state).append("**");
+        if (code != null) sb.append(" (").append(code).append(')');
+        sb.append('\n');
+        for (String l : lines) sb.append(l).append('\n');
+        String versions = versions(report, saved);
+        String end = (versions.isEmpty() ? "" : versions + "\n") + SIGNATURE;
+        String text = blank(sb.toString(), player);
+        int room = MAX_CHARS - end.length() - 4;
+        return (text.length() > room ? text.substring(0, room) + "...\n" : text) + end;
+    }
+
     private static String build(LastCrash crash, Report report, PackSnapshot saved, List<String> keys, List<String> changes, int cut,
                                 String player) {
         int lineMax = cut == 0 ? 100_000 : 160 - cut * 40;

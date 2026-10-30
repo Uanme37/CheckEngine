@@ -28,11 +28,12 @@ public final class CrashDoctorScreen extends DashScreen {
     }
 
     private CrashDoctorScreen(Screen next, LastCrash crash, Screen[] self) {
-        super(AMBER, crash.beforeInstall() ? "CRASHED BEFORE INSTALL" : tr("checkengine.crash.title").toUpperCase(),
-                "CRASH", crash.when(), () -> Minecraft.getInstance().setScreen(next), tabs(next, crash, self),
+        super(RED, crash.beforeInstall() ? "CRASHED BEFORE INSTALL" : tr("checkengine.crash.title").toUpperCase(),
+                com.guiltypotato.checkengine.core.ui.ScreenHelp.CRASH_CODE, com.guiltypotato.checkengine.core.ui.UiText.date(crash.when()), () -> Minecraft.getInstance().setScreen(next), tabs(next, crash, self),
                 List.of(new Btn(tr("checkengine.screen.continue"), () -> Minecraft.getInstance().setScreen(next), false,
                         "Carry on to the title screen.")));
         self[0] = this;
+        copies(slim() ? null : () -> copyForHelp(this, crash));
     }
 
     /** Crash Assistant already showed the logs when the game closed: then Crash Doctor keeps to what it can fix. */
@@ -50,14 +51,18 @@ public final class CrashDoctorScreen extends DashScreen {
         List<Tab> out = new ArrayList<>();
 
         // Fix: on top only when Check Engine knows the cause; a guess is said to be one.
+        // A broken mob or machine crashes the world every time it loads: offer to remove it, safely.
+        Path world = com.guiltypotato.checkengine.core.crash.WorldRescue.newestWorld(FMLPaths.GAMEDIR.get());
+        boolean rescuable = com.guiltypotato.checkengine.core.crash.WorldRescue.fits(main) && world != null;
         List<Section> fix = new ArrayList<>();
         if (crash.sure()) {
             List<Line> lines = new ArrayList<>(List.of(Line.strong(main.title())));
-            if (main.fix() != null) lines.add(Line.text(main.fix()));
+            if (main.fix() != null) lines.add(Line.text(rescuable ? main.fix()
+                    : com.guiltypotato.checkengine.core.crash.WorldRescue.fixWithoutRescue(main.fix())));
             if (main.detail() != null) {
                 List.of(main.detail().split("\n")).stream().limit(3).forEach(l -> lines.add(Line.dim(l)));
             }
-            fix.add(new Section("FIX", GREEN, "✔", lines));
+            fix.add(new Section(null, GREEN, "", lines)); // the tab is called Fix: no heading
         } else {
             List<Line> unsure = new ArrayList<>();
             if (crash.culprit() != null) {
@@ -75,9 +80,7 @@ public final class CrashDoctorScreen extends DashScreen {
         }
         List<Btn> undo = undoButtons(next, crash, self);
         List<Btn> fixButtons = new ArrayList<>();
-        // A broken mob or machine crashes the world every time it loads: offer to remove it, safely.
-        Path world = com.guiltypotato.checkengine.core.crash.WorldRescue.newestWorld(FMLPaths.GAMEDIR.get());
-        if (com.guiltypotato.checkengine.core.crash.WorldRescue.fits(main) && world != null) {
+        if (rescuable) {
             fixButtons.add(new Btn("Rescue world", () -> Minecraft.getInstance().setScreen(rescue(self[0], next, crash,
                     world)), true, "Backs the world up, then removes the broken mob or machine the next time it loads."));
         }
@@ -88,7 +91,7 @@ public final class CrashDoctorScreen extends DashScreen {
                     () -> Minecraft.getInstance().setScreen(StripMineScreens.confirmStart(self[0], crash)), true,
                     "Finds the mod behind the crash by switching half the mods off each launch."));
         }
-        out.add(new Tab("Fix", crash.sure() ? "✔" : "?", crash.sure() ? GREEN : GREY, null, fix, fixButtons));
+        out.add(new Tab("Fix", crash.sure() ? "✓" : "?", crash.sure() ? GREEN : GREY, null, fix, fixButtons));
 
         // Crash lines: the crash's own words, the mod at fault in amber.
         List<Section> lines = new ArrayList<>();
@@ -125,7 +128,7 @@ public final class CrashDoctorScreen extends DashScreen {
         help.add(Line.text("Make help file puts Check Engine's reports, the mod list and the logs in one zip."));
         help.add(Line.dim("Your name, user folder and IP are blanked out. Nothing is uploaded."));
         // Check Engine has no Discord: wrong answers go to its GitHub issues (opens in the browser).
-        help.add(Line.text("Check Engine got it wrong? Report it on GitHub, with Copy for help or the help file."));
+        help.add(Line.text("Check Engine got it wrong? Report it on GitHub, with " + (slim ? "" : "Copy for help or ") + "the help file."));
         helpButtons.add(helpFileButton());
         helpButtons.add(new Btn("Report it", () -> Util.getPlatform().openUri(ISSUES), true,
                 "Opens Check Engine's GitHub issues in your browser."));
@@ -140,13 +143,18 @@ public final class CrashDoctorScreen extends DashScreen {
         String text = CrashHelp.message(crash, BootCheck.get(), Minecraft.getInstance().getUser().getName(),
                 BootCheck.outputFolder());
         Minecraft.getInstance().keyboardHandler.setClipboard(text);
-        Minecraft.getInstance().setScreen(new DashScreen(GREEN, "COPIED FOR HELP", null, null, List.of(
-                new Section("PASTE IT IN YOUR HELP CHANNEL", GREEN, "✔", List.of(
+        Minecraft.getInstance().setScreen(copied(back, text));
+    }
+
+    /** Shows exactly what went on the clipboard. */
+    static Screen copied(Screen back, String text) {
+        return new DashScreen(BLUE, "COPIED FOR HELP", null, null, List.of(
+                new Section("PASTE IT IN YOUR HELP CHANNEL", BLUE, "i", List.of(
                         Line.text("Press Ctrl+V in your pack's Discord or in a GitHub issue."),
                         Line.dim("Your name, user folder and IP are blanked out. Nothing was uploaded."))),
                 new Section("WHAT WAS COPIED", GREY, "i", List.of(text.split("\n")).stream().map(Line::dim).toList())),
-                List.of(new Btn("Back", () -> Minecraft.getInstance().setScreen(back), true)),
-                () -> Minecraft.getInstance().setScreen(back)));
+                List.of(new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), true)),
+                () -> Minecraft.getInstance().setScreen(back)).from(back);
     }
 
     /** Undo new mods and Undo config changes, when they apply (never for a crash from before Check Engine). */
@@ -196,14 +204,14 @@ public final class CrashDoctorScreen extends DashScreen {
                         Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(new DashScreen(
                                 done ? GREEN : RED, done ? "WORLD READY TO RESCUE" : "WORLD RESCUE FAILED", null, null,
                                 List.of(new Section(done ? "NEXT" : "WHAT HAPPENED", done ? GREEN : RED,
-                                        done ? "✔" : "!", List.of(Line.text(msg)))),
+                                        done ? "✓" : "!", List.of(Line.text(msg)))),
                                 List.of(new Btn("Continue", () -> Minecraft.getInstance().setScreen(next), true)),
                                 () -> Minecraft.getInstance().setScreen(next))));
                     }, "Check Engine world rescue");
                     t.setDaemon(true);
                     t.start();
-                }, true), new Btn("Back", () -> Minecraft.getInstance().setScreen(back), false)),
-                () -> Minecraft.getInstance().setScreen(back));
+                }, true), new Btn("Cancel", () -> Minecraft.getInstance().setScreen(back), false)),
+                () -> Minecraft.getInstance().setScreen(back)).from(back);
     }
 
     /** Worked out in the background since the game started (it reads every jar); null if it isn't ready. */
@@ -218,7 +226,11 @@ public final class CrashDoctorScreen extends DashScreen {
         List<String> changes = plan.lines().stream().filter(l -> !l.contains("can't put it back")).toList();
         changes.stream().limit(10).forEach(l -> list.add(Line.dim("- " + l)));
         if (changes.size() > 10) list.add(Line.dim("...and " + (changes.size() - 10) + " more"));
-        List<Section> sections = new ArrayList<>(List.of(new Section("WHAT CHANGES", AMBER, "±", list)));
+        List<Section> sections = new ArrayList<>();
+        if (plan.lastWorkedShort() != null) {
+            sections.add(new Section(null, GREY, "", List.of(Line.dim("Last worked " + plan.lastWorkedShort()))));
+        }
+        sections.add(new Section("WHAT CHANGES", AMBER, "±", list));
         List<Line> cant = new ArrayList<>();
         plan.notKept().stream().limit(5).forEach(n -> cant.add(Line.text(n + ": old version not kept, can't put it "
                 + "back")));
@@ -226,7 +238,7 @@ public final class CrashDoctorScreen extends DashScreen {
         if (plan.note() != null) cant.add(Line.dim(plan.note()));
         if (!cant.isEmpty()) sections.add(new Section("STAYS AS IT IS", GREY, "i", cant));
         // One line: it sits right above the buttons and must fit without scrolling
-        sections.add(new Section("SAFE", GREEN, "✔", List.of(
+        sections.add(new Section("SAFE", GREEN, "✓", List.of(
                 Line.text("Nothing is deleted. Put it back (next screen) undoes it."))));
         Path game = FMLPaths.GAMEDIR.get();
         if (com.guiltypotato.checkengine.core.strip.StripMine.lockedByCurseForge(game)) {
@@ -248,10 +260,8 @@ public final class CrashDoctorScreen extends DashScreen {
             buttons.add(goBackButton(plan, game, true, "Go back", true, null));
         }
         buttons.add(new Btn("Cancel", () -> Minecraft.getInstance().setScreen(back), false));
-        // when it last worked, in the readout on the right (no extra line above the buttons)
-        return new DashScreen(AMBER, "GO BACK TO WHEN IT WORKED?", plan.lastWorkedShort(),
-                plan.lastWorkedShort() == null ? null : "LAST WORKED", sections, buttons,
-                () -> Minecraft.getInstance().setScreen(back));
+        return new DashScreen(AMBER, "GO BACK TO WHEN IT WORKED?", null, null, sections, buttons,
+                () -> Minecraft.getInstance().setScreen(back)).from(back);
     }
 
     /**
@@ -265,9 +275,12 @@ public final class CrashDoctorScreen extends DashScreen {
             boolean ok;
             try {
                 List<String> locked = GoBack.apply(game, BootCheck.outputFolder(), plan, configs, true);
-                // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
-                if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() ->
-                        com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"), locked)));
+                // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out, unless Put it
+                // back undid this before the game closed.
+                Path ce = BootCheck.outputFolder();
+                if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    if (GoBack.done(ce)) com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"), locked);
+                }));
                 text = "The pack is back to when it worked. Restart the game to load it."
                         + (configs && !plan.configs().isEmpty() ? " Your configs go back as it starts." : "");
                 ok = true;
@@ -284,16 +297,16 @@ public final class CrashDoctorScreen extends DashScreen {
     /** After Go back: quit to load it, or put it all back. */
     private static Screen wentBack(boolean ok, String text) {
         return new DashScreen(ok ? GREEN : RED, ok ? "BACK TO WHEN IT WORKED" : "COULDN'T GO BACK", null, null,
-                List.of(new Section(ok ? "DONE" : "WHAT HAPPENED", ok ? GREEN : RED, ok ? "✔" : "!",
+                List.of(new Section(ok ? "DONE" : "WHAT HAPPENED", ok ? GREEN : RED, ok ? "✓" : "!",
                         ok ? List.of(Line.text(text), Line.dim("The CurseForge app may still list the newer versions: "
                                 + "that's only its own list.")) : List.of(Line.text(text)))),
-                List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true),
+                List.of(new Btn("Quit", () -> Minecraft.getInstance().stop(), true),
                         new Btn("Put it back", () -> {
                             String done;
                             try {
                                 List<String> back = GoBack.putBack(FMLPaths.GAMEDIR.get(), BootCheck.outputFolder());
                                 com.guiltypotato.checkengine.core.strip.GoBackPlans.refresh(FMLPaths.GAMEDIR.get(), BootCheck.outputFolder());
-                                done = back.isEmpty() ? "Nothing to put back." : "Put back how you had it ("
+                                done = back.isEmpty() ? "Put back how you had it." : "Put back how you had it ("
                                         + back.size() + " change" + (back.size() == 1 ? "" : "s") + ").";
                             } catch (IOException | RuntimeException e) {
                                 CheckEngine.LOGGER.warn("Check Engine: couldn't put it back", e);
@@ -302,8 +315,8 @@ public final class CrashDoctorScreen extends DashScreen {
                             Minecraft.getInstance().setScreen(new DashScreen(GREY, "PUT BACK", null, null, List.of(
                                     new Section("DONE", GREY, "i", List.of(Line.text(done),
                                             Line.dim("Restart the game so it loads your mods again.")))),
-                                    List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true)),
-                                    () -> Minecraft.getInstance().stop()));
+                                    List.of(new Btn("Quit", () -> Minecraft.getInstance().stop(), true)),
+                                    () -> Minecraft.getInstance().stop()).light(AMBER));
                         }, false, "Undoes Go back: your newer mods and configs come back.")),
                 () -> Minecraft.getInstance().stop());
     }

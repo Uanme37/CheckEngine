@@ -16,6 +16,9 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class TitleButton {
     public static final int SIZE = 20;
+    /** The logo with its ring red, amber and green, one under the other (tools/dev/TitleLogo.java). */
+    private static final ResourceLocation TITLE_LOGO = new ResourceLocation("checkengine", "textures/gui/title_logo.png");
+    private static final int LOGO_CELL = 168;
     /** Room kept free right of the button for the caption ("12:34 ↑"). */
     public static final int CAPTION = 34;
 
@@ -139,21 +142,14 @@ public final class TitleButton {
     }
 
     /**
-     * Draws the icon on the button (a 128 px cell of {@code icon}, {@code texW} wide), the caption beside it (the
-     * bottom of the title screen has the copyright and loader text) and, when {@code badge} isn't 0, a small "!"
-     * badge in that colour at the top right.
+     * Draws on the button: the Check Engine logo with its ring in the state's colour, like a vanilla icon button, and the
+     * caption beside it (the bottom of the title screen has the copyright and loader text).
      */
-    public static void draw(GuiGraphics g, Font font, int x, int y, ResourceLocation icon, int cell, int texW,
-                            String caption, int captionColor, int badge) {
+    public static void draw(GuiGraphics g, Font font, int x, int y, int lamp, String caption, int captionColor) {
+        int cell = (lamp | 0xFF000000) == UanColors.RED ? 0 : (lamp | 0xFF000000) == UanColors.AMBER ? 1 : 2;
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        g.blit(icon, x + 2, y + 2, 16, 16, cell * 128, 0, 128, 128, texW, 128);
+        g.blit(TITLE_LOGO, x + 3, y + 2, 14, 14, 0, cell * LOGO_CELL, LOGO_CELL, LOGO_CELL, LOGO_CELL, LOGO_CELL * 3);
         com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-        if (!caption.isEmpty()) {
-            g.drawString(font, caption, x + SIZE + 4, y + 6, captionColor);
-        }
-        if (badge != 0) {
-            g.fill(x + SIZE - 6, y - 3, x + SIZE + 3, y + 7, badge);
-            g.drawString(font, "!", x + SIZE - 3, y - 2, 0xFF111111, false);
-        }
+        if (!caption.isEmpty()) g.drawString(font, caption, x + SIZE + 4, y + 6, captionColor);
     }
 }

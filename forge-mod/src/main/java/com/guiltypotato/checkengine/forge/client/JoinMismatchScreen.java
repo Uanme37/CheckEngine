@@ -65,7 +65,7 @@ public final class JoinMismatchScreen extends DashScreen {
                             + " download. Nothing is deleted, and Undo puts it all back."));
         }
         out.addAll(List.of(
-                new Btn("Back", () -> Minecraft.getInstance().setScreen(back), out.isEmpty()),
+                new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), out.isEmpty()),
                 new Btn("Open mods folder", () -> Util.getPlatform().openFile(FMLPaths.MODSDIR.get().toFile()), false),
                 new Btn("Open report", () -> Util.getPlatform().openFile(reportFile().toFile()), false,
                         "The full list, with the server's address, in a text file."),
