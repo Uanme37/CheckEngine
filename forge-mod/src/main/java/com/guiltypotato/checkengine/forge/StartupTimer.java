@@ -89,6 +89,18 @@ public final class StartupTimer {
                     loaded - modsStartedAt, now - loaded, mods,
                     LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).toString());
             StartupTimes.save(BootCheck.outputFolder(), data, server);
+            // The last ~10 starts, for the usual time and the slower notice (not during Strip Mine: half the pack is off)
+            // once the scan is done (never waiting for it on the game's thread)
+            BootCheck.whenReady(report -> {
+                if (com.guiltypotato.checkengine.core.strip.StripMine.running(BootCheck.outputFolder()) != null) return;
+                try {
+                    com.guiltypotato.checkengine.core.scan.LaunchHistory.record(BootCheck.outputFolder(),
+                            com.guiltypotato.checkengine.core.scan.PackSnapshot.of(report.jars(), report.options()),
+                            data.totalMs(), data.when());
+                } catch (java.io.IOException e) {
+                    CheckEngine.LOGGER.warn("Check Engine: couldn't save the launch history", e);
+                }
+            });
             CheckEngine.LOGGER.info("Check Engine: {} in {} (details: {})", server ? "server ready" : "title screen",
                     StartupTimes.time(data.totalMs()), BootCheck.outputFolder().resolve(StartupTimes.REPORT_FILE));
         } catch (Exception e) {

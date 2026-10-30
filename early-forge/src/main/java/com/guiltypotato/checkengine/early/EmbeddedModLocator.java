@@ -20,6 +20,7 @@ public class EmbeddedModLocator extends AbstractJarFileModLocator {
 
     @Override
     public Stream<Path> scanCandidates() {
+        Pending.apply(FMLPaths.GAMEDIR.get());
         try (InputStream in = EmbeddedModLocator.class.getResourceAsStream(INNER_MOD)) {
             if (in == null) return Stream.empty();
             byte[] bytes = in.readAllBytes();

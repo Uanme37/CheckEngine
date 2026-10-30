@@ -23,6 +23,8 @@ public final class JoinFailure {
     private static final Pattern MIXIN_MOD = Pattern.compile("\\$[a-z]{3}\\d{3}\\$([a-z][a-z0-9_]*)\\$");
     private static final Pattern LOST = Pattern.compile("(\\S+) lost connection: (?:Invalid player data|multiplayer\\.disconnect\\.invalid_player_data)");
     private static final Pattern VERSION = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
+    /** The game version in a stack frame: "TRANSFORMER/minecraft@26.1.2/net.minecraft..." */
+    private static final Pattern GAME_VERSION = Pattern.compile("minecraft@([0-9][0-9.]*[0-9])/");
     /** Jars of the game and loader themselves: never "the mod behind it". */
     private static final List<String> NOT_MODS = List.of("minecraft", "client-", "server-", "neoforge-", "forge-",
             "fmlloader", "fmlcore", "javafmllanguage", "lowcodelanguage", "mclanguage", "loader-", "bootstraplauncher",
@@ -123,10 +125,16 @@ public final class JoinFailure {
         if (low.contains("luckperms") || low.contains("me.lucko")) {
             String version = mod != null && mod.toLowerCase(Locale.ROOT).contains("luckperms") ? version(mod) : null;
             boolean old = version != null && older(version, 5, 4, 150);
+            // That bug is known on 1.21.1 only: on another game version, say nothing about it
+            Matcher game = GAME_VERSION.matcher(trace);
+            String mc = game.find() ? game.group(1) : null;
+            boolean known = mc == null || mc.equals("1.21.1");
             return new Finding(Severity.ERROR, CODE, "LuckPerms broke the join",
                     what + " LuckPerms is in the error" + (version != null ? " (version " + version + ")" : "") + "."
-                            + " Older LuckPerms builds do this on NeoForge 1.21.1." + err,
-                    old || version == null ? "Update LuckPerms to 5.4.150 or newer (the 1.21.4 build also works on 1.21.1),"
+                            + (known ? " Older LuckPerms builds (before 5.4.150) do this on NeoForge 1.21.1." : "")
+                            + err,
+                    known && (old || version == null)
+                            ? "Update LuckPerms to 5.4.150 or newer (the 1.21.4 build also works on 1.21.1),"
                             + " or remove it until then."
                             : "Update LuckPerms, and if it keeps happening report it on LuckPerms' GitHub with this log.",
                     mod == null ? List.of() : List.of(mod));

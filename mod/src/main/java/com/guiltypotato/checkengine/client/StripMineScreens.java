@@ -1,15 +1,16 @@
 package com.guiltypotato.checkengine.client;
 
-import static com.guiltypotato.checkengine.client.DashScreen.AMBER;
-import static com.guiltypotato.checkengine.client.DashScreen.GREEN;
-import static com.guiltypotato.checkengine.client.DashScreen.GREY;
-import static com.guiltypotato.checkengine.client.DashScreen.RED;
+import com.guiltypotato.checkengine.ui.DashScreen;
+import static com.guiltypotato.checkengine.ui.DashScreen.AMBER;
+import static com.guiltypotato.checkengine.ui.DashScreen.GREEN;
+import static com.guiltypotato.checkengine.ui.DashScreen.GREY;
+import static com.guiltypotato.checkengine.ui.DashScreen.RED;
 
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
-import com.guiltypotato.checkengine.client.DashScreen.Btn;
-import com.guiltypotato.checkengine.client.DashScreen.Line;
-import com.guiltypotato.checkengine.client.DashScreen.Section;
+import com.guiltypotato.checkengine.ui.DashScreen.Btn;
+import com.guiltypotato.checkengine.ui.DashScreen.Line;
+import com.guiltypotato.checkengine.ui.DashScreen.Section;
 import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.strip.StripMine;
 import com.guiltypotato.checkengine.core.strip.StripMineHelper;

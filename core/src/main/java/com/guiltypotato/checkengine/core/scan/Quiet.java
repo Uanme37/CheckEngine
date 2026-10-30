@@ -24,6 +24,7 @@ public final class Quiet {
     static final String SEEN = "seen-warnings.txt";
     static final String PLAYER = "player.properties";
     private static final String ONLY_WHEN_IT_BREAKS = "only_when_it_breaks";
+    private static final String TITLE_BUTTON = "title_button";
 
     private Quiet() {}
 
@@ -64,7 +65,27 @@ public final class Quiet {
         return Boolean.parseBoolean(p.getProperty(ONLY_WHEN_IT_BREAKS, "false").strip());
     }
 
+    /** Whether Check Engine's title screen button shows: the player's choice, else the pack maker's default. */
+    public static boolean titleButton(Path folder, Path gameDir) {
+        Properties p = new Properties();
+        try (Reader in = Files.newBufferedReader(folder.resolve(PLAYER), StandardCharsets.UTF_8)) {
+            p.load(in);
+        } catch (IOException e) {
+            // no choice made yet
+        }
+        String v = p.getProperty(TITLE_BUTTON);
+        return v == null ? PackInfo.titleButtonByDefault(gameDir) : Boolean.parseBoolean(v.strip());
+    }
+
+    public static void setTitleButton(Path folder, boolean shown) throws IOException {
+        set(folder, TITLE_BUTTON, Boolean.toString(shown));
+    }
+
     public static void setOnlyWhenItBreaks(Path folder, boolean on) throws IOException {
+        set(folder, ONLY_WHEN_IT_BREAKS, Boolean.toString(on));
+    }
+
+    private static void set(Path folder, String key, String value) throws IOException {
         Properties p = new Properties();
         Path file = folder.resolve(PLAYER);
         if (Files.exists(file)) {
@@ -72,11 +93,12 @@ public final class Quiet {
                 p.load(in);
             }
         }
-        p.setProperty(ONLY_WHEN_IT_BREAKS, Boolean.toString(on));
+        p.setProperty(key, value);
         Files.createDirectories(folder);
         try (Writer out = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             p.store(out, "Check Engine: this player's choices. only_when_it_breaks=true hides warnings; "
-                    + "problems that stop the game and crashes still show.");
+                    + "title_button=false hides the title screen button; problems that stop the game and crashes still "
+                    + "show.");
         }
     }
 

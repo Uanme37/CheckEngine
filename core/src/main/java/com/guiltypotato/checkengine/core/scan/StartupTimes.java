@@ -18,9 +18,6 @@ import java.util.Properties;
 public final class StartupTimes {
     public static final String DATA_FILE = "startup.properties";
     public static final String REPORT_FILE = "startup-report.txt";
-    /** Mods faster than this aren't worth listing. */
-    private static final long LIST_FROM_MS = 250;
-    private static final int MAX_LISTED = 15;
 
     /** One mod's own startup work: the time spent in its setup and registration code. */
     public record ModTime(String id, String name, long ms) {}
@@ -41,6 +38,21 @@ public final class StartupTimes {
 
     private StartupTimes() {}
 
+    /**
+     * "About: Mod setup 42s · Textures and models 14s · Rest 28s": the start split by when mods began loading and
+     * when the last one finished. The line between the last two is rough on every loader, because some textures load
+     * while mods are still setting up.
+     */
+    public static String breakdown(Data d) {
+        return "About: Mod setup " + secs(d.modsMs()) + " · Textures and models " + secs(d.finishingMs())
+                + " · Rest " + secs(d.findingMs());
+    }
+
+    /** 42_300 -> "42s", 800 -> "0.8s": rough numbers for a rough split. */
+    public static String secs(long ms) {
+        return ms >= 10_000 ? Math.round(ms / 1000.0) + "s" : String.format(java.util.Locale.ROOT, "%.1fs", ms / 1000.0);
+    }
+
     public static String format(Data d, boolean server) {
         StringBuilder sb = new StringBuilder("Check Engine startup report\n");
         sb.append(server ? "Server ready in " : "Title screen after ").append(time(d.totalMs()))
@@ -50,17 +62,10 @@ public final class StartupTimes {
         sb.append(String.format("  %-34s %s%n", "Loading and setting up mods", time(d.modsMs())));
         sb.append(String.format("  %-34s %s%n", server ? "Loading the world and data" : "Textures, models and sounds",
                 time(d.finishingMs())));
-        List<ModTime> slow = d.mods().stream().filter(m -> m.ms() >= LIST_FROM_MS).limit(MAX_LISTED).toList();
-        sb.append('\n');
-        if (slow.isEmpty()) {
-            sb.append("No single mod took more than ").append(time(LIST_FROM_MS)).append(" of its own setup time.\n");
-        } else {
-            sb.append("Slowest mods (their own setup and registration code):\n");
-            int i = 1;
-            for (ModTime m : slow) sb.append(String.format("  %2d. %-40s %s%n", i++, m.name() + " (" + m.id() + ")", time(m.ms())));
-        }
-        sb.append("\nThis counts each mod's own setup code. Textures, models and the time Java spends loading a mod's\n"
-                + "code are shared work, so a mod with many blocks or items can still slow the last phase down.\n");
+        // No "slowest mods" list: building a mod, where most of its work happens, can't be timed per mod, so such a
+        // list put libraries on top and the heavy mods nowhere.
+        sb.append("\nA rough split: some textures load while mods are still setting up. Check Engine doesn't time each\n"
+                + "mod: it can't measure the part where most mods do their work, so a list would point at the wrong ones.\n");
         return sb.toString();
     }
 
@@ -81,8 +86,7 @@ public final class StartupTimes {
         p.setProperty("server", Boolean.toString(server));
         if (d.when() != null) p.setProperty("measured", d.when());
         int i = 0;
-        for (ModTime m : d.mods()) {
-            if (i >= MAX_LISTED) break;
+        for (ModTime m : d.mods()) { // every mod: the Pit Stop list shows them all
             p.setProperty("mod." + i + ".id", m.id());
             p.setProperty("mod." + i + ".name", m.name());
             p.setProperty("mod." + i + ".ms", Long.toString(m.ms()));

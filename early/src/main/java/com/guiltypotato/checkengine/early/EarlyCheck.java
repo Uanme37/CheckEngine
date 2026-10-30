@@ -53,6 +53,10 @@ public class EarlyCheck implements IDependencyLocator {
     @Override
     public void scanMods(List<IModFile> mods, IDiscoveryPipeline pipeline) {
         try {
+            // Did the last session that reached the title screen really work (no crash after)? Settle that before
+            // anything compares against the last good launch.
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(FMLPaths.GAMEDIR.get(),
+                    FMLPaths.GAMEDIR.get().resolve("checkengine"));
             startPackScan();
             List<LoadBlockers.Blocker> rules = DependencyRules.check(mods);
             Path folder = FMLPaths.GAMEDIR.get().resolve("checkengine");

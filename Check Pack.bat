@@ -55,6 +55,7 @@ if defined EXPORT (
 
 if exist "%PACK%\checkengine\strip-mine.properties" call :stripcheck
 if exist "%PACK%\checkengine\undo-new-mods.properties" call :putback
+if exist "%PACK%\checkengine\go-back.properties" call :goputback
 echo.
 if not exist "%PACK%\checkengine" mkdir "%PACK%\checkengine" 2>nul
 "%JAVA%" -jar "%JAR%" scan "%PACK%" --out "%PACK%\checkengine\check-report.txt"
@@ -117,10 +118,11 @@ set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
 if /i not "%SHOW%"=="y" exit /b
 "%JAVA%" -jar "%JAR%" crash "%PACK%"
 echo.
-"%JAVA%" -jar "%JAR%" newmods "%PACK%" list && goto dig
+"%JAVA%" -jar "%JAR%" goback "%PACK%" list && goto dig
 set "UNDO="
-set /p "UNDO=Switch these off, so the pack is back to how it last worked? Nothing is deleted (y/n): "
-if /i "%UNDO%"=="y" "%JAVA%" -jar "%JAR%" newmods "%PACK%" off & exit /b
+set /p "UNDO=Go back to when it worked? Nothing is deleted (y = mods and configs, m = mods only, n = no): "
+if /i "%UNDO%"=="y" "%JAVA%" -jar "%JAR%" goback "%PACK%" go & exit /b
+if /i "%UNDO%"=="m" "%JAVA%" -jar "%JAR%" goback "%PACK%" go-mods & exit /b
 echo.
 :dig
 set "DIG="
@@ -134,6 +136,14 @@ echo Undo new mods switched some mods off in this pack.
 set "BACK="
 set /p "BACK=Switch them back on? (y/n): "
 if /i "%BACK%"=="y" "%JAVA%" -jar "%JAR%" newmods "%PACK%" putback
+exit /b
+
+:goputback
+echo.
+echo Go back put this pack back to when it last worked.
+set "BACK="
+set /p "BACK=Put it back the way you had it before that? (y/n): "
+if /i "%BACK%"=="y" "%JAVA%" -jar "%JAR%" goback "%PACK%" putback
 exit /b
 
 :stripcheck

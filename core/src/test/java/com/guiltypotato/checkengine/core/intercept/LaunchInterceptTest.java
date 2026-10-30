@@ -39,4 +39,13 @@ class LaunchInterceptTest {
     void noRecordsMeansNotStarted() {
         assertFalse(LaunchIntercept.reachedTitleScreen(folder));
     }
+
+    @Test
+    void crashWhileTheGoodLaunchWasStillSavingStillReachedTheTitleScreen() throws Exception {
+        // The title screen writes its marker at once; the last good launch (jars, configs) is saved after
+        write(PackSnapshot.FILE, 60);
+        write(LaunchIntercept.LAST_LAUNCH_FILE, 10);
+        write(com.guiltypotato.checkengine.core.scan.GoodLaunch.TITLE, 8);
+        assertTrue(LaunchIntercept.reachedTitleScreen(folder));
+    }
 }

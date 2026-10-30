@@ -1,8 +1,9 @@
 package com.guiltypotato.checkengine.client;
 
-import com.guiltypotato.checkengine.client.DashScreen.Btn;
-import com.guiltypotato.checkengine.client.DashScreen.Line;
-import com.guiltypotato.checkengine.client.DashScreen.Section;
+import com.guiltypotato.checkengine.ui.DashScreen;
+import com.guiltypotato.checkengine.ui.DashScreen.Btn;
+import com.guiltypotato.checkengine.ui.DashScreen.Line;
+import com.guiltypotato.checkengine.ui.DashScreen.Section;
 import com.guiltypotato.checkengine.core.scan.Changes;
 import com.guiltypotato.checkengine.core.scan.PackInfo;
 import java.util.ArrayList;

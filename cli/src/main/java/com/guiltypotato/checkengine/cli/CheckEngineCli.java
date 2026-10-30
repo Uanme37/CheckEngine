@@ -34,6 +34,7 @@ public final class CheckEngineCli {
                    java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
                    java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
                    java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
+                   java -jar checkengine-cli.jar goback <pack folder> [list|go|go-mods|putback]   (back to when it worked: new mods off, old versions and configs back; go-mods leaves the configs)
                    java -jar checkengine-cli.jar logs <pack folder>   (log flooding, config typos, missing textures)
                    java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
                    java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
@@ -66,6 +67,7 @@ public final class CheckEngineCli {
         if (args[0].equals("stripmine")) return StripMineCli.run(args);
         if (args[0].equals("undo-configs")) return undoConfigs(args);
         if (args[0].equals("newmods")) return newMods(args);
+        if (args[0].equals("goback")) return goBack(args);
         if (args[0].equals("logs")) return logs(args);
         if (args[0].equals("journal")) return journal(args);
         if (args[0].equals("materials")) return materials(args);
@@ -126,11 +128,10 @@ public final class CheckEngineCli {
             if (startup != null) {
                 memory.append("\nStartup (last launch with the Check Engine mod, ").append(startup.when()).append(")\n")
                         .append(StartupTimes.wasServer(root.resolve("checkengine")) ? "Server ready in " : "Title screen after ")
-                        .append(StartupTimes.time(startup.totalMs())).append(": mods ")
-                        .append(StartupTimes.time(startup.modsMs())).append(", then ")
-                        .append(StartupTimes.time(startup.finishingMs())).append('\n');
-                startup.mods().stream().filter(m -> m.ms() >= 250).limit(5).forEach(m -> memory.append("  ")
-                        .append(m.name()).append(": ").append(StartupTimes.time(m.ms())).append('\n'));
+                        .append(StartupTimes.time(startup.totalMs())).append('\n')
+                        // no slowest-mods list: per-mod times miss where most mods do their work
+                        .append("  ").append(StartupTimes.breakdown(startup).replace(" · ", ", ")) // the Windows console garbles the dot
+                        .append(" (rough split)\n");
                 memory.append("  Full breakdown: checkengine\\").append(StartupTimes.REPORT_FILE).append('\n');
             }
             String text = report.toText() + memory;
@@ -203,6 +204,7 @@ public final class CheckEngineCli {
         try {
             Path mods = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder();
             Path folder = mods.getParent().resolve("checkengine");
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(mods.getParent(), folder);
             if (what.equals("putback")) {
                 List<String> back = UndoNewMods.putBack(mods, folder);
                 System.out.println(back.isEmpty() ? "Nothing to put back." : "Switched back on: " + String.join(", ", back));
@@ -223,6 +225,49 @@ public final class CheckEngineCli {
             return locked.isEmpty() ? 0 : 2;
         } catch (IOException | RuntimeException e) {
             System.err.println("Couldn't switch the new mods: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    /**
+     * goback <pack> [list|go|go-mods|putback]: back to the last launch that worked. list (default) prints what would
+     * change and exits 1 when something would; go does it; go-mods does it for the mods only (configs stay); putback
+     * undoes the last go.
+     */
+    static int goBack(String[] args) {
+        String what = args.length == 3 ? args[2] : "list";
+        if (args.length < 2 || args.length > 3 || !List.of("list", "go", "go-mods", "putback").contains(what)) {
+            System.err.print(USAGE);
+            return 2;
+        }
+        try {
+            Path game = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder().getParent();
+            Path folder = game.resolve("checkengine");
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(game, folder);
+            if (what.equals("putback")) {
+                List<String> back = com.guiltypotato.checkengine.core.strip.GoBack.putBack(game, folder);
+                System.out.println(back.isEmpty() ? "Nothing to put back." : String.join(System.lineSeparator(), back));
+                return 0;
+            }
+            var plan = com.guiltypotato.checkengine.core.strip.GoBack.plan(game, folder);
+            if (plan.isEmpty()) {
+                System.out.println("Nothing changed since the pack last worked (or it never worked with Check Engine "
+                        + "installed).");
+                return 0;
+            }
+            if (plan.lastWorked() != null) System.out.println(plan.lastWorked());
+            System.out.println(plan.summary() + ":");
+            plan.lines().forEach(l -> System.out.println("  " + l));
+            if (plan.note() != null) System.out.println(plan.note());
+            if (what.equals("list")) return 1;
+            boolean configs = !what.equals("go-mods");
+            if (!configs && !plan.configs().isEmpty()) System.out.println("Mods only: the configs stay as they are.");
+            List<String> locked = com.guiltypotato.checkengine.core.strip.GoBack.apply(game, folder, plan, configs, false);
+            System.out.println(locked.isEmpty() ? "Done. Nothing was deleted. Changed your mind: goback <pack> putback."
+                    : "Close the game first, these are in use: " + String.join(", ", locked));
+            return locked.isEmpty() ? 0 : 2;
+        } catch (IOException | RuntimeException e) {
+            System.err.println("Couldn't go back: " + e.getMessage());
             return 2;
         }
     }
@@ -352,6 +397,7 @@ public final class CheckEngineCli {
         try {
             Path game = PackFolder.locate(Path.of(args[1]), Side.CLIENT).modsFolder().getParent();
             Path folder = game.resolve("checkengine");
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(game, folder);
             var changes = com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.changes(game, folder);
             if (changes.isEmpty()) {
                 System.out.println("The configs match the last launch that worked (or it never worked with Check Engine "

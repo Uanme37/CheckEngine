@@ -32,11 +32,12 @@ class StartupTimesTest {
     }
 
     @Test
-    void reportListsSlowestFirstAndSkipsTinyOnes() {
+    void reportGivesTheSplitButNoSlowestModsList() {
         String text = StartupTimes.format(sample(), false);
         assertTrue(text.contains("Title screen after 2 min 10 s"), text);
-        assertTrue(text.indexOf("KubeJS") < text.indexOf("Just Enough Items"), text);
-        assertFalse(text.contains("Tiny Mod"), text);
+        // building a mod can't be timed per mod, so a "slowest mods" list would point at the wrong ones
+        assertFalse(text.contains("KubeJS"), text);
+        assertFalse(text.contains("Slowest"), text);
     }
 
     @Test

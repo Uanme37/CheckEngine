@@ -74,6 +74,7 @@ public final class UndoNewMods {
     /** Switches them back on. Returns the jars put back; a jar the player removed meanwhile is just skipped. */
     public static List<String> putBack(Path modsFolder, Path checkEngineFolder) throws IOException {
         List<String> back = new ArrayList<>();
+        StripMine.removePending(modsFolder, switchedOff(checkEngineFolder));
         for (String f : switchedOff(checkEngineFolder)) {
             Path off = modsFolder.resolve(f + StripMine.DISABLED);
             if (!Files.isRegularFile(off) || Files.exists(modsFolder.resolve(f))) continue;

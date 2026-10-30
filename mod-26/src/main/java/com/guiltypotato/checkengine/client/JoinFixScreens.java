@@ -1,10 +1,11 @@
 package com.guiltypotato.checkengine.client;
 
+import com.guiltypotato.checkengine.ui.DashScreen;
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
-import com.guiltypotato.checkengine.client.DashScreen.Btn;
-import com.guiltypotato.checkengine.client.DashScreen.Line;
-import com.guiltypotato.checkengine.client.DashScreen.Section;
+import com.guiltypotato.checkengine.ui.DashScreen.Btn;
+import com.guiltypotato.checkengine.ui.DashScreen.Line;
+import com.guiltypotato.checkengine.ui.DashScreen.Section;
 import com.guiltypotato.checkengine.core.scan.JoinFix;
 import com.guiltypotato.checkengine.core.scan.JoinMismatch.Failure;
 import java.nio.file.Files;

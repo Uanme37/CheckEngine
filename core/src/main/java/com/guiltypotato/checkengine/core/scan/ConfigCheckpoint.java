@@ -45,16 +45,28 @@ public final class ConfigCheckpoint {
 
     private ConfigCheckpoint() {}
 
-    /** Called when a launch worked: remembers every config file as it is now. */
+    /** Remembers every config file as it is now, straight in the checkpoint (the CLI, tests). */
     public static void save(Path gameDir, Path checkEngineFolder) throws IOException {
-        Path store = checkEngineFolder.resolve(FOLDER);
-        Map<String, String> old = index(store);
+        save(gameDir, checkEngineFolder, checkEngineFolder);
+    }
+
+    /**
+     * Called on the title screen: saves the configs into {@code into} (the pending folder, see GoodLaunch), copying
+     * only the files that differ from the checkpoint in {@code checkEngineFolder}. {@link #promote} merges them in
+     * once the launch counts as worked.
+     */
+    public static void save(Path gameDir, Path checkEngineFolder, Path into) throws IOException {
+        Path base = checkEngineFolder.resolve(FOLDER);
+        Path store = into.resolve(FOLDER);
+        Map<String, String> old = index(base);
         Map<String, String> now = new TreeMap<>();
         for (Map.Entry<String, Path> e : files(gameDir).entrySet()) {
             String sum = checksum(e.getValue());
             now.put(e.getKey(), sum);
             Path copy = store.resolve("files").resolve(e.getKey());
-            if (sum.equals(old.get(e.getKey())) && Files.isRegularFile(copy)) continue;
+            if (sum.equals(old.get(e.getKey())) && Files.isRegularFile(base.resolve("files").resolve(e.getKey()))) {
+                continue;
+            }
             Files.createDirectories(copy.getParent());
             Files.copy(e.getValue(), copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
         }
@@ -62,6 +74,55 @@ public final class ConfigCheckpoint {
         p.putAll(now);
         p.setProperty("#saved", LocalDateTime.now().withNano(0).toString());
         Files.createDirectories(store);
+        try (Writer out = Files.newBufferedWriter(store.resolve(INDEX), StandardCharsets.UTF_8)) {
+            p.store(out, "Check Engine: config files of the last launch that worked (copies in files/)");
+        }
+    }
+
+    /** Moves configs saved by {@link #save(Path, Path, Path)} in {@code pending} into the checkpoint. */
+    static void promote(Path pending, Path checkEngineFolder) throws IOException {
+        Path from = pending.resolve(FOLDER);
+        if (!Files.isRegularFile(from.resolve(INDEX))) return;
+        Path store = checkEngineFolder.resolve(FOLDER);
+        Path files = from.resolve("files");
+        if (Files.isDirectory(files)) {
+            try (Stream<Path> s = Files.walk(files)) {
+                for (Path p : s.filter(Files::isRegularFile).toList()) {
+                    Path to = store.resolve("files").resolve(files.relativize(p).toString());
+                    Files.createDirectories(to.getParent());
+                    Files.move(p, to, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+        Files.createDirectories(store);
+        Files.move(from.resolve(INDEX), store.resolve(INDEX), StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    /**
+     * Takes in the config files written between {@code from} and {@code until} (ms): what mods and the player changed
+     * in game during a session that worked (map settings, shaders...). Those are part of the working pack, so Go back
+     * leaves them alone. Files edited after the game closed are not touched: those may be what broke it.
+     */
+    static void refresh(Path gameDir, Path checkEngineFolder, long from, long until) throws IOException {
+        Path store = checkEngineFolder.resolve(FOLDER);
+        Map<String, String> index = index(store);
+        if (index.isEmpty()) return;
+        boolean changed = false;
+        for (Map.Entry<String, Path> e : files(gameDir).entrySet()) {
+            long m = modified(e.getValue());
+            if (m < from || m > until) continue;
+            String sum = checksum(e.getValue());
+            if (sum.equals(index.get(e.getKey()))) continue;
+            Path copy = store.resolve("files").resolve(e.getKey());
+            Files.createDirectories(copy.getParent());
+            Files.copy(e.getValue(), copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            index.put(e.getKey(), sum);
+            changed = true;
+        }
+        if (!changed) return;
+        Properties p = new Properties();
+        p.putAll(index);
+        p.setProperty("#saved", LocalDateTime.now().withNano(0).toString());
         try (Writer out = Files.newBufferedWriter(store.resolve(INDEX), StandardCharsets.UTF_8)) {
             p.store(out, "Check Engine: config files of the last launch that worked (copies in files/)");
         }
@@ -79,7 +140,9 @@ public final class ConfigCheckpoint {
                 out.add(new Change(Kind.ADDED, e.getKey(), modified(e.getValue())));
             } else {
                 try {
-                    if (!before.equals(checksum(e.getValue()))) {
+                    // Only comments changed (many mods stamp the date on every start): that never breaks a pack
+                    if (!before.equals(checksum(e.getValue()))
+                            && !sameButComments(e.getValue(), savedCopy(checkEngineFolder, e.getKey()))) {
                         out.add(new Change(Kind.CHANGED, e.getKey(), modified(e.getValue())));
                     }
                 } catch (IOException ignored) {
@@ -99,11 +162,20 @@ public final class ConfigCheckpoint {
      * checkengine/config-undo-&lt;date&gt;/ first (nothing is deleted). Returns that folder, or null when nothing changed.
      */
     public static Path restore(Path gameDir, Path checkEngineFolder) throws IOException {
+        return restore(gameDir, checkEngineFolder, undoFolder(checkEngineFolder));
+    }
+
+    /** checkengine/config-undo-&lt;now&gt;: where the configs that go away are kept. */
+    public static Path undoFolder(Path checkEngineFolder) {
+        return checkEngineFolder.resolve("config-undo-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss")));
+    }
+
+    /** As {@link #restore(Path, Path)}, keeping the configs that go away in {@code undo}. */
+    public static Path restore(Path gameDir, Path checkEngineFolder, Path undo) throws IOException {
         List<Change> changes = changes(gameDir, checkEngineFolder);
         if (changes.isEmpty()) return null;
         Path store = checkEngineFolder.resolve(FOLDER).resolve("files");
-        Path undo = checkEngineFolder.resolve("config-undo-"
-                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss")));
         for (Change c : changes) {
             Path live = gameDir.resolve(c.path());
             if (Files.isRegularFile(live)) {
@@ -158,6 +230,28 @@ public final class ConfigCheckpoint {
             } catch (IOException | RuntimeException ignored) {
                 // skip what can't be read
             }
+        }
+        return out;
+    }
+
+    /** Whether two config files differ only in comment lines ("#..." or "//..."). */
+    static boolean sameButComments(Path a, Path b) {
+        if (!Files.isRegularFile(b)) return false;
+        try {
+            return withoutComments(a).equals(withoutComments(b));
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static List<String> withoutComments(Path p) throws IOException {
+        String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
+        String mark = n.matches(".*\\.(properties|toml|cfg|conf|ini|yml|yaml)$") ? "#"
+                : n.matches(".*\\.(json5|js|ts|zs)$") ? "//" : null;
+        List<String> out = new ArrayList<>();
+        for (String line : Files.readAllLines(p, StandardCharsets.UTF_8)) {
+            if (mark != null && line.strip().startsWith(mark)) continue;
+            out.add(line.stripTrailing());
         }
         return out;
     }

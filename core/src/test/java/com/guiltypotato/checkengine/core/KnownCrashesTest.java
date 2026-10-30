@@ -57,7 +57,7 @@ class KnownCrashesTest {
         assertTrue(main.title().contains("RivaTuner"), main.title());
     }
 
-    /** From A3's test in 3 packs: RivaTuner running is in every crash report's module list, even an F3+C crash. */
+    /** From a test in 3 packs: RivaTuner running is in every crash report's module list, even an F3+C crash. */
     @Test
     void anOverlayThatIsOnlyLoadedIsNotBlamed() {
         String report = """

@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.forge.client;
 
+import com.guiltypotato.checkengine.ui.DashScreen;
 import com.guiltypotato.checkengine.forge.BootCheck;
 import com.guiltypotato.checkengine.forge.CheckEngine;
 import com.guiltypotato.checkengine.core.scan.Finding;

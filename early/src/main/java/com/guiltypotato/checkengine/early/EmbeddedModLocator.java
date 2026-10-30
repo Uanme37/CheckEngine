@@ -16,8 +16,15 @@ import net.neoforged.neoforgespi.locating.ModFileDiscoveryAttributes;
 public class EmbeddedModLocator implements IModFileCandidateLocator {
     static final String INNER_MOD = "/META-INF/jarjar/checkengine-mod.jar";
 
+    /** Before NeoForge's own mods folder reader (priority 0): the switched-off notes are done first. */
+    @Override
+    public int getPriority() {
+        return 100;
+    }
+
     @Override
     public void findCandidates(ILaunchContext context, IDiscoveryPipeline pipeline) {
+        Pending.apply(net.neoforged.fml.loading.FMLPaths.GAMEDIR.get());
         URL inner = EmbeddedModLocator.class.getResource(INNER_MOD);
         if (inner == null) return;
         try {

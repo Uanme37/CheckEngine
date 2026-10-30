@@ -50,11 +50,7 @@ mod-26/runs/
 # Public crash reports from other people (local test data, never committed)
 crash-library/
 
-# Working notes for Claude: stay on the PC, not on GitHub
-HANDOFF.md
-CLAUDE.md
-
-# Page images, dev tools and test notes: stay on the PC (A3, 2026-10-20)
+# Page images, dev tools and test notes: stay on the PC
 docs/page/
 tools/
 test-packs/

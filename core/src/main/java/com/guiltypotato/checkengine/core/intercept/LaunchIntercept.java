@@ -49,14 +49,26 @@ public final class LaunchIntercept {
      * @param stripMineMods how many mods a search would go through, for the window's explanation
      * @param stripMineLocked whether CurseForge has the pack locked right now (checked again on Start), or null
      * @param quitFix   applies the fix when the player quits ("QUIT AND FIX IT"), or null for a plain Quit
-     * @param newMods   the jars "Undo new mods" would switch off (added since the pack last worked), maybe empty
-     * @param undoNewMods switches {@code newMods} off (the game then quits), or null
+     * @param goBack    what "Go back to when it worked" would do: the summary first, then one line per change; maybe
+     *                  empty
+     * @param goBackRun does it (the game then quits), or null
      * @param stripMineConfigs Strip Mine would search the changed config files, not the mods
      */
+    /**
+     * Go back, as the window offers it.
+     *
+     * @param lastWorked   "Last worked: 28 Oct 10:00", or null
+     * @param choice       both mods and configs changed: offer "Mods only" next to "Mods and configs"
+     * @param configsFirst the pack maker's default (go_back_configs): "Mods and configs" first, else "Mods only"
+     * @param run          does it (true = with the configs); throws when it couldn't
+     */
+    public record GoBackOffer(String lastWorked, boolean choice, boolean configsFirst,
+                              java.util.function.Consumer<Boolean> run) {}
+
     public record Message(Level level, List<String> problems, List<String> details, List<String> changed,
                           List<String> fixes, Path report, Runnable stripMine, int stripMineMods,
                           java.util.function.BooleanSupplier stripMineLocked, Runnable quitFix,
-                          List<String> newMods, Runnable undoNewMods, boolean stripMineConfigs) {
+                          List<String> goBack, GoBackOffer goBackRun, boolean stripMineConfigs) {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
             this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null, false);
@@ -67,18 +79,18 @@ public final class LaunchIntercept {
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked, boolean configs) {
-            return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix, newMods,
-                    undoNewMods, configs);
+            return new Message(level, problems, details, changed, fixes, report, start, mods, locked, quitFix, goBack,
+                    goBackRun, configs);
         }
 
         Message withQuitFix(Runnable fix) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, fix, newMods, undoNewMods, stripMineConfigs);
+                    stripMineLocked, fix, goBack, goBackRun, stripMineConfigs);
         }
 
-        Message withUndoNewMods(List<String> jars, Runnable undo) {
+        Message withGoBack(List<String> lines, GoBackOffer run) {
             return new Message(level, problems, details, changed, fixes, report, stripMine, stripMineMods,
-                    stripMineLocked, quitFix, jars, undo, stripMineConfigs);
+                    stripMineLocked, quitFix, lines, run, stripMineConfigs);
         }
 
         /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
@@ -200,7 +212,7 @@ public final class LaunchIntercept {
                 + " Every config file is back as you had it.");
         if (found == null) {
             return new Message(Level.FOUND, done.suspects().stream().limit(10).map(f -> f + " (one of these)").toList(),
-                    details, List.of(), List.of("Put these back one at a time (Crash Doctor: Undo config changes)."),
+                    details, List.of(), List.of("Put these back one at a time, or all at once with Go back to when it worked."),
                     report).withStripMine(null, 0, null, true);
         }
         Message m = new Message(Level.FOUND, List.of(found + " causes the crash"), details, List.of(), List.of(
@@ -305,15 +317,26 @@ public final class LaunchIntercept {
     }
 
     /**
-     * Whether the latest launch got to the title screen (or server ready): the mod saves the last good launch then,
-     * so it's newer than the record this check wrote when that launch started.
+     * Whether the latest launch got to the title screen (or server ready): the mod saves the pack's state then (see
+     * GoodLaunch: as the last good launch, or set aside when that session crashed later), so it's newer than the
+     * record this check wrote when that launch started.
      */
     static boolean reachedTitleScreen(Path checkEngineFolder) {
         try {
             Path started = checkEngineFolder.resolve(LAST_LAUNCH_FILE);
-            Path good = checkEngineFolder.resolve(PackSnapshot.FILE);
-            return Files.isRegularFile(started) && Files.isRegularFile(good)
-                    && Files.getLastModifiedTime(good).compareTo(Files.getLastModifiedTime(started)) >= 0;
+            if (!Files.isRegularFile(started)) return false;
+            for (Path saved : List.of(checkEngineFolder.resolve(com.guiltypotato.checkengine.core.scan.GoodLaunch.TITLE),
+                    checkEngineFolder.resolve(PackSnapshot.FILE),
+                    checkEngineFolder.resolve(com.guiltypotato.checkengine.core.scan.GoodLaunch.CRASHED),
+                    checkEngineFolder.resolve(com.guiltypotato.checkengine.core.scan.GoodLaunch.UNFINISHED),
+                    com.guiltypotato.checkengine.core.scan.GoodLaunch.pending(checkEngineFolder)
+                            .resolve(PackSnapshot.FILE))) {
+                if (Files.isRegularFile(saved)
+                        && Files.getLastModifiedTime(saved).compareTo(Files.getLastModifiedTime(started)) >= 0) {
+                    return true;
+                }
+            }
+            return false;
         } catch (IOException e) {
             return false;
         }
@@ -369,37 +392,38 @@ public final class LaunchIntercept {
     }
 
     /**
-     * Offers "Undo new mods" when mods were added since the pack last worked: back to how it last started, in one
-     * click. Not for Strip Mine's own result (it already names the mod).
+     * Offers "Go back to when it worked" when anything changed since the pack last worked: new mods off, old versions
+     * and removed mods back, configs back, in one click. Not for Strip Mine's own result (it already names the mod).
      */
-    static Message withUndoNewMods(Message m, Path gameDir) {
+    static Message withGoBack(Message m, Path gameDir) {
         if (gameDir == null || m.level() == Level.FOUND) return m;
-        Path mods = gameDir.resolve("mods");
         Path folder = gameDir.resolve("checkengine");
-        List<String> jars;
+        com.guiltypotato.checkengine.core.strip.GoBack.Plan plan;
         try {
-            jars = com.guiltypotato.checkengine.core.strip.UndoNewMods.plan(mods, folder);
+            plan = com.guiltypotato.checkengine.core.strip.GoBack.plan(gameDir, folder);
         } catch (IOException | RuntimeException e) {
             return m;
         }
-        if (jars.isEmpty()) return m;
-        return m.withUndoNewMods(jars, () -> {
+        if (plan.isEmpty()) return m;
+        List<String> lines = new ArrayList<>();
+        lines.add(plan.summary());
+        lines.addAll(plan.lines());
+        if (plan.note() != null) lines.add(plan.note());
+        return m.withGoBack(lines, new GoBackOffer(plan.lastWorked(), plan.hasMods() && !plan.configs().isEmpty(),
+                com.guiltypotato.checkengine.core.scan.PackInfo.goBackConfigsByDefault(gameDir), configs -> {
             try {
-                List<String> locked = com.guiltypotato.checkengine.core.strip.UndoNewMods.apply(mods, folder, jars);
-                // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
-                if (!locked.isEmpty()) {
-                    Runtime.getRuntime().addShutdownHook(new Thread(() -> StripMine.switchOff(mods, locked)));
-                }
-            } catch (IOException ignored) {
-                // nothing switched off: the next launch shows the same window
+                // the game hasn't loaded anything yet: configs go back now; locked jars at the next start
+                com.guiltypotato.checkengine.core.strip.GoBack.apply(gameDir, folder, plan, configs, false);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e); // the window says so
             }
-        });
+        }));
     }
 
     /** As {@link #ask(Message)}, with the pack's name and help link from {@code gameDir} (see PackInfo). */
     public static Choice ask(Message message, Path gameDir) {
         try {
-            message = withUndoNewMods(message, gameDir);
+            message = withGoBack(message, gameDir);
             Choice c = Popup.show(message, logo(), com.guiltypotato.checkengine.core.scan.PackInfo.load(gameDir));
             if (c == Choice.STRIP_MINE && message.stripMine() != null) {
                 message.stripMine().run(); // the helper sets up round 1 once the game has closed

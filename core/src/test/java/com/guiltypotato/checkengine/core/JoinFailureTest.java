@@ -1,6 +1,7 @@
 package com.guiltypotato.checkengine.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,6 +31,18 @@ class JoinFailureTest {
         assertEquals("LuckPerms broke the join", r.finding().title());
         assertTrue(r.finding().detail().contains("5.4.140"), r.finding().detail());
         assertTrue(r.finding().fix().startsWith("Update LuckPerms to 5.4.150"), r.finding().fix());
+    }
+
+    @Test
+    void luckPermsOnAnotherGameVersionDoesNotBlameThe1211Bug() {
+        String log = HEAD + """
+                java.lang.NullPointerException: Cannot invoke "net.luckperms.api.model.user.User.getCachedData()" because "user" is null
+                \tat TRANSFORMER/luckperms@5.4.140/me.lucko.luckperms.neoforge.listeners.NeoForgePlatformListener.onPlayerLogin(NeoForgePlatformListener.java:58) ~[LuckPerms-NeoForge-5.4.140.jar%23201!/:?]
+                \tat TRANSFORMER/minecraft@26.1.2/net.minecraft.server.players.PlayerList.placeNewPlayer(PlayerList.java:180) ~[neoforge-26.1.2.15.jar%23190!/:?]
+                """ + TAIL;
+        JoinFailure.Result r = JoinFailure.fromLog(log);
+        assertFalse(r.finding().detail().contains("1.21.1"), r.finding().detail());
+        assertTrue(r.finding().fix().startsWith("Update LuckPerms, and if it keeps happening"), r.finding().fix());
     }
 
     @Test

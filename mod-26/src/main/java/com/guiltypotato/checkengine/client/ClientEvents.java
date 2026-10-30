@@ -30,6 +30,10 @@ public final class ClientEvents {
 
     private ClientEvents() {}
 
+    static {
+        CeLook.apply(); // Check Engine's name, lamp and help link on the shared screens
+    }
+
     /** The first time the title screen opens, show the boot check's problems in front of it. */
     @SubscribeEvent
     public static void onScreenOpening(ScreenEvent.Opening event) {
@@ -140,6 +144,9 @@ public final class ClientEvents {
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         try {
+            // Pit Stop button on the title screen (beside Accessibility / Language)
+            TitleButtons.init(event.getScreen(), event.getListenersList(), event::addListener,
+                    BootCheck.lastCrash() != null && !crashSeen);
             explainJoinKick(event);
             // Another mod (FancyMenu...) put the title screen over our backup screen before it was answered: back on top
             if (event.getScreen() instanceof TitleScreen && DowngradeScreen.showing != null
@@ -218,14 +225,38 @@ public final class ClientEvents {
     private static void fixedToast(Report report) {
         if (fixedChecked || report == null || StripMine.running(BootCheck.outputFolder()) != null) return;
         fixedChecked = true;
+        try {
+            com.guiltypotato.checkengine.core.scan.WarningLog.update(BootCheck.outputFolder(),
+                    com.guiltypotato.checkengine.core.scan.PackInfo.load(BootCheck.outputFolder().getParent())
+                            .visible(BootCheck.worthShowing(report)),
+                    java.time.LocalDateTime.now().withSecond(0).withNano(0).toString());
+        } catch (java.io.IOException | RuntimeException e) {
+            CheckEngine.LOGGER.warn("Check Engine: couldn't update the warning log", e);
+        }
+        String slower = TitleButtons.slowerNotice();
+        if (slower != null) CheckEngine.LOGGER.info("Check Engine: {}", slower);
         java.util.List<String> fixed = com.guiltypotato.checkengine.core.scan.FixedProblems.update(BootCheck.outputFolder(),
                 BootCheck.worthShowing(report));
-        if (fixed.isEmpty() || com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) return;
-        CheckEngine.LOGGER.info("Check Engine: fixed since last launch: {}", fixed);
-        Minecraft.getInstance().execute(() -> net.minecraft.client.gui.components.toasts.SystemToast.add(Minecraft.getInstance().getToastManager(),
-                    new net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId(10000L),
-                net.minecraft.network.chat.Component.literal("Check Engine: Fixed!"),
-                net.minecraft.network.chat.Component.literal(com.guiltypotato.checkengine.core.scan.FixedProblems.toastText(fixed))));
+        if (!fixed.isEmpty()) CheckEngine.LOGGER.info("Check Engine: fixed since last launch: {}", fixed);
+        if (com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) fixed = java.util.List.of();
+        // One toast for both, wrapping long text, so nothing is cut off and two toasts don't stack over the logo
+        String[] toast = com.guiltypotato.checkengine.core.scan.StartNotice.of(fixed, slower);
+        if (toast == null) return;
+        Minecraft.getInstance().execute(() -> Minecraft.getInstance().getToastManager().addToast(
+                net.minecraft.client.gui.components.toasts.SystemToast.multiline(Minecraft.getInstance(),
+                        new net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId(10000L),
+                        net.minecraft.network.chat.Component.literal(toast[0]),
+                        TitleButtons.noticeText(toast[1]))));
+    }
+
+    /** Draws the Pit Stop button's lamp, start time and "!" over the plain button. */
+    @SubscribeEvent
+    public static void onScreenRender(ScreenEvent.Render.Post event) {
+        try {
+            TitleButtons.render(event.getScreen(), event.getGuiGraphics());
+        } catch (Throwable t) {
+            // the button still works without its drawing
+        }
     }
 
     /** "Open report" in the scan's chat line runs this; the screen opens on the next tick, after chat closes. */

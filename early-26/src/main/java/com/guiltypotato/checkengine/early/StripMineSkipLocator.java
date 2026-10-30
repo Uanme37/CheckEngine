@@ -21,6 +21,9 @@ public class StripMineSkipLocator implements IModFileCandidateLocator {
             // Mods the player switched off (Undo new mods, Strip Mine's fix) that were locked as the game closed
             List<String> pending = StripMine.applyPending(mods);
             for (String jar : pending) context.addLocated(mods.resolve(jar));
+            // Old versions Go back couldn't put in while a new jar of the same name was locked
+            com.guiltypotato.checkengine.core.strip.GoBack.applyPending(mods,
+                    context.gameDirectory().resolve("checkengine"));
             List<String> skip = StripMine.lockedOn(mods, context.gameDirectory().resolve("checkengine"));
             for (String jar : skip) context.addLocated(mods.resolve(jar));
             if (!skip.isEmpty()) EarlyCheck.LOGGER.info("Check Engine: Strip Mine round, skipping {} mods", skip.size());

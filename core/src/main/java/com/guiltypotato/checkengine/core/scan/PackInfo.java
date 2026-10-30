@@ -56,6 +56,33 @@ public record PackInfo(String name, String supportLink, long recommendedMb, bool
         return (quiet && screen.equals("settings")) || hide.stream().anyMatch(h -> h.equalsIgnoreCase(screen));
     }
 
+    /**
+     * The pack maker's default for Go back: go_back_configs=false makes "Mods only" the first choice (the pack's own
+     * config edits stay), true or empty "Mods and configs".
+     */
+    public static boolean goBackConfigsByDefault(Path gameDir) {
+        if (gameDir == null) return true;
+        String v = settings(gameDir).getProperty("go_back_configs", "true").strip();
+        return !"false".equalsIgnoreCase(v) && !"mods".equalsIgnoreCase(v);
+    }
+
+    /** The pack maker's default for Check Engine's title screen button: title_button=hide (or false) turns it off. */
+    public static boolean titleButtonByDefault(Path gameDir) {
+        if (gameDir == null) return true;
+        String v = settings(gameDir).getProperty("title_button", "show").strip();
+        return !"hide".equalsIgnoreCase(v) && !"false".equalsIgnoreCase(v);
+    }
+
+    /**
+     * Where the pack maker wants Check Engine's title button: title_button_pos = auto (beside Accessibility, or the
+     * bottom-left corner on a custom title screen), bottom_left, bottom_right, top_left, top_right, or x,y.
+     */
+    public static String titleButtonPos(Path gameDir) {
+        if (gameDir == null) return "auto";
+        String v = settings(gameDir).getProperty("title_button_pos", "auto").strip();
+        return v.isEmpty() ? "auto" : v;
+    }
+
     public static PackInfo load(Path gameDir) {
         if (gameDir == null) return new PackInfo(null, null, 0);
         Properties p = settings(gameDir);
@@ -110,11 +137,19 @@ public record PackInfo(String name, String supportLink, long recommendedMb, bool
                     + "# quiet: true = players only see Check Engine when something stops the game or it crashed.\n"
                     + "# hide_warnings: warnings players don't need, comma-separated: a kind (same-job-mods,\n"
                     + "#   duplicate-mod, downgraded-mod, settings, update-notes) or words from the title (Xaero's Minimap).\n"
+                    + "# title_button: show or hide the Pit Stop button on the title screen (players can still change it).\n"
+                    + "# title_button_pos: auto (beside Accessibility), bottom_left, bottom_right, top_left, top_right, or\n"
+                    + "#   x,y. With FancyMenu you can also move it in FancyMenu's editor.\n"
+                    + "# go_back_configs: what Go back offers first. true = mods and configs, false = mods only (your\n"
+                    + "#   pack's own config edits stay). Players can always pick the other one.\n"
                     + "pack_name=\n"
                     + "support_link=\n"
                     + "recommended_ram=\n"
                     + "quiet=false\n"
-                    + "hide_warnings=\n");
+                    + "hide_warnings=\n"
+                    + "title_button=show\n"
+                    + "title_button_pos=auto\n"
+                    + "go_back_configs=true\n");
         } catch (IOException ignored) {
             // read-only folder: fine
         }

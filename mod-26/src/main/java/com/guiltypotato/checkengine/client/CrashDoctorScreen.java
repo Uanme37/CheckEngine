@@ -1,5 +1,6 @@
 package com.guiltypotato.checkengine.client;
 
+import com.guiltypotato.checkengine.ui.DashScreen;
 import com.guiltypotato.checkengine.BootCheck;
 import com.guiltypotato.checkengine.CheckEngine;
 import com.guiltypotato.checkengine.core.crash.CrashDoctor;
@@ -7,6 +8,7 @@ import com.guiltypotato.checkengine.core.crash.CrashDoctor.LastCrash;
 import com.guiltypotato.checkengine.core.crash.CrashHelp;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import com.guiltypotato.checkengine.core.scan.HelpBundle;
+import com.guiltypotato.checkengine.core.strip.GoBack;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -135,7 +137,8 @@ public final class CrashDoctorScreen extends DashScreen {
 
     /** "Copy for help": the message goes on the clipboard, and the screen shows exactly what was copied. */
     private static void copyForHelp(Screen back, LastCrash crash) {
-        String text = CrashHelp.message(crash, BootCheck.get(), Minecraft.getInstance().getUser().getName());
+        String text = CrashHelp.message(crash, BootCheck.get(), Minecraft.getInstance().getUser().getName(),
+                BootCheck.outputFolder());
         Minecraft.getInstance().keyboardHandler.setClipboard(text);
         Minecraft.getInstance().setScreen(new DashScreen(GREEN, "COPIED FOR HELP", null, null, List.of(
                 new Section("PASTE IT IN YOUR HELP CHANNEL", GREEN, "✔", List.of(
@@ -149,21 +152,13 @@ public final class CrashDoctorScreen extends DashScreen {
     /** Undo new mods and Undo config changes, when they apply (never for a crash from before Check Engine). */
     private static List<Btn> undoButtons(Screen next, LastCrash crash, Screen[] self) {
         List<Btn> out = new ArrayList<>();
-        if (crash.beforeInstall()) return out;
-        // Mods added since the pack last worked: one click puts the pack back to how it last started.
-        List<String> newMods = newMods();
-        if (!newMods.isEmpty()) {
-            out.add(new Btn("Undo new mods", () -> Minecraft.getInstance().setScreen(undoNewMods(self[0], newMods)),
-                    true, "Switches off the " + newMods.size() + " mod" + (newMods.size() == 1 ? "" : "s")
-                            + " added since the pack last worked. Renamed to .disabled, nothing is deleted."));
-        }
-        // A config edit since the pack last worked is often the whole story: offer to put the old ones back.
-        boolean configs = crash.changes() != null && crash.changes().changes().stream()
-                .anyMatch(c -> c.type() == com.guiltypotato.checkengine.core.scan.Changes.Type.CONFIG);
-        if (configs) {
-            out.add(new Btn("Undo config changes", () -> undoConfigs(next), true,
-                    "Puts back the configs from the last launch that worked. Your current ones are kept in "
-                            + "checkengine/config-undo-<date>, nothing is deleted."));
+        // Before install there's no last good launch; an F3+C test crash has nothing to fix.
+        if (crash.beforeInstall() || "debug-crash".equals(crash.main().code())) return out;
+        // Anything changed since the pack last worked (mods, versions, configs): one button puts it all back.
+        GoBack.Plan plan = goBackPlan();
+        if (plan != null && !plan.isEmpty()) {
+            out.add(new Btn("Go back to when it worked", () -> Minecraft.getInstance().setScreen(goBack(self[0], plan)),
+                    true, plan.summary() + ". Nothing is deleted, and you can put it back."));
         }
         return out;
     }
@@ -211,71 +206,111 @@ public final class CrashDoctorScreen extends DashScreen {
                 () -> Minecraft.getInstance().setScreen(back));
     }
 
-    private static List<String> newMods() {
-        try {
-            return com.guiltypotato.checkengine.core.strip.UndoNewMods.plan(FMLPaths.GAMEDIR.get().resolve("mods"),
-                    BootCheck.outputFolder());
-        } catch (IOException | RuntimeException e) {
-            return List.of();
-        }
+    /** Worked out in the background since the game started (it reads every jar); null if it isn't ready. */
+    private static GoBack.Plan goBackPlan() {
+        return com.guiltypotato.checkengine.core.strip.GoBackPlans.now();
     }
 
-    /** "Undo new mods?": which mods, that it's safe, then switch them off and quit. */
-    private static Screen undoNewMods(Screen back, List<String> jars) {
+    /** "Go back to when it worked?": everything that changes in player words, then Go back or Cancel. */
+    static Screen goBack(Screen back, GoBack.Plan plan) {
         List<Line> list = new ArrayList<>();
-        jars.stream().limit(12).forEach(j -> list.add(Line.text("- " + j)));
-        if (jars.size() > 12) list.add(Line.dim("...and " + (jars.size() - 12) + " more"));
-        List<Section> sections = new ArrayList<>(List.of(
-                new Section("SWITCHES OFF", AMBER, "±", list),
-                new Section("SAFE", GREEN, "✔", List.of(
-                        Line.text("Renamed to .disabled, nothing is deleted."),
-                        Line.dim("Mods that need them go off too. Updated mods stay as they are."),
-                        Line.dim("Put them back with Check Pack.bat (it asks), or take .disabled off their names.")))));
+        list.add(Line.text(plan.summary() + "."));
+        List<String> changes = plan.lines().stream().filter(l -> !l.contains("can't put it back")).toList();
+        changes.stream().limit(10).forEach(l -> list.add(Line.dim("- " + l)));
+        if (changes.size() > 10) list.add(Line.dim("...and " + (changes.size() - 10) + " more"));
+        List<Section> sections = new ArrayList<>(List.of(new Section("WHAT CHANGES", AMBER, "±", list)));
+        List<Line> cant = new ArrayList<>();
+        plan.notKept().stream().limit(5).forEach(n -> cant.add(Line.text(n + ": old version not kept, can't put it "
+                + "back")));
+        if (plan.notKept().size() > 5) cant.add(Line.dim("...and " + (plan.notKept().size() - 5) + " more"));
+        if (plan.note() != null) cant.add(Line.dim(plan.note()));
+        if (!cant.isEmpty()) sections.add(new Section("STAYS AS IT IS", GREY, "i", cant));
+        // One line: it sits right above the buttons and must fit without scrolling
+        sections.add(new Section("SAFE", GREEN, "✔", List.of(
+                Line.text("Nothing is deleted. Put it back (next screen) undoes it."))));
         Path game = FMLPaths.GAMEDIR.get();
         if (com.guiltypotato.checkengine.core.strip.StripMine.lockedByCurseForge(game)) {
             sections.add(0, new Section("FIRST: UNLOCK THE PACK", RED, "!", List.of(
                     Line.text(com.guiltypotato.checkengine.core.strip.StripMine.UNLOCK_STEPS))));
         }
-        return new DashScreen(AMBER, "UNDO NEW MODS", null, null, sections, List.of(
-                new Btn("Switch off and quit", () -> {
-                    try {
-                        List<String> locked = com.guiltypotato.checkengine.core.strip.UndoNewMods.apply(
-                                game.resolve("mods"), BootCheck.outputFolder(), jars);
-                        // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
-                        if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() ->
-                                com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"),
-                                        locked)));
-                    } catch (IOException e) {
-                        CheckEngine.LOGGER.warn("Check Engine: couldn't switch the new mods off", e);
-                    }
-                    Minecraft.getInstance().stop();
-                }, true), new Btn("Back", () -> Minecraft.getInstance().setScreen(back), false)),
+        // Both mods and configs changed: the player picks (a pack maker's own config edits may be among them)
+        List<Btn> buttons = new ArrayList<>();
+        if (plan.hasMods() && !plan.configs().isEmpty()) {
+            boolean configsFirst = com.guiltypotato.checkengine.core.scan.PackInfo.goBackConfigsByDefault(game);
+            // both full buttons: it's a real choice; the pack maker's default comes first
+            Btn all = goBackButton(plan, game, true, "Mods and configs", true,
+                    "Configs go back to when it worked too.");
+            Btn mods = goBackButton(plan, game, false, "Mods only", true,
+                    "Your configs stay as they are now (your own pack work is kept).");
+            buttons.add(configsFirst ? all : mods);
+            buttons.add(configsFirst ? mods : all);
+        } else {
+            buttons.add(goBackButton(plan, game, true, "Go back", true, null));
+        }
+        buttons.add(new Btn("Cancel", () -> Minecraft.getInstance().setScreen(back), false));
+        // when it last worked, in the readout on the right (no extra line above the buttons)
+        return new DashScreen(AMBER, "GO BACK TO WHEN IT WORKED?", plan.lastWorkedShort(),
+                plan.lastWorkedShort() == null ? null : "LAST WORKED", sections, buttons,
                 () -> Minecraft.getInstance().setScreen(back));
+    }
+
+    /**
+     * One Go back button. The game is running, so configs go back at the next start (mods save theirs as the game
+     * closes); the mods go now.
+     */
+    private static Btn goBackButton(GoBack.Plan plan, Path game, boolean configs, String label, boolean primary,
+                                    String tip) {
+        return new Btn(label, () -> {
+            String text;
+            boolean ok;
+            try {
+                List<String> locked = GoBack.apply(game, BootCheck.outputFolder(), plan, configs, true);
+                // NeoForge 26.1 holds the jars open until the game exits: rename those on the way out.
+                if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() ->
+                        com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"), locked)));
+                text = "The pack is back to when it worked. Restart the game to load it."
+                        + (configs && !plan.configs().isEmpty() ? " Your configs go back as it starts." : "");
+                ok = true;
+            } catch (IOException | RuntimeException e) {
+                CheckEngine.LOGGER.warn("Check Engine: couldn't go back", e);
+                text = "Couldn't go back: " + e.getMessage() + ". Put it back undoes what was done.";
+                ok = false;
+            }
+            com.guiltypotato.checkengine.core.strip.GoBackPlans.refresh(game, BootCheck.outputFolder());
+            Minecraft.getInstance().setScreen(wentBack(ok, text));
+        }, primary, tip);
+    }
+
+    /** After Go back: quit to load it, or put it all back. */
+    private static Screen wentBack(boolean ok, String text) {
+        return new DashScreen(ok ? GREEN : RED, ok ? "BACK TO WHEN IT WORKED" : "COULDN'T GO BACK", null, null,
+                List.of(new Section(ok ? "DONE" : "WHAT HAPPENED", ok ? GREEN : RED, ok ? "✔" : "!",
+                        ok ? List.of(Line.text(text), Line.dim("The CurseForge app may still list the newer versions: "
+                                + "that's only its own list.")) : List.of(Line.text(text)))),
+                List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true),
+                        new Btn("Put it back", () -> {
+                            String done;
+                            try {
+                                List<String> back = GoBack.putBack(FMLPaths.GAMEDIR.get(), BootCheck.outputFolder());
+                                com.guiltypotato.checkengine.core.strip.GoBackPlans.refresh(FMLPaths.GAMEDIR.get(), BootCheck.outputFolder());
+                                done = back.isEmpty() ? "Nothing to put back." : "Put back how you had it ("
+                                        + back.size() + " change" + (back.size() == 1 ? "" : "s") + ").";
+                            } catch (IOException | RuntimeException e) {
+                                CheckEngine.LOGGER.warn("Check Engine: couldn't put it back", e);
+                                done = "Couldn't put it back: " + e.getMessage();
+                            }
+                            Minecraft.getInstance().setScreen(new DashScreen(GREY, "PUT BACK", null, null, List.of(
+                                    new Section("DONE", GREY, "i", List.of(Line.text(done),
+                                            Line.dim("Restart the game so it loads your mods again.")))),
+                                    List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true)),
+                                    () -> Minecraft.getInstance().stop()));
+                        }, false, "Undoes Go back: your newer mods and configs come back.")),
+                () -> Minecraft.getInstance().stop());
     }
 
     private static Screen working() {
         return new DashScreen(AMBER, "BACKING UP THE WORLD...", null, null, List.of(new Section("PLEASE WAIT", AMBER,
                 "»", List.of(Line.text("Copying the world. Big worlds take a minute.")))), List.of(), () -> {});
-    }
-
-    private static void undoConfigs(Screen next) {
-        String text;
-        try {
-            Path kept = com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.restore(FMLPaths.GAMEDIR.get(),
-                    BootCheck.outputFolder());
-            text = kept == null ? "Nothing to undo: the configs already match the last launch that worked."
-                    : "The configs from the last launch that worked are back. Your changed ones are in "
-                            + BootCheck.outputFolder().getParent().relativize(kept) + ".";
-        } catch (IOException e) {
-            CheckEngine.LOGGER.warn("Check Engine: couldn't put the configs back", e);
-            text = "Couldn't put the configs back: " + e.getMessage();
-        }
-        Minecraft.getInstance().setScreen(new DashScreen(GREEN, "CONFIGS PUT BACK", null, null, List.of(
-                new Section("DONE", GREEN, "✔", List.of(Line.text(text),
-                        Line.dim("Restart the game so every mod reads them again.")))),
-                List.of(new Btn("Quit game", () -> Minecraft.getInstance().stop(), true),
-                        new Btn("Later", () -> leave(next), false)),
-                () -> leave(next)));
     }
 
     private static List<Btn> logButtons(LastCrash crash) {

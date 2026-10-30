@@ -199,4 +199,21 @@ class CrashHelpTest {
         assertTrue(msg.contains("**Cause:** not sure"), msg);
         assertFalse(msg.contains("**Fix:**"), msg);
     }
+
+    @Test
+    void copyForHelpTakesVersionsFromTheLastGoodLaunchWhenTheScanHasNone() throws IOException {
+        // NeoForge 26.1: the early scan can run before the loader knows its versions
+        crash("crash-2026-10-20_18.02.11-client.txt", RUNTIME, 60_000);
+        LastCrash c = CrashDoctor.checkAndStartSession(game, ce());
+        Report early = new Report(Path.of("mods"), new ScanOptions(Side.CLIENT, null, null, Set.of()), List.of(),
+                List.of());
+        new com.guiltypotato.checkengine.core.scan.PackSnapshot("2026-10-20T10:00", "26.1.2", "26.1.2.114",
+                new java.util.TreeMap<>()).save(ce());
+        String msg = CrashHelp.message(c, early, null, ce());
+        assertTrue(msg.contains("Minecraft 26.1.2 | NeoForge 26.1.2.114 | Java "), msg);
+        // the scan's own versions win when it has them
+        msg = CrashHelp.message(c, pack(null, null), null, ce());
+        assertTrue(msg.contains("Minecraft 1.21.1 | NeoForge 21.1.209"), msg);
+        assertFalse(msg.contains("26.1.2"), msg);
+    }
 }

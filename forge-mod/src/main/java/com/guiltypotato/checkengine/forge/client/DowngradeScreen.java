@@ -1,9 +1,10 @@
 package com.guiltypotato.checkengine.forge.client;
 
+import com.guiltypotato.checkengine.ui.DashScreen;
 import com.guiltypotato.checkengine.forge.CheckEngine;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Btn;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Line;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Section;
+import com.guiltypotato.checkengine.ui.DashScreen.Btn;
+import com.guiltypotato.checkengine.ui.DashScreen.Line;
+import com.guiltypotato.checkengine.ui.DashScreen.Section;
 import com.guiltypotato.checkengine.core.scan.Changes;
 import com.guiltypotato.checkengine.core.world.SafeRemove;
 import java.io.IOException;

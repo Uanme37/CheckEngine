@@ -49,8 +49,10 @@ public final class ExportCheck {
             new Personal("xaerowaypoints/", "your Xaero's waypoints", "Your waypoints."),
             new Personal("xaerominimap/", "your Xaero's minimap data", "Your minimap data."),
             new Personal("backups/", "your backups", "Old world or config backups."),
-            new Personal("checkengine/", "Check Engine's reports about your PC", "They're about your game, not the pack. "
-                    + "Ship config/checkengine-pack.properties instead (it's in config/)."),
+            new Personal("checkengine/", "Check Engine's files about your game", "They're about your game, not the pack, "
+                    + "and checkengine/lastgood holds a copy of every mod jar from your last launch that worked (in a "
+                    + "zip that's the whole mods folder again). Leave the checkengine folder out. Ship "
+                    + "config/checkengine-pack.properties instead (it's in config/)."),
             new Personal(".mixin.out/", "debug output", "Debug files from your game."),
             new Personal("debug/", "debug output", "Debug files from your game."),
             new Personal("hs_err_pid", "Java crash files", "Crash files with your PC's details."));

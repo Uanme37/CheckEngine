@@ -54,6 +54,17 @@ class ExportCheckTest {
     }
 
     @Test
+    void checkEnginesKeptJarsAreFlaggedNotCountedAsBundledMods() throws Exception {
+        Path z = zip("My Pack 1.1.zip", Map.of("manifest.json", "{}",
+                "overrides/checkengine/lastgood/mods/create-6.0.3.jar", "x",
+                "overrides/checkengine/last-good-launch.properties", "x"));
+        List<Finding> f = ExportCheck.check(z);
+        assertEquals(1, f.size(), f.toString());
+        assertEquals("The export has Check Engine's files about your game", f.get(0).title());
+        assertTrue(f.get(0).detail().contains("Leave the checkengine folder out"), f.get(0).detail());
+    }
+
+    @Test
     void aCleanExportIsClean() throws Exception {
         Path z = zip("Clean.mrpack", Map.of("modrinth.index.json", "{}",
                 "overrides/config/create-server.toml", "stress = 1.0\n",

@@ -66,6 +66,10 @@ public class EarlyCheck implements IDependencyLocator {
     }
 
     private static List<EarlyLoadingException.ExceptionData> check(Iterable<IModFile> mods) throws IOException {
+        // Did the last session that reached the title screen really work (no crash after)? Settle that before
+        // anything compares against the last good launch.
+        com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(FMLPaths.GAMEDIR.get(),
+                FMLPaths.GAMEDIR.get().resolve("checkengine"));
         startPackScan();
         Path folder = FMLPaths.GAMEDIR.get().resolve("checkengine");
         Path report = folder.resolve(REPORT_FILE);

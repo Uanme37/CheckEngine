@@ -102,7 +102,7 @@ final class Popup {
         Runnable back = () -> frame.swap(main.get());
         main.set(frame.render(mainPage(m, pack, choice, d,
                 () -> frame.swap(frame.render(stripMinePage(m, false, choice, frame, back))),
-                () -> frame.swap(frame.render(undoNewModsPage(m, choice, frame, back))))));
+                () -> frame.swap(frame.render(goBackPage(m, choice, frame, back))))));
 
         d.setContentPane(main.get());
         d.pack();
@@ -158,7 +158,7 @@ final class Popup {
 
     /** The first page: what's wrong, what changed, the fix. */
     static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine,
-                         Runnable openUndoNewMods) {
+                         Runnable openGoBack) {
         Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND ? Tone.GREEN : Tone.AMBER;
         List<Section> sections = new ArrayList<>();
         List<Line> problem = new ArrayList<>();
@@ -183,7 +183,7 @@ final class Popup {
             choice.set(Choice.QUIT);
             d.dispose();
         }));
-        if (m.undoNewMods() != null) actions.add(new Action("UNDO NEW MODS", Tone.AMBER, openUndoNewMods));
+        if (m.goBackRun() != null) actions.add(new Action("GO BACK", Tone.AMBER, openGoBack));
         if (m.stripMine() != null) actions.add(new Action("STRIP MINE", Tone.AMBER, openStripMine));
         // big when loading anyway is a real choice; after "won't start" it only ends in the loader's error
         actions.add(new Action("LOAD ANYWAY", m.level() == Level.MAY_FAIL ? Tone.STEEL : Tone.GREY, d::dispose));
@@ -237,11 +237,13 @@ final class Popup {
                 null, null, sections, actions, null, n + " CONFIGS");
     }
 
-    /** "Undo new mods": which mods go off, that it's safe, then switch them off and quit. */
-    private static Page undoNewModsPage(Message m, AtomicReference<Choice> choice, Frame frame, Runnable back) {
+    /** "Go back to when it worked?": everything that changes, in player words, that it's safe, then GO BACK or CANCEL. */
+    private static Page goBackPage(Message m, AtomicReference<Choice> choice, Frame frame, Runnable back) {
+        List<String> lines = m.goBack().subList(1, m.goBack().size());
         List<Line> list = new ArrayList<>();
-        m.newMods().stream().limit(10).forEach(j -> list.add(Line.text("• " + j)));
-        if (m.newMods().size() > 10) list.add(Line.dim("...and " + (m.newMods().size() - 10) + " more"));
+        lines.stream().limit(10).forEach(l -> list.add(l.contains("can't put it back") || l.startsWith("Can't keep")
+                ? Line.dim("• " + l) : Line.text("• " + l)));
+        if (lines.size() > 10) list.add(Line.dim("...and " + (lines.size() - 10) + " more"));
         List<Section> sections = new ArrayList<>();
         if (m.isStripMineLocked()) {
             sections.add(new Section("FIRST: UNLOCK THE PACK", Tone.RED, Icon.ALERT, List.of(
@@ -249,23 +251,64 @@ final class Popup {
                     Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
                     Line.text("turn on \"Allow content management\". Then come back here."))));
         }
-        sections.add(new Section("SWITCHES OFF", Tone.AMBER, Icon.CHANGED, list));
+        LaunchIntercept.GoBackOffer offer = m.goBackRun();
+        list.add(0, Line.dim(m.goBack().get(0) + "."));
+        sections.add(new Section("WHAT CHANGES", Tone.AMBER, Icon.CHANGED, list));
+        if (offer.choice()) {
+            sections.add(new Section("YOUR CONFIG EDITS?", Tone.BLUE, Icon.INFO, List.of(
+                    Line.text("Mods only: your configs stay as they are now (your own pack work is kept)."),
+                    Line.text("Mods and configs: configs go back to when it worked too."))));
+        }
         sections.add(new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
-                Line.text("Renamed to .disabled, nothing is deleted. Mods that need them go off too."),
-                Line.text("Updated mods stay as they are: their old versions aren't on this PC."),
-                Line.dim("Put them back with Check Pack.bat (it asks), or take .disabled off their names."))));
+                Line.text("Nothing is deleted: mods are renamed to .disabled, your configs move to checkengine."),
+                Line.dim("Changed your mind? Check Pack.bat (goback putback) puts it all back."))));
         sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
-                Line.text("The game closes. Press Play again: the pack is back to how it last worked."))));
-        List<Action> actions = List.of(
-                new Action("SWITCH OFF AND QUIT", Tone.GREEN, () -> {
-                    m.undoNewMods().run();
+                Line.text("The game closes. Press Play again: the pack is back to when it worked."),
+                Line.dim("The CurseForge app may still list the newer versions: that's only its own list."))));
+        List<Action> actions = new ArrayList<>();
+        if (offer.choice()) {
+            Action all = goBackAction("MODS AND CONFIGS", offer.configsFirst() ? Tone.GREEN : Tone.STEEL, true, m,
+                    choice, frame);
+            Action mods = goBackAction("MODS ONLY", offer.configsFirst() ? Tone.STEEL : Tone.GREEN, false, m, choice,
+                    frame);
+            actions.add(offer.configsFirst() ? all : mods);
+            actions.add(offer.configsFirst() ? mods : all);
+        } else {
+            actions.add(goBackAction("GO BACK", Tone.GREEN, true, m, choice, frame));
+        }
+        actions.add(new Action("CANCEL", Tone.GREY, back)); // not "Back": beside "Go back" it reads like the same button
+        return new Page(Tone.AMBER, "GO BACK TO WHEN IT WORKED?", offer.lastWorked(), null, null, sections, actions,
+                null, null);
+    }
+
+    /** One Go back button: does it, then the game closes; if it fails, says so instead of closing. */
+    private static Action goBackAction(String label, Tone tone, boolean configs, Message m,
+                                       AtomicReference<Choice> choice, Frame frame) {
+        return new Action(label, tone, () -> {
+            try {
+                m.goBackRun().run().accept(configs);
+                choice.set(Choice.QUIT);
+                frame.dialog().dispose();
+            } catch (RuntimeException e) {
+                frame.swap(frame.render(goBackFailedPage(e, choice, frame)));
+            }
+        });
+    }
+
+    private static Page goBackFailedPage(RuntimeException e, AtomicReference<Choice> choice, Frame frame) {
+        Throwable cause = e.getCause() != null ? e.getCause() : e;
+        List<Section> sections = List.of(
+                new Section("WHAT HAPPENED", Tone.RED, Icon.ALERT, List.of(
+                        Line.text("Go back stopped halfway: " + cause.getClass().getSimpleName()
+                                + (cause.getMessage() != null ? ": " + cause.getMessage() : "")),
+                        Line.dim("Often another program has a mod file open. Close it and try again."))),
+                new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
+                        Line.text("Nothing is deleted. Check Pack.bat (goback putback) undoes what was done."))));
+        return new Page(Tone.RED, "COULDN'T GO BACK", null, null, null, sections, List.of(
+                new Action("QUIT", Tone.RED, () -> {
                     choice.set(Choice.QUIT);
                     frame.dialog().dispose();
-                }),
-                new Action("BACK", Tone.GREY, back));
-        int n = m.newMods().size();
-        return new Page(Tone.AMBER, "UNDO NEW MODS", n + " mod" + (n == 1 ? "" : "s")
-                + " added since the pack last worked", null, null, sections, actions, null, null);
+                })), null, null);
     }
 
     /** What Strip Mine is, before it starts, with Start and Back. */

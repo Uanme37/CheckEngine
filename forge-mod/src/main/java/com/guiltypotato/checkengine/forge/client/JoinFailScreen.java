@@ -1,9 +1,10 @@
 package com.guiltypotato.checkengine.forge.client;
 
+import com.guiltypotato.checkengine.ui.DashScreen;
 import com.guiltypotato.checkengine.forge.BootCheck;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Btn;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Line;
-import com.guiltypotato.checkengine.forge.client.DashScreen.Section;
+import com.guiltypotato.checkengine.ui.DashScreen.Btn;
+import com.guiltypotato.checkengine.ui.DashScreen.Line;
+import com.guiltypotato.checkengine.ui.DashScreen.Section;
 import com.guiltypotato.checkengine.core.crash.JoinFailure;
 import com.guiltypotato.checkengine.core.scan.Finding;
 import java.nio.charset.StandardCharsets;
@@ -71,14 +72,20 @@ final class JoinFailScreen {
         Path logs = FMLPaths.GAMEDIR.get().resolve("logs");
         Finding f = r.finding();
         List<Line> lines = new ArrayList<>();
-        for (String l : f.detail().split("\n")) lines.add(l.startsWith("The error:") ? Line.dim(l) : Line.text(l));
+        for (String l : f.detail().split("\n")) lines.add(l.startsWith("The error:") ? Line.clip(oneLine(l)) : Line.text(l));
         List<Section> sections = new ArrayList<>();
-        sections.add(new Section(f.title().toUpperCase(java.util.Locale.ROOT), DashScreen.RED, "!", lines));
+        // The fix first: it's what the player came for. The full error is in the log (Open logs folder).
         sections.add(new Section("FIX", DashScreen.GREEN, "✔", List.of(Line.strong(f.fix()))));
+        sections.add(new Section(f.title().toUpperCase(java.util.Locale.ROOT), DashScreen.RED, "!", lines));
         return new DashScreen(DashScreen.RED, headline, "JOIN", "INVALID PLAYER DATA", sections, List.of(
                 new Btn(closeLabel, close, true),
                 new Btn("Open logs folder", () -> Util.getPlatform().openFile(logs.toFile()), false,
                         "latest.log has the full error")), close);
+    }
+
+    /** "The error: NullPointerException: Cannot invoke ...", without the exception's package (the screen cuts it). */
+    private static String oneLine(String error) {
+        return error.replaceFirst("^The error: (?:[a-z0-9_]+\\.)+", "The error: ");
     }
 
     /** True when the last "Couldn't place player in world" line is from the last two minutes. */

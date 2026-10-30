@@ -212,6 +212,20 @@ public final class StripMine {
         }
     }
 
+    /** Takes {@code jars} off the switch-off list: they were put back on, so the next start must leave them. */
+    public static synchronized void removePending(Path modsFolder, java.util.Collection<String> jars) {
+        Path file = modsFolder.getParent().resolve("checkengine").resolve(PENDING_FILE);
+        if (jars.isEmpty() || !Files.isRegularFile(file)) return;
+        try {
+            List<String> left = new ArrayList<>(Files.readAllLines(file, StandardCharsets.UTF_8));
+            left.removeIf(f -> f.isBlank() || jars.contains(f));
+            if (left.isEmpty()) Files.deleteIfExists(file); // our own note, done
+            else Files.write(file, left, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // the next start switches it off again; the player can turn it back on
+        }
+    }
+
     /**
      * Call before the loader opens the mods folder: switches off the jars a closing game couldn't. Returns the ones
      * that are still locked (have the loader skip them).

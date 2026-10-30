@@ -87,7 +87,7 @@ public final class CheckEngine {
         }
     }
 
-    /** /checkengine startup: the last launch's total and its slowest mods, with a link to the full report. */
+    /** /checkengine startup: the last launch's total and a rough split, with a link to the full report. */
     /** /checkengine join: why the last player was kicked with "Invalid player data", from this server's log. */
     private static int join(CommandSourceStack source) {
         if (!source.getServer().isDedicatedServer()) { // singleplayer: show it on the explanation screen
@@ -121,9 +121,7 @@ public final class CheckEngine {
             return 0;
         }
         source.sendSuccess(() -> Component.literal("Check Engine: last startup took " + StartupTimes.time(d.totalMs())
-                + " (mods " + StartupTimes.time(d.modsMs()) + ", then " + StartupTimes.time(d.finishingMs()) + ")"), false);
-        d.mods().stream().limit(5).forEach(m -> source.sendSuccess(() -> Component.literal("  " + m.name() + ": "
-                + StartupTimes.time(m.ms())), false));
+                + ". " + StartupTimes.breakdown(d)), false);
         String path = BootCheck.outputFolder().resolve(StartupTimes.REPORT_FILE).toAbsolutePath().toString();
         source.sendSuccess(() -> Component.literal("Full report: ").append(Component.literal("checkengine/"
                 + StartupTimes.REPORT_FILE).withStyle(s -> s.withUnderlined(true)

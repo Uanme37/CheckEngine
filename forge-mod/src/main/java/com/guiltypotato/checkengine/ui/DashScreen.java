@@ -1,59 +1,80 @@
-package com.guiltypotato.checkengine.client;
+package com.guiltypotato.checkengine.ui;
 
-import com.guiltypotato.checkengine.CheckEngine;
-import com.guiltypotato.checkengine.core.scan.PackInfo;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
-import net.minecraft.util.Util;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.Util;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.neoforged.fml.loading.FMLPaths;
 
 /**
- * Check Engine's in-game screens, in the same dashboard style as the pre-launch window: a hazard stripe for warnings,
- * the lamp and headline, the fault code readout, screwed-on panels with an icon, the buttons and the UAN footer.
- * Each screen only says what's on it.
+ * The UAN dashboard screen: a hazard stripe for warnings, the lamp and headline, a code readout, screwed-on panels with
+ * an icon, side-bar tabs, an optional search box over a tab's list, the buttons and the brand footer. No mod's own
+ * logic lives here (that's why it's in ui): the mod using it sets its name, lamp and footer mark with {@link #brand}.
  */
 public class DashScreen extends Screen {
-    static final int RED = 0xFFFF4B3E, AMBER = 0xFFFF9A1F, GREEN = 0xFF3DDC4A, BLUE = 0xFF3B82F6, GREY = 0xFF9A9CA3;
-    private static final Identifier LOGO = Identifier.fromNamespaceAndPath("checkengine", "textures/gui/lamp.png");
-    private static final Identifier UAN = Identifier.fromNamespaceAndPath("checkengine", "textures/gui/uan.png");
+    public static final int RED = UanColors.RED, AMBER = UanColors.AMBER, GREEN = UanColors.GREEN,
+            BLUE = UanColors.BLUE, GREY = UanColors.GREY;
+    private static ResourceLocation LOGO;
+    private static ResourceLocation UAN;
+    private static String NAME = "";
+    private static Supplier<List<Btn>> EXTRA = List::of;
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("UAN UI");
     private static final int LINE = 10;
+    private static final int SEARCH_H = 20;
 
-    enum Style { STRONG, TEXT, DIM, MARK }
+    /**
+     * Sets the look every screen shares: the lamp ({@code logo}: 10 cells of 128 px, each colour lit and unlit), the
+     * footer mark, the name in the header and footer, and buttons every screen gets (a help link), or none.
+     */
+    public static void brand(ResourceLocation logo, ResourceLocation mark, String name, Supplier<List<Btn>> extra) {
+        LOGO = logo;
+        UAN = mark;
+        NAME = name;
+        EXTRA = extra;
+    }
 
-    record Line(String text, Style style) {
-        static Line strong(String t) {
+    public enum Style { STRONG, TEXT, DIM, MARK, CLIP }
+
+    public record Line(String text, Style style) {
+        public static Line strong(String t) {
             return new Line(t, Style.STRONG);
         }
 
-        static Line text(String t) {
+        public static Line text(String t) {
             return new Line(t, Style.TEXT);
         }
 
         /** Picked out in amber, e.g. the crash line that names the mod at fault. */
-        static Line mark(String t) {
+        public static Line mark(String t) {
             return new Line(t, Style.MARK);
         }
 
-        static Line dim(String t) {
+        public static Line dim(String t) {
             return new Line(t, Style.DIM);
+        }
+
+        /** Dim, on one line only: cut to the panel's width with "..." (an error message, say). */
+        public static Line clip(String t) {
+            return new Line(t, Style.CLIP);
         }
     }
 
     /** A panel. {@code icon} is one character drawn in the round badge ("!", "✔"...). */
-    record Section(String title, int tone, String icon, List<Line> lines) {}
+    public record Section(String title, int tone, String icon, List<Line> lines) {}
 
     /** A button. Primary ones sit on the left, the rest are smaller on the right. {@code tip} shows on hover, or null. */
-    record Btn(String label, Runnable run, boolean primary, String tip) {
-        Btn(String label, Runnable run, boolean primary) {
+    public record Btn(String label, Runnable run, boolean primary, String tip) {
+        public Btn(String label, Runnable run, boolean primary) {
             this(label, run, primary, null);
         }
     }
@@ -62,7 +83,28 @@ public class DashScreen extends Screen {
      * A side-bar tab: its own panels and its own buttons. {@code icon} is one character, shown alone when the window is
      * too small for the label; {@code count} (or null) is the little number next to it, e.g. how many things changed.
      */
-    record Tab(String label, String icon, int tone, String count, List<Section> sections, List<Btn> buttons) {}
+    public record Tab(String label, String icon, int tone, String count, List<Section> sections, List<Btn> buttons,
+                      Search search, String subtitle) {
+        public Tab(String label, String icon, int tone, String count, List<Section> sections, List<Btn> buttons) {
+            this(label, icon, tone, count, sections, buttons, null, null);
+        }
+
+        public Tab(String label, String icon, int tone, String count, List<Section> sections, List<Btn> buttons,
+                   Search search) {
+            this(label, icon, tone, count, sections, buttons, search, null);
+        }
+
+        /** The same tab with its own headline ("GO BACK") instead of the screen's while it's open. */
+        public Tab withSubtitle(String subtitle) {
+            return new Tab(label, icon, tone, count, sections, buttons, search, subtitle);
+        }
+    }
+
+    /**
+     * A search box over a tab: {@code sections} turns what's typed into the panels to show ("" before anything is
+     * typed). Give the list a tab of its own, so nothing else sits under the box.
+     */
+    public record Search(String hint, Function<String, List<Section>> sections) {}
 
     /** Narrower than this, the side bar shows only the tab icons. */
     private static final int FULL_LABELS = 400;
@@ -79,13 +121,14 @@ public class DashScreen extends Screen {
     private final List<Tab> tabs;
     private final List<Btn> fixed;
     private int tab;
+    private String query = "";
     private int cardX, cardY, cardW, cardH, buttonRows = 1, contentHeight, scroll;
     private boolean moreOpen;
 
     /**
      * @param escape what Esc does (usually the same as the "back" or "continue" button)
      */
-    DashScreen(int tone, String headline, String code, String codeLabel, List<Section> sections, List<Btn> buttons,
+    public DashScreen(int tone, String headline, String code, String codeLabel, List<Section> sections, List<Btn> buttons,
                Runnable escape) {
         super(Component.literal(headline));
         this.tone = tone;
@@ -103,7 +146,7 @@ public class DashScreen extends Screen {
      * A screen with side-bar tabs. It opens on the first tab; {@code fixed} buttons (Continue) are there on every tab.
      * Tabs with nothing in them should be left out by the caller.
      */
-    DashScreen(int tone, String headline, String code, String codeLabel, Runnable escape, List<Tab> tabs,
+    public DashScreen(int tone, String headline, String code, String codeLabel, Runnable escape, List<Tab> tabs,
                List<Btn> fixed) {
         super(Component.literal(headline));
         this.tone = tone;
@@ -118,11 +161,32 @@ public class DashScreen extends Screen {
 
     private void show(int i) {
         tab = i;
-        sections = tabs.get(i).sections();
+        Search search = tabs.get(i).search();
+        sections = search != null ? search.sections().apply(query) : tabs.get(i).sections();
         List<Btn> row = new ArrayList<>(tabs.get(i).buttons());
         row.addAll(fixed);
         buttons = row;
         scroll = 0;
+    }
+
+    /** The open tab's search, or null. */
+    private Search search() {
+        return tabs == null ? null : tabs.get(tab).search();
+    }
+
+    /** Runs the open tab's search again, e.g. after a sort button changed the order. */
+    public void refresh() {
+        Search search = search();
+        if (search == null) return;
+        sections = search.sections().apply(query);
+        contentHeight = 0;
+        for (Section s : sections) contentHeight += sectionHeight(s) + 5;
+        scroll = 0;
+    }
+
+    /** Where the panels start: under the header, and under the search box when the tab has one. */
+    private int panelsTop() {
+        return cardY + 48 + (search() != null ? SEARCH_H : 0);
     }
 
     // ---- layout ----
@@ -137,6 +201,11 @@ public class DashScreen extends Screen {
     }
 
     private List<FormattedCharSequence> wrap(Line l) {
+        if (l.style() == Style.CLIP) {
+            String t = l.text();
+            if (font.width(t) > textWidth()) t = font.plainSubstrByWidth(t, textWidth() - font.width("...")) + "...";
+            return List.of(Component.literal(t).getVisualOrderText());
+        }
         Component c = Component.literal(l.text()).withStyle(l.style() == Style.STRONG ? ChatFormatting.BOLD
                 : ChatFormatting.RESET);
         return font.split(c, textWidth());
@@ -161,7 +230,7 @@ public class DashScreen extends Screen {
             // The card keeps one size on every tab: as tall as the longest tab, and tall enough for the side bar.
             content = tabs.size() * 24 + 4;
             for (Tab t : tabs) {
-                int h = 0;
+                int h = t.search() != null ? SEARCH_H : 0;
                 for (Section s : t.sections()) h += sectionHeight(s) + 5;
                 content = Math.max(content, h);
             }
@@ -220,12 +289,26 @@ public class DashScreen extends Screen {
                 String text = labels ? t.label() + (t.count() != null ? " " + t.count() : "") : t.icon() + (t.count() != null && t.count().length() == 1 ? t.count() : "");
                 Component label = i == tab ? Component.literal(text).withStyle(ChatFormatting.BOLD) : Component.literal(text);
                 Button.Builder b = Button.builder(label, btn -> {
+                    query = "";
                     show(index);
                     rebuildWidgets();
                 }).bounds(cardX + 8, cardY + 50 + i * 24, rail() - 6, 20);
                 if (!labels) b.tooltip(Tooltip.create(Component.literal(t.label() + (t.count() != null ? " (" + t.count() + ")" : ""))));
                 addRenderableWidget(b.build());
             }
+        }
+        Search search = search();
+        if (search != null) {
+            EditBox box = new EditBox(font, cardX + rail() + 12, cardY + 48, cardW - rail() - 24, 16,
+                    Component.literal(search.hint()));
+            box.setHint(Component.literal(search.hint()));
+            box.setValue(query);
+            box.setResponder(text -> {
+                query = text;
+                refresh();
+            });
+            addRenderableWidget(box);
+            refresh();
         }
     }
 
@@ -236,8 +319,7 @@ public class DashScreen extends Screen {
     private List<Btn> row() {
         List<Btn> buttons = new ArrayList<>(this.buttons);
         // The pack maker's help link (config/checkengine-pack.properties), when there is one.
-        String help = PackInfo.load(FMLPaths.GAMEDIR.get()).supportLink();
-        if (help != null) buttons.add(new Btn("Get help", () -> Util.getPlatform().openUri(help), false, help));
+        buttons.addAll(EXTRA.get());
         // With tabs every tab has only a few buttons: they wrap onto a second row instead of hiding under More.
         if (tabs != null) return buttons;
         List<Btn> primary = new ArrayList<>(buttons.stream().filter(Btn::primary).toList());
@@ -292,12 +374,12 @@ public class DashScreen extends Screen {
     }
 
     private int maxScroll() {
-        return Math.max(0, contentHeight + 2 - (panelsBottom() - (cardY + 48)));
+        return Math.max(0, contentHeight + 2 - (panelsBottom() - panelsTop()));
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (maxScroll() == 0) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+        if (maxScroll() == 0) return super.mouseScrolled(mouseX, mouseY, scrollY);
         scroll = Math.max(0, Math.min(maxScroll(), scroll - (int) (scrollY * LINE * 2)));
         return true;
     }
@@ -305,8 +387,13 @@ public class DashScreen extends Screen {
     // ---- drawing ----
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractBackground(g, mouseX, mouseY, partialTick);
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderBackground(g);
+        card(g);
+        super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    private void card(GuiGraphics g) {
         int x = cardX, y = cardY, w = cardW, h = cardH;
         g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF34363B); // edge
         g.fillGradient(x, y, x + w, y + h, 0xFF232428, 0xFF131416);
@@ -330,48 +417,39 @@ public class DashScreen extends Screen {
         boolean on = (Util.getMillis() / 550) % 2 == 0;
         // Drawn once, smooth, like the window's lamp (lamp.png: each colour lit and unlit, 128 px each).
         int cell = (tone == RED ? 0 : tone == AMBER ? 1 : tone == GREEN ? 2 : tone == BLUE ? 3 : 4) * 2 + (on ? 0 : 1);
-        g.blit(RenderPipelines.GUI_TEXTURED, LOGO, lx - 6, ly - 6, cell * 128, 0, 44, 44, 128, 128, 1280, 128);
+        if (LOGO != null) {
+            com.mojang.blaze3d.systems.RenderSystem.enableBlend(); // the glow fades out: keep its see-through pixels
+            g.blit(LOGO, lx - 6, ly - 6, 44, 44, cell * 128, 0, 128, 128, 1280, 128);
+            com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+        }
 
-        g.text(font, Component.literal("CHECK ENGINE").withStyle(ChatFormatting.BOLD), x + 54, y + 14, 0xFFE8E8EA);
-        g.text(font, Component.literal(headline).withStyle(ChatFormatting.BOLD), x + 54, y + 27, tone);
+        g.drawString(font, Component.literal(NAME.toUpperCase(Locale.ROOT)).withStyle(ChatFormatting.BOLD), x + 54, y + 14,
+                0xFFE8E8EA);
+        boolean own = tabs != null && tabs.get(tab).subtitle() != null;
+        g.drawString(font, Component.literal(own ? tabs.get(tab).subtitle() : headline).withStyle(ChatFormatting.BOLD),
+                x + 54, y + 27, own ? tabs.get(tab).tone() : tone);
 
         if (code != null) { // fault code readout
             int cw = font.width(code) + 12, cx = x + w - 12 - cw;
             g.fill(cx - 1, y + 11, cx + cw + 1, y + 27, 0xFF33353A);
             g.fill(cx, y + 12, cx + cw, y + 26, 0xFF0A0B0C);
-            g.text(font, code, cx + 6, y + 15, tone, false);
+            g.drawString(font, code, cx + 6, y + 15, tone, false);
             if (codeLabel != null) small(g, codeLabel, x + w - 12, y + 30, GREY, true);
         }
 
         // Panels: they scroll with the mouse wheel when they don't all fit.
-        int top = y + 48, limit = panelsBottom();
+        int top = panelsTop(), limit = panelsBottom();
         if (tabs != null) { // side bar: a divider, and the open tab's colour beside its button
-            g.fill(x + rail() + 3, top, x + rail() + 4, limit, 0xFF34363B);
-            g.fill(x + 3, top + 2 + tab * 24, x + 6, top + 22 + tab * 24, tabs.get(tab).tone());
+            g.fill(x + rail() + 3, y + 48, x + rail() + 4, limit, 0xFF34363B);
+            g.fill(x + 3, y + 50 + tab * 24, x + 6, y + 70 + tab * 24, tabs.get(tab).tone());
         }
         int px = x + rail(); // the panels start right of the side bar
         scroll = Math.max(0, Math.min(scroll, maxScroll()));
         g.enableScissor(px, top, x + w, limit);
         int sy = top + 2 - scroll;
         for (Section s : sections) {
-            int sh = sectionHeight(s), bottom = sy + sh;
-            if (bottom > top && sy < limit) {
-                g.fill(px + 10, sy + 1, x + w - 10, bottom + 1, 0x60000000);
-                g.fillGradient(px + 10, sy, x + w - 10, bottom, 0xFF26272B, 0xFF212226);
-                g.fill(px + 13, sy, x + w - 13, sy + 1, 0xFF34363B);
-                badge(g, px + 16, sy + 6, s.tone(), s.icon());
-                screw(g, x + w - 16, sy + 3);
-                screw(g, x + w - 16, bottom - 5);
-                g.text(font, Component.literal(s.title()).withStyle(ChatFormatting.BOLD), px + 30, sy + 7, s.tone());
-                int ty = sy + 8 + LINE + 2;
-                for (Line l : s.lines()) {
-                    int color = l.style() == Style.DIM ? GREY : l.style() == Style.MARK ? AMBER : 0xFFE8E8EA;
-                    for (FormattedCharSequence part : wrap(l)) {
-                        g.text(font, part, px + 30, ty, color);
-                        ty += LINE;
-                    }
-                }
-            }
+            int bottom = sy + sectionHeight(s);
+            if (bottom > top && sy < limit) panel(g, s, px, sy, x, w);
             sy = bottom + 5;
         }
         g.disableScissor();
@@ -386,12 +464,32 @@ public class DashScreen extends Screen {
         int fy = y + h - 15;
         g.fill(x, fy - 1, x + w, fy, 0xFF2A2C30);
         g.fill(x, fy, x + w, y + h, 0xFF0F1012);
-        g.blit(RenderPipelines.GUI_TEXTURED, UAN, x + 10, fy + 3, 0, 0, 9, 9, 32, 32, 32, 32);
-        small(g, "Check Engine", x + 23, fy + 5, 0xFF9A9CA3, false);
+        if (UAN != null) g.blit(UAN, x + 10, fy + 3, 9, 9, 0, 0, 32, 32, 32, 32);
+        small(g, NAME, x + 23, fy + 5, 0xFF9A9CA3, false);
+    }
+
+    /** One panel at {@code sy}: its plate, badge, title and lines. */
+    private void panel(GuiGraphics g, Section s, int px, int sy, int x, int w) {
+        int bottom = sy + sectionHeight(s);
+        g.fill(px + 10, sy + 1, x + w - 10, bottom + 1, 0x60000000);
+        g.fillGradient(px + 10, sy, x + w - 10, bottom, 0xFF26272B, 0xFF212226);
+        g.fill(px + 13, sy, x + w - 13, sy + 1, 0xFF34363B);
+        badge(g, px + 16, sy + 6, s.tone(), s.icon());
+        screw(g, x + w - 16, sy + 3);
+        screw(g, x + w - 16, bottom - 5);
+        g.drawString(font, Component.literal(s.title()).withStyle(ChatFormatting.BOLD), px + 30, sy + 7, s.tone());
+        int ty = sy + 8 + LINE + 2;
+        for (Line l : s.lines()) {
+            int color = l.style() == Style.DIM || l.style() == Style.CLIP ? GREY : l.style() == Style.MARK ? AMBER : 0xFFE8E8EA;
+            for (FormattedCharSequence part : wrap(l)) {
+                g.drawString(font, part, px + 30, ty, color);
+                ty += LINE;
+            }
+        }
     }
 
     /** A filled circle, drawn as one line of pixels per row (screens only draw rectangles). */
-    private static void disc(GuiGraphicsExtractor g, int cx, int cy, double r, int color) {
+    private static void disc(GuiGraphics g, int cx, int cy, double r, int color) {
         int ri = (int) Math.ceil(r);
         for (int dy = -ri; dy < ri; dy++) {
             double yy = dy + 0.5;
@@ -401,24 +499,24 @@ public class DashScreen extends Screen {
         }
     }
 
-    private void badge(GuiGraphicsExtractor g, int x, int y, int color, String icon) {
+    private void badge(GuiGraphics g, int x, int y, int color, String icon) {
         g.fill(x + 1, y, x + 9, y + 10, color);
         g.fill(x, y + 1, x + 10, y + 9, color);
-        g.text(font, icon, x + 5 - font.width(icon) / 2, y + 1, 0xFF111111, false);
+        g.drawString(font, icon, x + 5 - font.width(icon) / 2, y + 1, 0xFF111111, false);
     }
 
-    private static void screw(GuiGraphicsExtractor g, int x, int y) {
+    private static void screw(GuiGraphics g, int x, int y) {
         g.fill(x, y, x + 3, y + 3, 0xFF6A6D74);
         g.fill(x + 1, y + 1, x + 2, y + 2, 0xFF2A2C30);
     }
 
     /** Small (three-quarter size) text, left- or right-aligned at x. */
-    private void small(GuiGraphicsExtractor g, String text, int x, int y, int color, boolean right) {
-        g.pose().pushMatrix();
-        g.pose().translate(x, y);
-        g.pose().scale(0.75f, 0.75f);
-        g.text(font, text, right ? -font.width(text) : 0, 0, color, false);
-        g.pose().popMatrix();
+    private void small(GuiGraphics g, String text, int x, int y, int color, boolean right) {
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(0.75f, 0.75f, 1f);
+        g.drawString(font, text, right ? -font.width(text) : 0, 0, color, false);
+        g.pose().popPose();
     }
 
     private static int dim(int color) {
@@ -436,7 +534,7 @@ public class DashScreen extends Screen {
     }
 
     /** Helpers for building screens. */
-    static List<Line> lines(String... texts) {
+    public static List<Line> lines(String... texts) {
         List<Line> out = new ArrayList<>();
         for (String t : texts) out.add(Line.text(t));
         return out;
@@ -447,7 +545,7 @@ public class DashScreen extends Screen {
         try {
             action.run();
         } catch (RuntimeException e) {
-            CheckEngine.LOGGER.warn("Check Engine: that button didn't work", e);
+            LOGGER.warn("{}: that button didn't work", NAME, e);
         }
     }
 }

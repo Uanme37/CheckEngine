@@ -57,6 +57,12 @@ public final class BootCheck {
     }
 
     private static void startChecks() {
+        // Dev runs have no early plugin: settle whether the last session worked here (a no-op when it already ran).
+        // configs an in-game Go back left for this start (normally done earlier, by the early plugin)
+        com.guiltypotato.checkengine.core.strip.GoBack.applyPendingConfigs(FMLPaths.GAMEDIR.get(), outputFolder());
+        com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(FMLPaths.GAMEDIR.get(), outputFolder());
+        // Go back's plan reads every jar: worked out now, in the background, so screens never wait for it
+        com.guiltypotato.checkengine.core.strip.GoBackPlans.refresh(FMLPaths.GAMEDIR.get(), outputFolder());
         // A world rescue ran last session: the world loaded, so turn the remove-erroring setting off again.
         String rescued = com.guiltypotato.checkengine.core.crash.WorldRescue.finish(outputFolder());
         if (rescued != null) CheckEngine.LOGGER.info("Check Engine: {}", rescued);
@@ -105,6 +111,27 @@ public final class BootCheck {
         }
     }
 
+    /** The report if the scan is done, else null. Never waits: for what's drawn on the game's thread. */
+    public static Report ready() {
+        try {
+            return result == null ? null : result.getNow(null);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Runs {@code then} with the report once the scan is done: right away if it is, else off the game's thread. */
+    public static void whenReady(java.util.function.Consumer<Report> then) {
+        if (result == null) return;
+        result.thenAccept(r -> {
+            try {
+                if (r != null) then.accept(r);
+            } catch (Throwable t) {
+                CheckEngine.LOGGER.warn("Check Engine: couldn't finish a step after the scan", t);
+            }
+        });
+    }
+
     /** Problems and warnings (not notes): what's worth interrupting the player for. */
     public static List<Finding> worthShowing(Report report) {
         return report.findings().stream().filter(f -> f.severity() != Finding.Severity.INFO).toList();
@@ -124,22 +151,42 @@ public final class BootCheck {
 
     private static void recordGoodLaunch() {
         recordMemory();
-        Report report = get();
-        if (report == null) return;
+        // The scan is usually done long before the title screen; if not, the rest waits for it off the game's thread
+        whenReady(BootCheck::recordGoodLaunch);
+    }
+
+    private static void recordGoodLaunch(Report report) {
         // During a Strip Mine search half the pack is switched off on purpose: that's not "the pack that worked".
         if (com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) return;
         try {
+            // Startup worked, whatever happens later (the pre-launch check reads this)
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.reachedTitle(outputFolder());
             // What changed since the last launch that worked goes in the pack journal first.
             com.guiltypotato.checkengine.core.scan.PackJournal.record(outputFolder(), report.changes(),
                     lastCrash() == null);
-            PackSnapshot.of(report.jars(), report.options()).save(outputFolder());
-            // The configs too, so a config edit that breaks the pack can be found and undone. Not on a launch that
-            // explains a crash: the changed configs may be why, and Crash Doctor offers to undo them.
-            if (lastCrash() == null) {
-                com.guiltypotato.checkengine.core.scan.ConfigCheckpoint.save(outputFolder().getParent(), outputFolder());
-            }
         } catch (IOException | RuntimeException e) {
-            CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
+            CheckEngine.LOGGER.warn("Check Engine: couldn't write the pack journal", e);
+        }
+        // The mods, their jars (kept as links, so Go back can put old versions back) and the configs. Only counts as
+        // the last good launch if this session doesn't crash (settled next start). Not on a launch that explains a
+        // crash: what changed may be why, and Crash Doctor offers to go back. Reading new jars takes a moment, so not
+        // on the game's thread.
+        if (lastCrash() == null) {
+            PackSnapshot snapshot = PackSnapshot.of(report.jars(), report.options());
+            Thread save = new Thread(() -> {
+                try {
+                    String note = com.guiltypotato.checkengine.core.scan.GoodLaunch.save(outputFolder().getParent(),
+                            outputFolder(), snapshot);
+                    if (note != null) CheckEngine.LOGGER.info("Check Engine: {}", note);
+                } catch (IOException | RuntimeException e) {
+                    CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
+                }
+            }, "Check Engine good launch");
+            save.setDaemon(true);
+            save.start();
+            // When the game closes: configs changed in game until then belong to the working pack
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> com.guiltypotato.checkengine.core.scan.GoodLaunch
+                    .sessionEnded(outputFolder()), "Check Engine session end"));
         }
         // The log noise of a launch that worked is normal for this pack: the log checks only name what's new.
         // Reading the log takes a moment in big packs, so not on the game's thread.

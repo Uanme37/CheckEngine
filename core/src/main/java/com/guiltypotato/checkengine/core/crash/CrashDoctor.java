@@ -178,6 +178,26 @@ public final class CrashDoctor {
         Path newest = crashFiles(gameDir).stream().filter(p -> modified(p) >= sessionStart)
                 .max(Comparator.comparingLong(CrashDoctor::modified)).orElse(null);
         if (newest == null || newest.getFileName().toString().equals(lastShown)) return null;
+        return explain(gameDir, newest);
+    }
+
+    /**
+     * The last crash Crash Doctor showed, explained again (the hub's Last crash tab), or null when there's none or its
+     * report is gone. It stays the last one until a newer crash is shown.
+     */
+    public static LastCrash lastShown(Path gameDir, Path checkEngineFolder) {
+        String name = load(checkEngineFolder).getProperty("last_shown");
+        if (name == null) return null;
+        Path file = name.startsWith("hs_err") ? gameDir.resolve(name) : gameDir.resolve("crash-reports").resolve(name);
+        if (!Files.isRegularFile(file)) return null;
+        try {
+            return explain(gameDir, file);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static LastCrash explain(Path gameDir, Path newest) {
         String text;
         try {
             text = Files.readString(newest, StandardCharsets.UTF_8);
