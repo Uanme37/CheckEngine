@@ -28,6 +28,18 @@ public final class HelpBundle {
     private static final Pattern IPV4 = Pattern.compile("(?<![\\w.+-])(?<![Vv]ersion )(?!127\\.0\\.0\\.1\\b)(?!0\\.0\\.0\\.0\\b)"
             + "(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}(?![.\\w-])");
     private static final Pattern PLAYER = Pattern.compile("(Setting user: |username=|--username,? ?)([A-Za-z0-9_]{2,16})");
+    /** A launch command in a JVM crash file (hs_err) can hold the login: "--accessToken abc", "--uuid abc" and the like. */
+    private static final Pattern LOGIN_ARG = Pattern.compile(
+            "(--(?:accessToken|uuid|xuid|clientId)[\"']?[ ,=]+[\"']?)[^\\s,\"']+", Pattern.CASE_INSENSITIVE);
+    /** A login token on its own, wherever it's written: "token:abc:def" or the form starting "eyJ". */
+    private static final Pattern TOKEN = Pattern.compile("token:[\\w.-]{20,}(?::[0-9a-fA-F]{32})?|\\beyJ[\\w.-]{30,}");
+    /** Who and which PC, in the environment list of a JVM crash file. */
+    private static final Pattern ENV = Pattern.compile("(?im)^(\\s*(?:USERNAME|USER|LOGNAME|COMPUTERNAME|HOSTNAME|"
+            + "USERDOMAIN(?:_ROAMINGPROFILE)?|LOGONSERVER)\\s*=\\s*).*$");
+    /** Any user folder, also from another PC or another system: C:\Users\x, /Users/x, /home/x. Not "assets/home/x". */
+    private static final Pattern USER_FOLDER = Pattern.compile("(?<![\\w.-])([\\\\/]+(?:Users|home)[\\\\/]+)[^\\\\/\\s,;:\"'<>]+",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SERVER_UUID = Pattern.compile("(UUID of player )\\S+( is )\\S+");
 
     private HelpBundle() {}
 
@@ -112,8 +124,8 @@ public final class HelpBundle {
         sb.append("""
 
                 What's in here: Check Engine's reports, the mod list, logs/latest.log, the newest crash report and
-                config/fml.toml. Check Engine blanked out the Windows user name, the player name and IP addresses.
-                No mods, worlds or passwords are included.
+                config/fml.toml. Check Engine blanked out the user name, PC name, player name, login tokens and IP
+                addresses. No mods, worlds or passwords are included.
                 """);
         return sb.toString();
     }
@@ -173,6 +185,11 @@ public final class HelpBundle {
                 t = Pattern.compile("([\\\\/]Users[\\\\/])" + Pattern.quote(user) + "(?=[\\\\/])", Pattern.CASE_INSENSITIVE)
                         .matcher(t).replaceAll("$1<user>");
             }
+            t = LOGIN_ARG.matcher(t).replaceAll("$1<hidden>");
+            t = TOKEN.matcher(t).replaceAll("<hidden>");
+            t = ENV.matcher(t).replaceAll("$1<hidden>");
+            t = USER_FOLDER.matcher(t).replaceAll("$1<user>");
+            t = SERVER_UUID.matcher(t).replaceAll("$1<player>$2<hidden>");
             t = PLAYER.matcher(t).replaceAll("$1<player>");
             return IPV4.matcher(t).replaceAll("<ip>");
         }
