@@ -119,7 +119,7 @@ public record Changes(String since, List<Change> changes) {
     public List<Finding> downgradeFindings() {
         return changes.stream().filter(Change::downgrade).map(c -> new Finding(Finding.Severity.WARNING,
                 DOWNGRADE_CODE, c.name() + " went back to an older version",
-                c.name() + " is now " + c.to() + ", but the pack last worked with " + c.from() + " (" + when() + "). "
+                c.name() + " is now " + c.to() + ", but the modpack last worked with " + c.from() + " (" + when() + "). "
                         + "Worlds saved with the newer version can lose blocks and items from it, or crash.",
                 "If that was on purpose, back up your worlds before opening them. If not, put " + c.name() + " "
                         + c.from() + " back.", c.file() == null ? List.of() : List.of(c.file()))).toList();
@@ -127,8 +127,8 @@ public record Changes(String since, List<Change> changes) {
 
     /** For reports and screens: a heads-up listing the changes. */
     public Finding toFinding() {
-        return new Finding(Finding.Severity.WARNING, CODE, "Changed since this pack last worked (" + when() + ")",
-                summary(), "If the pack broke after these changes, start with them: undo the newest one first.",
+        return new Finding(Finding.Severity.WARNING, CODE, "Changed since this modpack last worked (" + when() + ")",
+                summary(), "If the modpack broke after these changes, start with them: undo the newest one first.",
                 List.of());
     }
 

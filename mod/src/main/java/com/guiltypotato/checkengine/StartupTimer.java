@@ -38,7 +38,9 @@ public final class StartupTimer {
                     loaded - modsStartedAt, now - loaded, List.of(),
                     LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).toString());
             StartupTimes.save(BootCheck.outputFolder(), data, server);
-            // The last ~10 starts, for the usual time and the slower notice (not during Strip Mine: half the pack is off)
+            com.guiltypotato.checkengine.core.scan.CostClock.save(BootCheck.outputFolder());
+            CheckEngine.LOGGER.info("{}", com.guiltypotato.checkengine.core.scan.CostClock.summary());
+            // The last ~10 starts, for the usual time and the slower notice (not during Misfire: half the pack is off)
             // once the scan is done (never waiting for it on the game's thread)
             BootCheck.whenReady(report -> {
                 if (com.guiltypotato.checkengine.core.strip.StripMine.running(BootCheck.outputFolder()) != null) return;

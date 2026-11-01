@@ -83,7 +83,7 @@ class QuietTest {
         assertEquals(List.of("Create: Copycats+"), spam.normal());
         LogProblems.Result assets = LogProblems.analyze(List.of(now), null).onlyNew(normal);
         assertEquals(Map.of("New Addon", 4), assets.missingAssets());
-        assertTrue(assets.toText().contains("already missing when the pack worked"), assets.toText());
+        assertTrue(assets.toText().contains("already missing when the modpack worked"), assets.toText());
     }
 
     @Test

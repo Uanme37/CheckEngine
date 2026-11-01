@@ -216,7 +216,7 @@ final class Popup {
     /** The first page: what's wrong, what changed, the fix. */
     static Page mainPage(Message m, PackInfo pack, AtomicReference<Choice> choice, JDialog d, Runnable openStripMine,
                          Runnable openGoBack) {
-        // Green only when Strip Mine named one culprit: narrowed down or gave up still needs the player
+        // Green only when Misfire named one culprit: narrowed down or gave up still needs the player
         boolean named = m.problems().size() == 1 && m.problems().get(0).endsWith(" causes the crash");
         Tone tone = m.level() == Level.WILL_FAIL ? Tone.RED : m.level() == Level.FOUND && named ? Tone.GREEN : Tone.AMBER;
         List<Section> sections = new ArrayList<>();
@@ -244,7 +244,7 @@ final class Popup {
             d.dispose();
         }));
         if (m.goBackRun() != null) actions.add(new Action("Go back to when it worked", Tone.AMBER, openGoBack));
-        if (m.stripMine() != null) actions.add(new Action("Strip Mine", Tone.AMBER, openStripMine));
+        if (m.stripMine() != null) actions.add(new Action("Misfire", Tone.AMBER, openStripMine));
         actions.add(new Action("Load anyway", Tone.GREY, d::dispose));
         if (m.report() != null) actions.add(new Action("Full error", Tone.GREY, () -> openReport(m)));
         actions.add(new Action("Quit", Tone.RED, () -> {
@@ -255,7 +255,7 @@ final class Popup {
         return new Page(tone, headline(m, pack), null, fault[0].strip(), null, sections, actions, null, null);
     }
 
-    /** "TEST PACK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
+    /** "TEST MODPACK WON'T START" when the pack's name is known (and short enough), else the plain headline. */
     static String headline(Message m, PackInfo pack) {
         String name = pack.headlineName();
         if (name == null) return m.headline();
@@ -274,12 +274,12 @@ final class Popup {
         }
     }
 
-    /** Strip Mine over config files: no mod changed since the pack last worked, but several configs did. */
+    /** Misfire over config files: no mod changed since the pack last worked, but several configs did. */
     private static Page stripMineConfigsPage(Message m, AtomicReference<Choice> choice, Frame frame, Runnable back) {
         int n = m.stripMineMods();
         List<Section> sections = List.of(
                 new Section("HOW IT WORKS", Tone.AMBER, Icon.INFO, List.of(
-                        Line.text("No mod changed since the pack last worked, but " + n + " config files did."),
+                        Line.text("No mod changed since the modpack last worked, but " + n + " config files did."),
                         Line.text("Check Engine puts half of them back as they were then, and you launch."),
                         Line.text("Keep pressing Play until it says which file it is."))),
                 new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
@@ -288,12 +288,12 @@ final class Popup {
                 new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
                         Line.text("The game closes. Press Play again to start round 1."))));
         List<Action> actions = List.of(
-                new Action("Start Strip Mine", Tone.AMBER, () -> {
+                new Action("Start Misfire", Tone.AMBER, () -> {
                     choice.set(Choice.STRIP_MINE);
                     frame.dialog().dispose();
                 }),
                 new Action("Cancel", Tone.GREY, back));
-        return new Page(Tone.AMBER, "STRIP MINE: FIND THE BAD CONFIG", "About " + m.stripMineRounds() + " launches",
+        return new Page(Tone.AMBER, "MISFIRE: FIND THE BAD CONFIG", "About " + m.stripMineRounds() + " launches",
                 null, null, sections, actions, null, n + " CONFIGS");
     }
 
@@ -306,8 +306,8 @@ final class Popup {
         if (lines.size() > 10) list.add(Line.dim("...and " + (lines.size() - 10) + " more"));
         List<Section> sections = new ArrayList<>();
         if (m.isStripMineLocked()) {
-            sections.add(new Section("FIRST: UNLOCK THE PACK", Tone.RED, Icon.ALERT, List.of(
-                    Line.text("CurseForge has this pack locked, so it would put switched-off mods straight back."),
+            sections.add(new Section("FIRST: UNLOCK THE MODPACK", Tone.RED, Icon.ALERT, List.of(
+                    Line.text("CurseForge has this modpack locked, so it would put switched-off mods straight back."),
                     Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
                     Line.text("turn on \"Allow content management\". Then come back here."))));
         }
@@ -316,14 +316,14 @@ final class Popup {
         sections.add(new Section("WHAT CHANGES", Tone.AMBER, Icon.CHANGED, list));
         if (offer.choice()) {
             sections.add(new Section("YOUR CONFIG EDITS?", Tone.BLUE, Icon.INFO, List.of(
-                    Line.text("Mods only: your configs stay as they are now (your own pack work is kept)."),
+                    Line.text("Mods only: your configs stay as they are now (your own modpack work is kept)."),
                     Line.text("Mods and configs: configs go back to when it worked too."))));
         }
         sections.add(new Section("SAFE", Tone.GREEN, Icon.CHECK, List.of(
                 Line.text("Nothing is deleted: mods are renamed to .disabled, your configs move to checkengine."),
                 Line.dim("Changed your mind? Check Pack.bat (goback putback) puts it all back."))));
         sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
-                Line.text("The game closes. Press Play again: the pack is back to when it worked."),
+                Line.text("The game closes. Press Play again: the modpack is back to when it worked."),
                 Line.dim("The CurseForge app may still list the newer versions: that's only its own list."))));
         List<Action> actions = new ArrayList<>();
         if (offer.choice()) {
@@ -371,7 +371,7 @@ final class Popup {
                 })), null, null);
     }
 
-    /** What Strip Mine is, before it starts, with Start and Back. */
+    /** What Misfire is, before it starts, with Start and Back. */
     private static Page stripMinePage(Message m, boolean stillLocked, AtomicReference<Choice> choice, Frame frame,
                                       Runnable back) {
         if (m.stripMineConfigs()) return stripMineConfigsPage(m, choice, frame, back);
@@ -379,11 +379,11 @@ final class Popup {
         // CurseForge-installed packs are locked: the app would download the switched-off mods again.
         if (m.isStripMineLocked()) {
             List<Line> unlock = new ArrayList<>(List.of(
-                    Line.text("CurseForge has this pack locked, so it would put switched-off mods straight back."),
+                    Line.text("CurseForge has this modpack locked, so it would put switched-off mods straight back."),
                     Line.text("In the CurseForge app: three dots next to Play > Profile options >"),
                     Line.text("turn on \"Allow content management\". Then press Start.")));
             if (stillLocked) unlock.add(Line.strong("Still locked: turn on \"Allow content management\" first."));
-            sections.add(new Section("FIRST: LET STRIP MINE CHANGE THIS PACK", Tone.RED, Icon.ALERT, unlock));
+            sections.add(new Section("FIRST: LET MISFIRE CHANGE THIS MODPACK", Tone.RED, Icon.ALERT, unlock));
         }
         sections.add(new Section("HOW IT WORKS", Tone.AMBER, Icon.INFO, List.of(
                 Line.text("Check Engine switches off half of your mods, and you launch."),
@@ -395,7 +395,7 @@ final class Popup {
         sections.add(new Section("WHAT HAPPENS NOW", Tone.GREY, Icon.NEXT, List.of(
                 Line.text("The game closes. Press Play again to start round 1."))));
         List<Action> actions = List.of(
-                new Action("Start Strip Mine", Tone.AMBER, () -> {
+                new Action("Start Misfire", Tone.AMBER, () -> {
                     if (m.isStripMineLocked()) { // checked again: the app saves the switch right away
                         frame.swap(frame.render(stripMinePage(m, true, choice, frame, back)));
                         return;
@@ -404,7 +404,7 @@ final class Popup {
                     frame.dialog().dispose();
                 }),
                 new Action("Cancel", Tone.GREY, back));
-        return new Page(Tone.AMBER, "STRIP MINE: FIND THE FAULTY MOD", m.stripMineMods() > 1
+        return new Page(Tone.AMBER, "MISFIRE: FIND THE FAULTY MOD", m.stripMineMods() > 1
                 ? "About " + m.stripMineRounds() + " launches, fewer if you changed mods lately" : null, null, null,
                 sections, actions, null, m.stripMineMods() > 1 ? m.stripMineMods() + " MODS" : null);
     }
@@ -695,7 +695,7 @@ final class Popup {
                 .setContents(new java.awt.datatransfer.StringSelection(message), null);
         return new Page(Tone.BLUE, "COPIED FOR HELP", null, p.code(), null, List.of(
                 new Section("PASTE IT IN YOUR HELP CHANNEL", Tone.BLUE, Icon.INFO, List.of(
-                        Line.text("Press Ctrl+V in your pack's Discord or in a GitHub issue."),
+                        Line.text("Press Ctrl+V in your modpack's Discord or in a GitHub issue."),
                         Line.dim("Your user folder and IP are blanked out. Nothing was uploaded."))),
                 new Section("WHAT WAS COPIED", Tone.GREY, Icon.INFO,
                         java.util.Arrays.stream(message.split("\n")).map(Line::dim).toList())),
@@ -733,7 +733,7 @@ final class Popup {
     /** "CE-01 · MISSING MOD": a car-style fault code for the first problem. */
     static String faultCode(Message m) {
         if (m.level() == Level.MAY_FAIL) return "CE-09  ·  REPEAT CRASH";
-        if (m.level() == Level.FOUND) return "CE-10  ·  STRIP MINE RESULT";
+        if (m.level() == Level.FOUND) return "CE-10  ·  MISFIRE RESULT";
         String p = m.problems().get(0).toLowerCase();
         if (p.contains("fabric version") || p.contains("wrong build")) return "CE-02  ·  WRONG BUILD";
         if (p.contains("broken")) return "CE-03  ·  BROKEN FILE";

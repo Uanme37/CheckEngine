@@ -55,18 +55,21 @@ public final class CheckEngine {
             if (!ctx.getSource().getServer().isDedicatedServer()) reportRequested = true;
             return 1;
         }));
-        event.getDispatcher().register(Commands.literal("checkengine")
+        var modules = com.guiltypotato.checkengine.core.scan.Modules.load(FMLPaths.GAMEDIR.get());
+        var root = Commands.literal("checkengine");
+        if (modules.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_CREW)) root
                 .then(Commands.literal("scan").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                        .executes(ctx -> DataScan.run(ctx.getSource())))
-                .then(Commands.literal("startup").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                        .executes(ctx -> startup(ctx.getSource())))
-                .then(Commands.literal("join").requires(s -> Commands.<CommandSourceStack>hasPermission(Commands.LEVEL_GAMEMASTERS).test(s)
+                        .executes(ctx -> DataScan.run(ctx.getSource())));
+        root.then(Commands.literal("startup").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(ctx -> startup(ctx.getSource())));
+        if (modules.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_PASS)) root.then(Commands.literal("join").requires(s -> Commands.<CommandSourceStack>hasPermission(Commands.LEVEL_GAMEMASTERS).test(s)
                                 || !s.getServer().isDedicatedServer())
-                        .executes(ctx -> join(ctx.getSource())))
-                .then(Commands.literal("export")
+                        .executes(ctx -> join(ctx.getSource())));
+        root.then(Commands.literal("export")
                         .requires(s -> Commands.<CommandSourceStack>hasPermission(Commands.LEVEL_GAMEMASTERS).test(s)
                                 || !s.getServer().isDedicatedServer())
-                        .executes(ctx -> export(ctx.getSource()))));
+                        .executes(ctx -> export(ctx.getSource())));
+        event.getDispatcher().register(root);
     }
 
     /** /checkengine export: one zip with the reports, mod list and logs, to send to whoever is helping. */
@@ -122,6 +125,8 @@ public final class CheckEngine {
         }
         source.sendSuccess(() -> Component.literal("Check Engine: last startup took " + StartupTimes.time(d.totalMs())
                 + ". " + StartupTimes.breakdown(d)), false);
+        String cost = com.guiltypotato.checkengine.core.scan.CostClock.lastSummary(BootCheck.outputFolder());
+        if (cost != null) source.sendSuccess(() -> Component.literal(cost), false);
         String path = BootCheck.outputFolder().resolve(StartupTimes.REPORT_FILE).toAbsolutePath().toString();
         source.sendSuccess(() -> Component.literal("Full report: ").append(Component.literal("checkengine/"
                 + StartupTimes.REPORT_FILE).withStyle(s -> s.withUnderlined(true)

@@ -71,7 +71,7 @@ public final class SetupCheck {
         long spare = pc > 0 ? Math.max(maxHeapMb, (pc - 3072) / 1024 * 1024) : Long.MAX_VALUE;
         long least = Math.min((need * 60 / 100 + 1023) / 1024 * 1024, spare);
         PackInfo pack = PackInfo.load(gameDir);
-        String name = pack.name() != null ? pack.name() : "This pack";
+        String name = pack.name() != null ? pack.name() : "This modpack";
         String headName = pack.headlineName();
         String fix = least >= need ? "Give it " + gb(need) + "." : "Give it more if your PC can spare it: even about "
                 + gb(least) + " helps, " + gb(need) + " is best.";
@@ -89,7 +89,7 @@ public final class SetupCheck {
 
     /**
      * A Java much newer than this Minecraft was made for (5+ versions): most mods are fine, some older ones crash.
-     * Too old a Java never gets this far (the game can't start at all), so that case is Crash Doctor's.
+     * Too old a Java never gets this far (the game can't start at all), so that case is Mechanic's.
      */
     static Warning java(int running, int expected, Path gameDir) {
         if (expected <= 0 || running < expected + 5) return null;
@@ -149,7 +149,7 @@ public final class SetupCheck {
             try (Writer out = Files.newBufferedWriter(checkEngineFolder.resolve(LaunchIntercept.SETTINGS_FILE),
                     StandardCharsets.UTF_8)) {
                 p.store(out, "Check Engine settings. launch_popup: show a window before the loading screen when the"
-                        + " pack won't start (true/false). ignore_memory / ignore_java: don't warn about those.");
+                        + " modpack won't start (true/false). ignore_memory / ignore_java: don't warn about those.");
             }
         } catch (IOException ignored) {
             // asked again next time

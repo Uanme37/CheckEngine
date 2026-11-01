@@ -230,7 +230,7 @@ public class DashScreen extends Screen {
         return noCopy;
     }
 
-    /** The screen's short name for the column and for Help ("Crash Doctor"), or null. */
+    /** The screen's short name for the column and for Help ("Mechanic"), or null. */
     public String place() {
         return ScreenHelp.place(headline);
     }

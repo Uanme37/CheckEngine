@@ -25,7 +25,7 @@ public final class LogBaseline {
     /**
      * @param spam   mod id -> warnings and errors in one launch that worked
      * @param assets mod name -> missing textures and models in one launch that worked
-     * @param when   where "normal" comes from, for the report: "when the pack worked" or "in earlier launches"
+     * @param when   where "normal" comes from, for the report: "when the modpack worked" or "in earlier launches"
      */
     public record Normal(Map<String, Integer> spam, Map<String, Integer> assets, String when) {
         public static final Normal NONE = new Normal(Map.of(), Map.of(), "");
@@ -55,7 +55,7 @@ public final class LogBaseline {
         merge(old.assets(), now.assets()).forEach((k, v) -> p.setProperty("assets." + k, Integer.toString(v)));
         Files.createDirectories(folder);
         try (Writer out = Files.newBufferedWriter(folder.resolve(FILE), StandardCharsets.UTF_8)) {
-            p.store(out, "Check Engine: log noise while the pack worked (normal for this pack)");
+            p.store(out, "Check Engine: log noise while the modpack worked (normal for this modpack)");
         }
     }
 
@@ -76,7 +76,7 @@ public final class LogBaseline {
                 // a hand-edited line: skip it
             }
         }
-        return new Normal(spam, assets, "when the pack worked");
+        return new Normal(spam, assets, "when the modpack worked");
     }
 
     /**
@@ -97,7 +97,7 @@ public final class LogBaseline {
             LogSpam.analyze(List.of(log)).sources().forEach(s -> spam.merge(s.mod(), s.lines(), Math::max));
             LogProblems.analyze(List.of(log), null).missingAssets().forEach((k, v) -> assets.merge(k, v, Math::max));
         }
-        return new Normal(spam, assets, "when the pack worked");
+        return new Normal(spam, assets, "when the modpack worked");
     }
 
     private static Map<String, Integer> merge(Map<String, Integer> a, Map<String, Integer> b) {

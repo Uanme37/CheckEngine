@@ -53,14 +53,14 @@ public final class ServerCompare {
         List<Finding> out = new ArrayList<>();
         if (player.minecraft() != null && host.minecraft() != null && !player.minecraft().equals(host.minecraft())) {
             out.add(new Finding(Severity.ERROR, PLATFORM_MISMATCH, "Different Minecraft versions",
-                    "The pack is Minecraft " + player.minecraft() + " but the server is " + host.minecraft()
+                    "The modpack is Minecraft " + player.minecraft() + " but the server is " + host.minecraft()
                             + ". Players can't join.",
-                    "Set the server to Minecraft " + player.minecraft() + " (or use the matching pack version).",
+                    "Set the server to Minecraft " + player.minecraft() + " (or use the matching modpack version).",
                     List.of()));
         }
         if (player.neoforge() != null && host.neoforge() != null && !player.neoforge().equals(host.neoforge())) {
             out.add(new Finding(Severity.WARNING, PLATFORM_MISMATCH, "Different NeoForge versions",
-                    "The pack uses NeoForge " + player.neoforge() + " and the server uses " + host.neoforge()
+                    "The modpack uses NeoForge " + player.neoforge() + " and the server uses " + host.neoforge()
                             + ". This usually still works, but some mods need an exact match.",
                     "Use the same NeoForge version on both if players get kicked.", List.of()));
         }
@@ -70,15 +70,15 @@ public final class ServerCompare {
             if (c == null) {
                 if (s.mod().optionalOnOtherSide()) return; // server-side mod (e.g. a backup or perms mod)
                 out.add(new Finding(Severity.ERROR, MISSING_ON_PLAYER, "Players don't have: " + s.mod().name(),
-                        "The server runs " + s.mod().name() + " " + s.mod().version() + ", but the pack doesn't "
+                        "The server runs " + s.mod().name() + " " + s.mod().version() + ", but the modpack doesn't "
                                 + "have it. Players will be kicked with a \"mod mismatch\" or \"missing mods\" "
                                 + "error.",
-                        "Add " + s.mod().name() + " to the pack, or remove it from the server.", List.of(s.file())));
+                        "Add " + s.mod().name() + " to the modpack, or remove it from the server.", List.of(s.file())));
             } else if (!sameVersion(c, s) && !s.mod().optionalOnOtherSide() && !c.mod().optionalOnOtherSide()
                     && !(c.bundled() && s.bundled())
                     && ClientOnlyMods.reason(c.mod(), c.file(), clientOnlyFiles) == null) {
                 out.add(new Finding(Severity.WARNING, VERSION_MISMATCH, "Different versions: " + s.mod().name(),
-                        "The pack has " + c.mod().version() + " but the server has " + s.mod().version()
+                        "The modpack has " + c.mod().version() + " but the server has " + s.mod().version()
                                 + ". Players may get kicked with a \"mod mismatch\" error.",
                         "Use the same version on both (" + c.file() + " / " + s.file() + ").",
                         List.of(c.file(), s.file())));
@@ -89,7 +89,7 @@ public final class ServerCompare {
             if (host.mods().containsKey(id) || c.mod().optionalOnOtherSide()) return;
             if (ClientOnlyMods.reason(c.mod(), c.file(), clientOnlyFiles) != null) return; // belongs on players only
             out.add(new Finding(Severity.ERROR, MISSING_ON_SERVER, "Server doesn't have: " + c.mod().name(),
-                    "The pack has " + c.mod().name() + " " + c.mod().version() + ", but the server doesn't. "
+                    "The modpack has " + c.mod().name() + " " + c.mod().version() + ", but the server doesn't. "
                             + "Players will usually be kicked, or its blocks and items won't work.",
                     "Add " + c.file() + " to the server's mods folder (Check Engine's serverpack command copies "
                             + "everything that belongs there).", List.of(c.file())));

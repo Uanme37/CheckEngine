@@ -47,7 +47,7 @@ public final class LogProblems {
      * @param broken       config files that couldn't be read
      * @param missingAssets mod id -> how many missing textures/models it has
      * @param normal        mods left out of missingAssets: they had as many while the pack worked
-     * @param when          where that comes from: "when the pack worked" or "in earlier launches"
+     * @param when          where that comes from: "when the modpack worked" or "in earlier launches"
      */
     public record Result(List<Reset> resets, List<String> broken, Map<String, Integer> missingAssets,
                          List<String> normal, String when) {
@@ -166,7 +166,7 @@ public final class LogProblems {
         }
     }
 
-    /** "C:\...\Pack\config\..\x.toml" -> "config/x.toml" (or "x.toml"), relative to the pack. */
+    /** "C:\...\Modpack\config\..\x.toml" -> "config/x.toml" (or "x.toml"), relative to the pack. */
     static String shorten(String path, Path gameDir) {
         String p = path.replace('\\', '/').replace("/config/../", "/");
         int at = Math.max(p.indexOf("/config/"), Math.max(p.indexOf("/serverconfig/"), p.indexOf("/defaultconfigs/")));

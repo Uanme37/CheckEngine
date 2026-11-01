@@ -105,7 +105,7 @@ public final class LoadBlockers {
         if (wrongBuild != null && wrongBuild.kind() == ModJar.Kind.FABRIC) {
             title = name(wrongBuild, dep) + " is the Fabric version";
             detail.insert(0, wrongBuild.fileName() + " is the Fabric build of " + name(wrongBuild, dep)
-                    + ". This pack's loader can't use it, so as far as it knows " + dep + " isn't installed.\n");
+                    + ". This modpack's loader can't use it, so as far as it knows " + dep + " isn't installed.\n");
             fix = "Swap " + wrongBuild.fileName() + " for the NeoForge or Forge version of " + name(wrongBuild, dep)
                     + " (" + want + ").";
             certainty = "very likely";
@@ -114,7 +114,7 @@ public final class LoadBlockers {
             title = name(wrongBuild, dep) + " is the wrong build";
             detail.insert(0, wrongBuild.fileName() + " has " + name(wrongBuild, dep) + ", but it's a build for "
                     + "another loader or Minecraft version, so it doesn't load.\n");
-            fix = "Download the version of " + name(wrongBuild, dep) + " made for this pack (" + want
+            fix = "Download the version of " + name(wrongBuild, dep) + " made for this modpack (" + want
                     + ") and remove " + wrongBuild.fileName() + ".";
             certainty = "very likely";
             files.add(wrongBuild.fileName());
@@ -167,7 +167,7 @@ public final class LoadBlockers {
         if (PLATFORM.contains(first.depId())) {
             title = group.size() == 1 ? first.modName() + " is made for a different " + name + " version"
                     : group.size() + " mods are made for a different " + name + " version";
-            detail.append("This pack has ").append(name).append(' ').append(have).append(", but ");
+            detail.append("This modpack has ").append(name).append(' ').append(have).append(", but ");
             appendWants(detail, group);
             fix = group.size() == 1
                     ? "Get the version of " + first.modName() + " made for " + name + " " + have + ", or remove it."
@@ -175,7 +175,7 @@ public final class LoadBlockers {
         } else {
             boolean tooOld = group.stream().allMatch(b -> VersionRange.parseLenient(b.range()).wantsNewerThan(have));
             boolean tooNew = group.stream().allMatch(b -> VersionRange.parseLenient(b.range()).wantsOlderThan(have));
-            detail.append("This pack has ").append(name).append(' ').append(have).append(", but ");
+            detail.append("This modpack has ").append(name).append(' ').append(have).append(", but ");
             appendWants(detail, group);
             if (tooOld) {
                 title = name + " is too old";
@@ -212,7 +212,7 @@ public final class LoadBlockers {
         String name = b.depName() != null ? b.depName() : b.depId();
         StringBuilder detail = new StringBuilder(b.modName() + " doesn't work with " + name
                 + (VersionRange.parseLenient(b.range()).matchesAnything() ? "" : " " + describe(b.range()))
-                + " (this pack has " + b.installed() + ").");
+                + " (this modpack has " + b.installed() + ").");
         reasons(detail, List.of(b));
         Affected affected = pack.affected(List.of(b));
         affected.appendTo(detail, 1);

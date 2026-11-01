@@ -49,6 +49,17 @@ public final class RamAdvisor {
     public record Facts(int modCount, List<String> heavy, long allocatedMb, String allocatedFrom, long measuredMb,
                         long systemMb) {}
 
+    /** Whether System.gc() really cleans up before a memory reading: some launch flags (Aikar's) switch that off. */
+    public static boolean explicitGcWorks(List<String> jvmArgs) {
+        return jvmArgs.stream().noneMatch(a -> a.contains("DisableExplicitGC") && a.startsWith("-XX:+")
+                || a.contains("ExplicitGCInvokesConcurrent") && a.startsWith("-XX:+"));
+    }
+
+    /** ZGC: System.gc() holds up only the thread that calls it, for seconds, so it goes on a thread of its own. */
+    public static boolean usesZgc(List<String> jvmArgs) {
+        return jvmArgs.stream().anyMatch(a -> a.equals("-XX:+UseZGC"));
+    }
+
     /** Recommended allocation in MB, from the real measurement when there is one. */
     public static long recommendedMb(Facts f) {
         if (f.measuredMb() > 0) {
@@ -69,11 +80,11 @@ public final class RamAdvisor {
     public static List<Finding> advise(Facts f, boolean server) {
         String where = server
                 ? "On the server: set -Xmx in user_jvm_args.txt (or your host's memory setting)."
-                : "In CurseForge: right-click the pack > Profile Options > Allocated Memory.";
+                : "In CurseForge: right-click the modpack > Profile Options > Allocated Memory.";
         List<Finding> out = new ArrayList<>();
         long rec = recommendedMb(f);
         String basis = f.measuredMb() > 0
-                ? "On its last launch this pack used " + gb(f.measuredMb()) + " right after loading."
+                ? "On its last launch this modpack used " + gb(f.measuredMb()) + " right after loading."
                 : "Estimated from its " + f.modCount() + " mods" + (f.heavy().isEmpty() ? ""
                         : " (including memory-hungry " + String.join(", ", f.heavy()) + ")")
                         + ". Launch it once with the Check Engine mod installed for a real measurement.";
@@ -90,8 +101,8 @@ public final class RamAdvisor {
             out.add(new Finding(Severity.WARNING, CODE, "Memory: too little (" + gb(f.allocatedMb()) + ", needs about "
                     + gb(rec) + ")", basis + "\n" + has + " Too little memory means stutters, freezes and "
                     + "\"OutOfMemoryError\" crashes.",
-                    "Raise it to " + gb(rec) + ". " + (server ? where : "In CurseForge: right-click the pack > Profile "
-                            + "Options > Allocated Memory (or Settings > Minecraft for all packs)."), List.of()));
+                    "Raise it to " + gb(rec) + ". " + (server ? where : "In CurseForge: right-click the modpack > Profile "
+                            + "Options > Allocated Memory (or Settings > Minecraft for all modpacks)."), List.of()));
         } else if (f.systemMb() > 0 && f.allocatedMb() > f.systemMb() * 3 / 4) {
             out.add(new Finding(Severity.WARNING, CODE, "Memory: leaves too little for Windows",
                     has + " Windows, Discord and your browser need the rest, or everything starts swapping and lags.",
@@ -137,7 +148,9 @@ public final class RamAdvisor {
             Properties p = new Properties();
             try (var in = Files.newBufferedReader(measuredFile, StandardCharsets.UTF_8)) {
                 p.load(in);
-                measured = Long.parseLong(p.getProperty("used_after_load_mb", "0"));
+                // Java skipped the clean-up that reading needs (launch flags): garbage counts too, so no warning from it
+                measured = "false".equals(p.getProperty("explicit_gc")) ? 0
+                        : Long.parseLong(p.getProperty("used_after_load_mb", "0"));
                 allocated = Long.parseLong(p.getProperty("max_mb", "0"));
                 if (allocated > 0) from = "measured on the last launch";
             } catch (IOException | NumberFormatException ignored) {
@@ -147,7 +160,7 @@ public final class RamAdvisor {
         long override = curseForgeOverride(root);
         if (override > 0) {
             allocated = override;
-            from = "this pack's CurseForge setting";
+            from = "this modpack's CurseForge setting";
         } else if (allocated <= 0) {
             long fromCrash = fromNewestCrashReport(root);
             if (fromCrash > 0) {

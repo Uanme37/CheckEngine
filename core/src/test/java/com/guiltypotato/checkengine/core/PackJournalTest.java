@@ -33,6 +33,6 @@ class PackJournalTest {
         String text = PackJournal.read(ce);
         assertTrue(text.indexOf("Updated: JEI 19.0 -> 19.1") < text.indexOf("Added: Create 6.0.4"), text);
         assertFalse(text.contains("config/x.toml"), "configs left out when the checkpoint isn't saved");
-        assertTrue(text.startsWith("Check Engine pack journal"), text);
+        assertTrue(text.startsWith("Check Engine modpack journal"), text);
     }
 }

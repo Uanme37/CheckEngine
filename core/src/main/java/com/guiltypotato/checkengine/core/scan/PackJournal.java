@@ -15,7 +15,9 @@ public final class PackJournal {
     public static final String FILE = "pack-journal.txt";
     /** Old entries past this size are dropped. */
     static final int MAX_CHARS = 200_000;
-    private static final String HEAD = "Check Engine pack journal: what changed between launches that worked, newest first.\n";
+    /** The first line older versions wrote. */
+    private static final String OLD_HEAD = "Check Engine pack" + " journal: what changed between launches that worked, newest first.\n";
+    private static final String HEAD = "Check Engine modpack journal: what changed between launches that worked, newest first.\n";
 
     private PackJournal() {}
 
@@ -33,6 +35,7 @@ public final class PackJournal {
         Path file = checkEngineFolder.resolve(FILE);
         String old = Files.isRegularFile(file) ? Files.readString(file, StandardCharsets.UTF_8) : "";
         if (old.startsWith(HEAD)) old = old.substring(HEAD.length()).stripLeading();
+        else if (old.startsWith(OLD_HEAD)) old = old.substring(OLD_HEAD.length()).stripLeading();
         String text = HEAD + "\n" + entry + old;
         if (text.length() > MAX_CHARS) {
             int cut = text.lastIndexOf("\n== ", MAX_CHARS);

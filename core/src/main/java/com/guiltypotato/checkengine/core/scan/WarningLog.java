@@ -41,16 +41,16 @@ public final class WarningLog {
         Map<String, Entry> log = new LinkedHashMap<>();
         for (Entry e : load(folder)) log.put(e.title(), e);
         Map<String, Finding> current = new LinkedHashMap<>();
-        for (Finding f : found) current.putIfAbsent(f.title(), f);
+        for (Finding f : found) current.putIfAbsent(Wording.now(f.title()), f);
         for (Entry e : List.copyOf(log.values())) {
             if (!current.containsKey(e.title()) && e.stillThere()) {
                 log.put(e.title(), new Entry(e.title(), e.severity(), e.firstSeen(), now));
             }
         }
-        for (Finding f : current.values()) {
-            Entry e = log.get(f.title());
+        for (Map.Entry<String, Finding> f : current.entrySet()) {
+            Entry e = log.get(f.getKey());
             // a fixed warning that comes back counts from now
-            if (e == null || !e.stillThere()) log.put(f.title(), new Entry(f.title(), f.severity(), now, null));
+            if (e == null || !e.stillThere()) log.put(f.getKey(), new Entry(f.getKey(), f.getValue().severity(), now, null));
         }
         List<Entry> fixed = log.values().stream().filter(e -> !e.stillThere())
                 .sorted(Comparator.comparing(Entry::fixedAt)).toList();
@@ -84,7 +84,7 @@ public final class WarningLog {
             } catch (IllegalArgumentException e) {
                 sev = Finding.Severity.WARNING;
             }
-            out.add(new Entry(p.getProperty(i + ".title"), sev, p.getProperty(i + ".first", "?"),
+            out.add(new Entry(Wording.now(p.getProperty(i + ".title")), sev, p.getProperty(i + ".first", "?"),
                     p.getProperty(i + ".fixed")));
         }
         return out;

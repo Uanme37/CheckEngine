@@ -46,20 +46,20 @@ public final class ClientEvents {
     }
 
     private static void opening(ScreenEvent.Opening event) {
-        // During a Strip Mine round, the loader's warnings screen only lists what the test switched off.
+        // During a Misfire round, the loader's warnings screen only lists what the test switched off.
         if (StripMineScreens.skipWarnings(event.getNewScreen())) {
             event.setCanceled(true);
             return;
         }
         // Kicked for a mod mismatch: say which mods, once (the Details button opens NeoForge's own screen).
         if (event.getNewScreen() instanceof ModMismatchDisconnectedScreen mismatch
-                && !(event.getCurrentScreen() instanceof JoinMismatchScreen)) {
+                && !(event.getCurrentScreen() instanceof JoinMismatchScreen) && BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_PASS)) {
             Screen ours = JoinMismatchScreen.replace(mismatch);
             if (ours != null) event.setNewScreen(ours);
             return;
         }
         if (!(event.getNewScreen() instanceof TitleScreen title)) return;
-        // Strip Mine: each round's result, or the answer, goes in front of everything else. 26.1 can open the title
+        // Misfire: each round's result, or the answer, goes in front of everything else. 26.1 can open the title
         // screen again while ours is waiting for an answer: keep ours.
         if (StripMineScreens.open && event.getCurrentScreen() == StripMineScreens.showing) {
             event.setNewScreen(event.getCurrentScreen());
@@ -98,32 +98,33 @@ public final class ClientEvents {
                 BootCheck.outputFolder().getParent()).visible(BootCheck.worthShowing(report)).stream()
                     // the backup screen already says a mod went back a version: don't say it twice
                     .filter(f -> !(f.code().equals(com.guiltypotato.checkengine.core.scan.Changes.DOWNGRADE_CODE)
-                            && DowngradeScreen.willShow(report.changes()))).toList();
+                            && BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.SCRAPYARD) && DowngradeScreen.willShow(report.changes()))).toList();
         // the player's own choices: warnings they said "Got it" to, or warnings off altogether
         findings = com.guiltypotato.checkengine.core.scan.Quiet.toShow(BootCheck.outputFolder(), findings);
         Screen next = title;
-        if (!findings.isEmpty()) next = new BootWarningScreen(title, findings);
-        // Crash Doctor first: if the last game crashed, that's what the player wants to know about (shown once).
-        LastCrash crash = BootCheck.lastCrash();
-        // After a pack update, once: what's new, updated and gone (Crash Doctor comes first if the last game crashed).
+        if (!findings.isEmpty() && BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.IGNITION)) next = new BootWarningScreen(title, findings);
+        // Mechanic first: if the last game crashed, that's what the player wants to know about (shown once).
+        LastCrash crash = BootCheck.crashToShow();
+        // After a pack update, once: what's new, updated and gone (Mechanic comes first if the last game crashed).
         // Not for a player who only wants to hear from Check Engine when something breaks.
         if (crash == null && report != null && !com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) {
-            Screen updated = PackUpdatedScreen.of(next, report.changes());
+            Screen updated = BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_CREW) ? PackUpdatedScreen.of(next, report.changes()) : null;
             if (updated != null) next = updated;
         }
         // A world still uses a mod that's gone: say what it loses before it's opened (in front of the update notes).
         if (crash == null && report != null) {
-            Screen worlds = SafeRemoveScreen.of(next, BootCheck.worldsUsingRemovedMods(), report.changes());
+            Screen worlds = BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.SCRAPYARD)
+                    ? SafeRemoveScreen.of(next, BootCheck.worldsUsingRemovedMods(), report.changes()) : null;
             if (worlds != null) next = worlds;
         }
         // A mod went back to an older version: offer a backup of the worlds played last before one is opened.
         if (crash == null && report != null) {
-            Screen down = DowngradeScreen.of(next, report.changes());
+            Screen down = BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.SCRAPYARD) ? DowngradeScreen.of(next, report.changes()) : null;
             if (down != null) next = down;
         }
         // A kick (Invalid player data) last session that the kick screen didn't explain
         if (crash == null) {
-            Screen join = JoinFailScreen.lastSession(next);
+            Screen join = BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_PASS) ? JoinFailScreen.lastSession(next) : null;
             if (join != null) next = join;
         }
         if (crash != null && !crashShown) {
@@ -138,15 +139,15 @@ public final class ClientEvents {
     }
 
     /**
-     * Backup for Crash Doctor: in some big packs another mod puts the plain title screen back over ours before it's
-     * seen. If the title screen gets drawn while an unseen crash is waiting, open Crash Doctor on top of it.
+     * Backup for Mechanic: in some big packs another mod puts the plain title screen back over ours before it's
+     * seen. If the title screen gets drawn while an unseen crash is waiting, open Mechanic on top of it.
      */
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         try {
             // Pit Stop button on the title screen (beside Accessibility / Language)
             TitleButtons.init(event.getScreen(), event.getListenersList(), event::addListener,
-                    BootCheck.lastCrash() != null && !crashSeen);
+                    BootCheck.crashToShow() != null && !crashSeen);
             explainJoinKick(event);
             // Another mod (FancyMenu...) put the title screen over our backup screen before it was answered: back on top
             if (event.getScreen() instanceof TitleScreen && DowngradeScreen.showing != null
@@ -161,12 +162,12 @@ public final class ClientEvents {
                 return;
             }
             if (!(event.getScreen() instanceof TitleScreen title) || crashSeen || done) return;
-            LastCrash crash = BootCheck.lastCrash();
+            LastCrash crash = BootCheck.crashToShow();
             if (crash == null || StripMine.running(BootCheck.outputFolder()) != null) return;
             crashSeen = true;
             crashShown = true;
             Report report = BootCheck.get();
-            CheckEngine.LOGGER.info("Check Engine: the title screen covered Crash Doctor, opening it again");
+            CheckEngine.LOGGER.info("Check Engine: the title screen covered Mechanic, opening it again");
             Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(
                     crashScreen(title, crash, report)));
         } catch (Throwable t) {
@@ -178,6 +179,7 @@ public final class ClientEvents {
     private static void explainJoinKick(ScreenEvent.Init.Post event) {
         Screen s = event.getScreen();
         if (!(s instanceof net.minecraft.client.gui.screens.DisconnectedScreen) || s == joinExplained) return;
+        if (!BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.PIT_PASS)) return;
         String reason = net.minecraft.client.resources.language.I18n.get("multiplayer.disconnect.invalid_player_data");
         boolean found = false;
         for (var l : event.getListenersList()) {
@@ -196,7 +198,7 @@ public final class ClientEvents {
     private static int downgradeReopens;
 
     /**
-     * Crash Doctor for the last crash. A crash from before Check Engine was installed whose mod is gone or a new version
+     * Mechanic for the last crash. A crash from before Check Engine was installed whose mod is gone or a new version
      * since then gets a toast instead ("Looks fixed" / "Might be fixed"), and the game goes on to {@code next}.
      */
     private static Screen crashScreen(Screen next, LastCrash crash, Report report) {
@@ -218,7 +220,7 @@ public final class ClientEvents {
                 (net.neoforged.neoforge.client.gui.IConfigScreenFactory) (c, parent) -> WarningsScreen.of(parent));
     }
 
-    /** "Fixed!": a problem or warning from the last launch is gone. Once per launch, never during Strip Mine. */
+    /** "Fixed!": a problem or warning from the last launch is gone. Once per launch, never during Misfire. */
     private static void fixedToast(Report report) {
         if (fixedChecked || report == null || StripMine.running(BootCheck.outputFolder()) != null) return;
         fixedChecked = true;
@@ -232,8 +234,10 @@ public final class ClientEvents {
         }
         String slower = TitleButtons.slowerNotice();
         if (slower != null) CheckEngine.LOGGER.info("Check Engine: {}", slower);
+        // only what players could see: a hidden warning going away is no news to them
         java.util.List<String> fixed = com.guiltypotato.checkengine.core.scan.FixedProblems.update(BootCheck.outputFolder(),
-                BootCheck.worthShowing(report));
+                com.guiltypotato.checkengine.core.scan.PackInfo.load(BootCheck.outputFolder().getParent())
+                        .visible(BootCheck.worthShowing(report)));
         if (!fixed.isEmpty()) CheckEngine.LOGGER.info("Check Engine: fixed since last launch: {}", fixed);
         if (com.guiltypotato.checkengine.core.scan.Quiet.onlyWhenItBreaks(BootCheck.outputFolder())) fixed = java.util.List.of();
         // One toast for both, wrapping long text, so nothing is cut off and two toasts don't stack over the logo

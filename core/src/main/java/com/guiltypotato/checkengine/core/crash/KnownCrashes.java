@@ -94,7 +94,7 @@ public final class KnownCrashes {
         return out.toString();
     }
 
-    /** The list Crash Doctor uses: the one in the jar. */
+    /** The list Mechanic uses: the one in the jar. */
     public static KnownCrashes current() {
         KnownCrashes c = current;
         if (c == null) current = c = bundled();

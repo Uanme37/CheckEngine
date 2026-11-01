@@ -193,8 +193,9 @@ class PitStopTest {
         Path folder = game.resolve("checkengine");
         assertTrue(Quiet.titleButton(folder, game));
         Files.createDirectories(game.resolve("config"));
-        assertTrue(Quiet.titleButton(folder, game), "the new pack file says show");
-        assertTrue(Files.readString(game.resolve("config/checkengine-pack.properties")).contains("title_button_pos=auto"));
+        assertTrue(Quiet.titleButton(folder, game), "no file says show");
+        com.guiltypotato.checkengine.core.scan.PackInfo.writeExample(game);
+        assertTrue(Files.readString(game.resolve("config/checkengine-pack.example.properties")).contains("title_button_pos=auto"));
         Files.writeString(game.resolve("config/checkengine-pack.properties"), "title_button=false\n");
         assertFalse(Quiet.titleButton(folder, game), "false works like hide");
         Files.writeString(game.resolve("config/checkengine-pack.properties"), "title_button=hide\n");

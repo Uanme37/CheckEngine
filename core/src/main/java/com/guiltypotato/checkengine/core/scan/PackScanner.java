@@ -51,21 +51,21 @@ public final class PackScanner {
         List<Finding> findings = new ArrayList<>();
         String loader = options.loaderName();
         if (options.loader() == ScanOptions.Loader.FABRIC) {
-            findings.add(new Finding(Severity.INFO, "unsupported-loader", "Fabric packs aren't supported yet",
-                    "Check Engine checks NeoForge and Forge packs. This one uses Fabric, so it wasn't checked.",
+            findings.add(new Finding(Severity.INFO, "unsupported-loader", "Fabric modpacks aren't supported yet",
+                    "Check Engine checks NeoForge and Forge modpacks. This one uses Fabric, so it wasn't checked.",
                     null, List.of()));
             return new Report(modsFolder, options, jars, findings);
         }
         if (olderThan(options, "1.20")) {
             findings.add(new Finding(Severity.INFO, "older-minecraft", "Lighter check for Minecraft "
-                    + options.minecraftVersion(), "Check Engine is built for 1.20.1 and 1.21.1. On older packs it "
+                    + options.minecraftVersion(), "Check Engine is built for 1.20.1 and 1.21.1. On older modpacks it "
                     + "checks missing mods, duplicates and broken files, but skips " + loader + " version rules.",
                     null, List.of()));
         }
         if (jars.isEmpty()) {
             findings.add(new Finding(Severity.WARNING, Finding.NO_MODS, "No mods found",
                     "There are no .jar files in " + modsFolder + ", so there was nothing to check.",
-                    "Make sure you pointed Check Engine at the right pack, and that its mods finished downloading.",
+                    "Make sure you pointed Check Engine at the right modpack, and that its mods finished downloading.",
                     List.of()));
         }
 
@@ -92,7 +92,7 @@ public final class PackScanner {
                         loaded.add(jar);
                     } else {
                         findings.add(new Finding(Severity.ERROR, Finding.WRONG_LOADER,
-                                "Fabric mod in a " + loader + " pack: " + displayName(jar),
+                                "Fabric mod in a " + loader + " modpack: " + displayName(jar),
                                 "This is a Fabric mod. " + loader + " can't load it on its own.",
                                 "Swap it for the " + loader + " version, or remove it.", List.of(jar.fileName())));
                     }
@@ -102,7 +102,7 @@ public final class PackScanner {
                         loaded.add(jar);
                     } else {
                         findings.add(new Finding(Severity.ERROR, Finding.WRONG_LOADER,
-                                "Forge mod in a NeoForge pack: " + displayName(jar),
+                                "Forge mod in a NeoForge modpack: " + displayName(jar),
                                 "This is a Forge mod (or an old NeoForge one). NeoForge for Minecraft 1.20.5 and "
                                         + "newer won't load it.",
                                 "Swap it for the NeoForge version for your Minecraft version, or remove it.",
@@ -115,7 +115,7 @@ public final class PackScanner {
                     } else {
                         findings.add(new Finding(Severity.ERROR, Finding.WRONG_LOADER,
                                 "Mod for a newer Minecraft: " + displayName(jar),
-                                "This is a NeoForge mod for Minecraft 1.20.5 or newer. This pack is "
+                                "This is a NeoForge mod for Minecraft 1.20.5 or newer. This modpack is "
                                         + (options.minecraftVersion() != null ? "Minecraft " + options.minecraftVersion()
                                         : "older") + " " + loader + ", which can't load it.",
                                 "Swap it for the " + loader + " " + (options.minecraftVersion() != null
@@ -214,7 +214,7 @@ public final class PackScanner {
         List<ModJar> newer = jars.stream().filter(j -> j.java() > java && !j.mods().isEmpty()).toList();
         for (ModJar j : newer) {
             findings.add(new Finding(Severity.ERROR, NEWER_JAVA, j.mods().get(0).name() + " needs Java " + j.java(),
-                    j.fileName() + " is made for Java " + j.java() + ", but this pack runs on Java " + java
+                    j.fileName() + " is made for Java " + j.java() + ", but this modpack runs on Java " + java
                             + ". It can't load, so the game will crash.",
                     "Use the version of " + j.mods().get(0).name() + " made for this Minecraft, or set the launcher "
                             + "to Java " + j.java() + " if this Minecraft supports it.", List.of(j.fileName())));
@@ -477,7 +477,7 @@ public final class PackScanner {
         boolean platform = have.fileName == null && (dep.modId().equals("minecraft") || dep.modId().equals("neoforge")
                 || dep.modId().equals("forge"));
         StringBuilder detail = new StringBuilder(who.mod.name() + " needs " + have.name + " "
-                + dep.versionRange().describe() + ", but this pack has " + have.version + ".");
+                + dep.versionRange().describe() + ", but this modpack has " + have.version + ".");
         if (dep.type() == Dependency.Type.OPTIONAL) {
             detail.append(" It's an optional extra, but if it's installed the version has to match.");
         }

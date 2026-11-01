@@ -52,7 +52,7 @@ public final class TitleButtons {
 
     private TitleButtons() {}
 
-    /** On the title screen's init: adds the button, unless the player or pack maker hid it, or Strip Mine runs. */
+    /** On the title screen's init: adds the button, unless the player or pack maker hid it, or Misfire runs. */
     public static void init(Screen screen, List<?> widgets, Consumer<AbstractWidget> add, boolean crashUnseen) {
         // nothing kept from an earlier screen (no old widgets held on to)
         button = null;
@@ -179,7 +179,7 @@ public final class TitleButtons {
      */
     public static String slowerNotice() {
         Path ce = BootCheck.outputFolder();
-        if (Quiet.onlyWhenItBreaks(ce) || StripMine.running(ce) != null) return null;
+        if (Quiet.onlyWhenItBreaks(ce) || StripMine.running(ce) != null || PackInfo.load(ce.getParent()).quiet()) return null;
         LaunchHistory.Slower s = LaunchHistory.noticeOnce(ce);
         return s == null ? null : s.text();
     }

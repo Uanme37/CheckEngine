@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * {@code stripmine <pack folder> [stop]}: walks the player through a Strip Mine search, one launch per round. Runs
+ * {@code stripmine <pack folder> [stop]}: walks the player through a Misfire search, one launch per round. Runs
  * while the game is closed, so it can switch mods off straight away.
  */
 final class StripMineCli {
@@ -24,7 +24,7 @@ final class StripMineCli {
 
     static int run(String[] args) {
         if (args.length < 2) {
-            System.err.println("Usage: java -jar checkengine-cli.jar stripmine <pack folder> [start|status|stop]");
+            System.err.println("Usage: java -jar checkengine-cli.jar stripmine <modpack folder> [start|status|stop]");
             return 2;
         }
         try {
@@ -38,13 +38,13 @@ final class StripMineCli {
                 if (!configs.isEmpty()) {
                     State s = ConfigStrip.start(game, folder, configs, StripMine.crashTitle(game, 0) == null
                             ? "the crash" : StripMine.crashTitle(game, 0), true, true);
-                    System.out.println("Strip Mine started over " + configs.size() + " changed config files (no mod "
+                    System.out.println("Misfire started over " + configs.size() + " changed config files (no mod "
                             + "changed): round 1, " + s.disabled().size() + " put back.");
                     return 0;
                 }
                 State s = StripMine.start(mods, folder, StripMine.crashTitle(game, 0) == null ? "the crash"
                         : StripMine.crashTitle(game, 0), true, true);
-                System.out.println("Strip Mine started: round 1, " + s.disabled().size() + " of " + s.suspects().size()
+                System.out.println("Misfire started: round 1, " + s.disabled().size() + " of " + s.suspects().size()
                         + " mods switched off.");
                 return 0;
             }
@@ -62,12 +62,12 @@ final class StripMineCli {
             }
             if (args.length > 2 && args[2].equals("stop")) {
                 State s = StripMine.stop(mods, folder);
-                System.out.println(s == null ? "No Strip Mine search is running." : "Stopped. Every mod is back on.");
+                System.out.println(s == null ? "No Misfire search is running." : "Stopped. Every mod is back on.");
                 return 0;
             }
             return new StripMineCli().walk(game, mods, folder);
         } catch (IOException e) {
-            System.err.println("Strip Mine couldn't run: " + e.getMessage());
+            System.err.println("Misfire couldn't run: " + e.getMessage());
             return 2;
         }
     }
@@ -75,7 +75,7 @@ final class StripMineCli {
     private int walk(Path game, Path mods, Path folder) throws IOException {
         State s = StripMine.load(folder);
         if (s != null && s.active()) {
-            System.out.println("Carrying on the Strip Mine search from round " + s.round() + ".");
+            System.out.println("Carrying on the Misfire search from round " + s.round() + ".");
             s = StripMine.advance(game, mods, folder, null); // puts a pending round in place, or reads the last one
         } else {
             s = begin(game, mods, folder);
@@ -88,8 +88,8 @@ final class StripMineCli {
                     : " mods are switched off") + " for this test, " + s.suspects().size()
                     + " are still suspects.");
             System.out.println(s.startup()
-                    ? "Launch the pack now. If it crashes, or once it reaches the title screen, close it and come back."
-                    : "Launch the pack and do what made it crash before. Then close it and come back.");
+                    ? "Launch the modpack now. If it crashes, or once it reaches the title screen, close it and come back."
+                    : "Launch the modpack and do what made it crash before. Then close it and come back.");
             String answer = ask("Press Enter when you're done (or type stop to put everything back): ");
             if (answer.equals("stop")) {
                 StripMine.stop(mods, folder);
@@ -116,8 +116,8 @@ final class StripMineCli {
     }
 
     private State begin(Path game, Path mods, Path folder) throws IOException {
-        System.out.println("Strip Mine finds the mod behind a crash by switching off half the mods at a time.");
-        System.out.println("You launch the pack once per round; a 400-mod pack takes about 9 rounds.");
+        System.out.println("Misfire finds the mod behind a crash by switching off half the mods at a time.");
+        System.out.println("You launch the modpack once per round; a 400-mod modpack takes about 9 rounds.");
         System.out.println("Nothing is deleted: mods are renamed to .disabled and switched back on at the end.");
         String crash = StripMine.crashTitle(game, 0);
         if (crash != null) System.out.println("The crash it's looking for: " + crash);
@@ -125,7 +125,7 @@ final class StripMineCli {
         if (!when.equals("y") && !when.equals("n")) return null;
         while (StripMine.lockedByCurseForge(game)) {
             System.out.println();
-            System.out.println("CurseForge has this pack locked, so it would put switched-off mods straight back.");
+            System.out.println("CurseForge has this modpack locked, so it would put switched-off mods straight back.");
             System.out.println(StripMine.UNLOCK_STEPS);
             if (!ask("Press Enter when it's on (or type stop): ").isEmpty()) return null;
         }
@@ -133,7 +133,7 @@ final class StripMineCli {
         // No mod changed since the pack last worked, but several configs did: search those instead.
         List<String> configs = ConfigStrip.suspects(game, folder);
         if (!configs.isEmpty()) {
-            System.out.println("No mod changed since the pack last worked, but " + configs.size() + " config files did: "
+            System.out.println("No mod changed since the modpack last worked, but " + configs.size() + " config files did: "
                     + "searching those. Your versions all come back at the end.");
             return ConfigStrip.start(game, folder, configs, crash == null ? "the crash" : crash, when.equals("y"), true);
         }
@@ -146,8 +146,8 @@ final class StripMineCli {
         System.out.println();
         if (s.status() == Status.FOUND && s.configs()) {
             System.out.println("FOUND IT: " + s.found());
-            System.out.println("With its version from when the pack last worked, the pack doesn't crash.");
-            System.out.println("Fix: undo your last edit in it, or put the old one back (Crash Doctor: Undo config "
+            System.out.println("With its version from when the modpack last worked, the modpack doesn't crash.");
+            System.out.println("Fix: undo your last edit in it, or put the old one back (Mechanic: Undo config "
                     + "changes).");
             System.out.println("Every config file is back as you had it.");
             s.notes().forEach(n -> System.out.println("  " + n));
@@ -155,10 +155,10 @@ final class StripMineCli {
         }
         if (s.status() == Status.FOUND) {
             System.out.println("FOUND IT: " + s.found());
-            System.out.println("With it switched off the pack doesn't crash" + (s.crash().isEmpty() ? "" : " (" + s.crash() + ")") + ".");
+            System.out.println("With it switched off the modpack doesn't crash" + (s.crash().isEmpty() ? "" : " (" + s.crash() + ")") + ".");
             System.out.println("Fix: update it, or remove it. If it's the newest version, send the crash report to its author.");
         } else if (s.status() == Status.STUCK) {
-            System.out.println("Strip Mine narrowed it down to these mods, but they need each other, so it can't split them:");
+            System.out.println("Misfire narrowed it down to these mods, but they need each other, so it can't split them:");
             s.suspects().forEach(f -> System.out.println("  " + f));
         }
         System.out.println("Every mod is switched back on.");

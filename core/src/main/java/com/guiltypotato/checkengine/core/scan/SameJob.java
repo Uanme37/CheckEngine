@@ -72,7 +72,7 @@ public final class SameJob {
             out.add(new Finding(Severity.WARNING, CODE, have.size() + " " + job.job() + ": "
                     + String.join(" and ", names), job.why(),
                     "Keep the one you like and remove the other" + (have.size() > 2 ? "s" : "")
-                            + ", unless the pack is set up to use them together.", List.of()));
+                            + ", unless the modpack is set up to use them together.", List.of()));
         }
         return out;
     }

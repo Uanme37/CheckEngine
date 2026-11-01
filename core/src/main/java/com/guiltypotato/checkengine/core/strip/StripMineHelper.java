@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Sets up the next Strip Mine round as the game closes. Nothing runs outside the game: when it exits (closed, quit
+ * Sets up the next Misfire round as the game closes. Nothing runs outside the game: when it exits (closed, quit
  * from the error screen, or crashed), Check Engine reads how the round went and switches the next round's mods off
  * ({@link StripMine#advance}). NeoForge 1.21.1 and Forge 1.20.1 let a running game's mod jars be renamed; NeoForge
  * 26.1 keeps them locked, so those stay as they are and the next launch has the loader skip them
@@ -28,7 +28,7 @@ public final class StripMineHelper {
         preloadCore();
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> onExit(gameDir, modsFolder, checkEngineFolder),
-                    "Check Engine Strip Mine"));
+                    "Check Engine Misfire"));
             log(checkEngineFolder, "next round is set up when this game closes");
             return true;
         } catch (RuntimeException e) { // already shutting down
@@ -71,7 +71,7 @@ public final class StripMineHelper {
                 try {
                     Class.forName(n.substring(0, n.length() - 6).replace('/', '.'), false, loader);
                 } catch (Throwable ignored) {
-                    // not needed by Strip Mine
+                    // not needed by Misfire
                 }
             }
         } catch (Exception | LinkageError e) {

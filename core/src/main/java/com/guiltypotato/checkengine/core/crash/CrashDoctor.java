@@ -98,7 +98,7 @@ public final class CrashDoctor {
             return Since.SAME;
         }
 
-        /** The toast instead of Crash Doctor when the mod it blamed is gone or changed: {title, text}, else null. */
+        /** The toast instead of Mechanic when the mod it blamed is gone or changed: {title, text}, else null. */
         public String[] sinceToast(Since since) {
             return switch (since) {
                 case GONE -> new String[] {"Check Engine: Looks fixed", culprit + " crashed the game before. It's gone now."};
@@ -123,7 +123,7 @@ public final class CrashDoctor {
                     : "Check Engine: your last game crashed (" + when + ")\n");
             sb.append("Crash report: ").append(file).append("\n\n");
             if (changes != null && !changes.isEmpty()) {
-                sb.append("Changed since the pack last worked (").append(changes.when()).append("):\n  ")
+                sb.append("Changed since the modpack last worked (").append(changes.when()).append("):\n  ")
                         .append(changes.summary().replace("\n", "\n  ")).append("\n\n");
             }
             sb.append(explained.toText());
@@ -193,7 +193,7 @@ public final class CrashDoctor {
     }
 
     /**
-     * The last crash Crash Doctor showed, explained again (the hub's Last crash tab), or null when there's none or its
+     * The last crash Mechanic showed, explained again (the hub's Last crash tab), or null when there's none or its
      * report is gone. It stays the last one until a newer crash is shown.
      */
     public static LastCrash lastShown(Path gameDir, Path checkEngineFolder) {
@@ -232,19 +232,9 @@ public final class CrashDoctor {
                 false);
     }
 
-    /** Whether Crash Assistant is in the mods folder: it already showed the logs, so Crash Doctor keeps to the fix. */
-    public static boolean crashAssistant(Path gameDir) {
-        try (Stream<Path> files = Files.list(gameDir.resolve("mods"))) {
-            return files.map(p -> p.getFileName().toString().toLowerCase(java.util.Locale.ROOT))
-                    .anyMatch(n -> n.startsWith("crashassistant") && n.endsWith(".jar"));
-        } catch (IOException | RuntimeException e) {
-            return false;
-        }
-    }
-
     /**
      * Saves the game log of the session that crashed as checkengine/crash-log.txt (latest.log is already this
-     * launch's log by the time Crash Doctor shows). Null when no log mentions the crash.
+     * launch's log by the time Mechanic shows). Null when no log mentions the crash.
      */
     public static Path saveLog(Path gameDir, LastCrash crash, Path checkEngineFolder) throws IOException {
         String log = GameLog.forCrash(gameDir, crash.file());
@@ -300,7 +290,7 @@ public final class CrashDoctor {
         try {
             Files.createDirectories(folder);
             try (Writer out = Files.newBufferedWriter(folder.resolve(STATE_FILE), StandardCharsets.UTF_8)) {
-                p.store(out, "Check Engine: Crash Doctor");
+                p.store(out, "Check Engine: Mechanic");
             }
         } catch (IOException ignored) {
             // worst case the same crash is explained twice

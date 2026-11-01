@@ -134,7 +134,7 @@ public final class ServerPack {
     }
 
     public static String readme(Plan plan) {
-        StringBuilder sb = new StringBuilder("Server pack made by Check Engine\n");
+        StringBuilder sb = new StringBuilder("Server modpack made by Check Engine\n");
         sb.append("From: ").append(plan.root()).append('\n');
         if (plan.options().minecraftVersion() != null) {
             sb.append("Minecraft ").append(plan.options().minecraftVersion());
@@ -166,7 +166,7 @@ public final class ServerPack {
                 3. Start it once, accept the EULA (eula.txt), start again.
                 4. If a removed mod turns out to be needed, the server log will say so: copy that jar back in.
                 """.formatted(plan.options().neoforgeVersion() != null ? plan.options().neoforgeVersion() : "(same as the pack)",
-                plan.options().minecraftVersion() != null ? plan.options().minecraftVersion() : "(same as the pack)"));
+                plan.options().minecraftVersion() != null ? plan.options().minecraftVersion() : "(same as the modpack)"));
         return sb.toString();
     }
 

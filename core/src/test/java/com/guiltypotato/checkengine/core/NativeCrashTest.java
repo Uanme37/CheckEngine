@@ -72,7 +72,7 @@ class NativeCrashTest {
         assertEquals("The PC ran out of memory", first(text).title());
     }
 
-    /** Crash Doctor and the help file find hs_err_pid files next to the crash reports. */
+    /** Mechanic and the help file find hs_err_pid files next to the crash reports. */
     @Test
     void hsErrFilesAreCrashFiles(@TempDir Path game) throws Exception {
         Files.createDirectories(game.resolve("crash-reports"));

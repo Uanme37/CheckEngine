@@ -29,6 +29,7 @@ final class LoadingClues {
         // Only add clues we can take back out; otherwise a healthy pack would get NeoForge's warning screen too.
         if (issuesField() == null) return;
         try {
+            if (!com.guiltypotato.checkengine.core.scan.Modules.load(net.neoforged.fml.loading.FMLPaths.GAMEDIR.get()).on(com.guiltypotato.checkengine.core.scan.Modules.Part.IGNITION)) return;
             var pack = com.guiltypotato.checkengine.core.scan.PackInfo.load(
                     net.neoforged.fml.loading.FMLPaths.GAMEDIR.get());
             for (Finding f : pack.visible(IssueText.clues(scan.get(5, TimeUnit.SECONDS)))) {

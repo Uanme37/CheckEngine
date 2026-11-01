@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * Pre-Launch Failure Intercept: "Your pack is broken? Find out in seconds, not after Minecraft finishes loading."
+ * Pre-Launch Failure Intercept: "Your modpack is broken? Find out in seconds, not after Minecraft finishes loading."
  * Decides what to tell the player before the loading screen, and shows it in a small window (see {@link Popup}).
  */
 public final class LaunchIntercept {
@@ -31,7 +31,7 @@ public final class LaunchIntercept {
         WILL_FAIL,
         /** The last launch crashed and no mods changed since: it will very likely crash the same way. */
         MAY_FAIL,
-        /** Strip Mine finished: here's the mod behind the crash. */
+        /** Misfire finished: here's the mod behind the crash. */
         FOUND
     }
 
@@ -45,14 +45,14 @@ public final class LaunchIntercept {
      * @param changed  "+ Create Addon X 2.4.0" lines: what changed since the pack last worked
      * @param fixes    what to do, one per problem (same order), duplicates removed
      * @param report    the full report "Show full error" opens, or null
-     * @param stripMine starts a Strip Mine search for this crash (the window then offers it), or null
+     * @param stripMine starts a Misfire search for this crash (the window then offers it), or null
      * @param stripMineMods how many mods a search would go through, for the window's explanation
      * @param stripMineLocked whether CurseForge has the pack locked right now (checked again on Start), or null
      * @param quitFix   applies the fix when the player quits ("QUIT AND FIX IT"), or null for a plain Quit
      * @param goBack    what "Go back to when it worked" would do: the summary first, then one line per change; maybe
      *                  empty
      * @param goBackRun does it (the game then quits), or null
-     * @param stripMineConfigs Strip Mine would search the changed config files, not the mods
+     * @param stripMineConfigs Misfire would search the changed config files, not the mods
      * @param changedSince when the pack last worked ("29 Oct 18:00"), or null
      */
     /**
@@ -73,6 +73,13 @@ public final class LaunchIntercept {
         public Message(Level level, List<String> problems, List<String> details, List<String> changed,
                        List<String> fixes, Path report) {
             this(level, problems, details, changed, fixes, report, null, 0, null, null, List.of(), null, false, null);
+        }
+
+        /** The fix without the search's name, when Misfire is switched off. */
+        Message withFixes(LastCrash crash) {
+            String fix = com.guiltypotato.checkengine.core.crash.CrashTranslator.withoutMisfire(crash.main().fix());
+            return new Message(level, problems, details, changed, fix == null ? List.of() : List.of(fix), report, stripMine,
+                    stripMineMods, stripMineLocked, quitFix, goBack, goBackRun, stripMineConfigs, changedSince);
         }
 
         Message withStripMine(Runnable start, int mods, java.util.function.BooleanSupplier locked) {
@@ -99,20 +106,20 @@ public final class LaunchIntercept {
                     stripMineLocked, quitFix, goBack, goBackRun, stripMineConfigs, when);
         }
 
-        /** True if CurseForge has the pack locked, so Strip Mine can't start yet. */
+        /** True if CurseForge has the pack locked, so Misfire can't start yet. */
         public boolean isStripMineLocked() {
             return stripMineLocked != null && stripMineLocked.getAsBoolean();
         }
 
-        /** About how many launches a Strip Mine search takes. */
+        /** About how many launches a Misfire search takes. */
         public int stripMineRounds() {
             return stripMineMods <= 1 ? 1 : 32 - Integer.numberOfLeadingZeros(stripMineMods - 1);
         }
 
         public String headline() {
             if (level == Level.FOUND) {
-                if (problems.get(0).startsWith(GAVE_UP)) return "STRIP MINE COULDN'T FINISH";
-                return problems.size() == 1 ? "STRIP MINE FOUND IT" : "STRIP MINE NARROWED IT DOWN";
+                if (problems.get(0).startsWith(GAVE_UP)) return "MISFIRE COULDN'T FINISH";
+                return problems.size() == 1 ? "MISFIRE FOUND IT" : "MISFIRE NARROWED IT DOWN";
             }
             return level == Level.WILL_FAIL ? "STARTUP WILL FAIL" : "STARTUP WILL PROBABLY FAIL AGAIN";
         }
@@ -155,8 +162,8 @@ public final class LaunchIntercept {
                 main.fix() == null ? List.of() : List.of(main.fix()), report);
     }
 
-    /** What Strip Mine found, for the window. */
-    static final String GAVE_UP = "Strip Mine couldn't finish the search";
+    /** What Misfire found, for the window. */
+    static final String GAVE_UP = "Misfire couldn't finish the search";
 
     static Message stripMineResult(StripMine.State done, Path report) {
         return stripMineResult(done, report, null);
@@ -169,7 +176,7 @@ public final class LaunchIntercept {
             return new Message(Level.FOUND, List.of(GAVE_UP), List.of(
                     "Test rounds kept failing in a different way: switching mods off broke other mods.",
                     notes.isEmpty() ? "" : notes.get(notes.size() - 1)), List.of(), List.of("Every mod is switched back "
-                    + "on. Use Help > Copy for help and send that to the pack's author, with the crash report."), report);
+                    + "on. Use Help > Copy for help and send that to the modpack's author, with the crash report."), report);
         }
         if (done.configs()) return configResult(done, report, modsFolder);
         String found = done.found();
@@ -222,7 +229,7 @@ public final class LaunchIntercept {
                     report).withStripMine(null, 0, null, true);
         }
         Message m = new Message(Level.FOUND, List.of(found + " causes the crash"), details, List.of(), List.of(
-                "Quit and fix it puts back " + found + " as it was when the pack last worked. Your version is "
+                "Quit and fix it puts back " + found + " as it was when the modpack last worked. Your version is "
                         + "kept in checkengine/config-undo-<date>, nothing is deleted.",
                 "Or open it and undo your last edit there."), report).withStripMine(null, 0, null, true);
         if (modsFolder == null) return m;
@@ -244,13 +251,13 @@ public final class LaunchIntercept {
      * mods are exactly the same now, returns the "will probably fail again" warning (else null).
      */
     public static Message repeatCrash(Path gameDir, Path checkEngineFolder, PackSnapshot now) {
-        // Strip Mine round: crashes are expected and the pack is half switched off on purpose. Start the helper that
+        // Misfire round: crashes are expected and the pack is half switched off on purpose. Start the helper that
         // sets up the next round once this game closes, and stay quiet.
         if (StripMine.running(checkEngineFolder) != null) {
             StripMineHelper.launch(gameDir, gameDir.resolve("mods"), checkEngineFolder);
             return null;
         }
-        // Strip Mine just finished. Every mod is back on, so a crash-on-load pack crashes again before the title
+        // Misfire just finished. Every mod is back on, so a crash-on-load pack crashes again before the title
         // screen: the answer has to come now. Shown once.
         StripMine.State done = StripMine.finished(checkEngineFolder);
         if (done != null && enabled(checkEngineFolder)) {
@@ -274,7 +281,7 @@ public final class LaunchIntercept {
         }
         if (previous == null || !previous.mods().equals(now.mods())) return null;
         // The last launch got through startup and crashed later, while playing: startup itself works, so warning
-        // "startup will fail again" would be a false alarm. Crash Doctor still explains that crash after loading.
+        // "startup will fail again" would be a false alarm. Mechanic still explains that crash after loading.
         if (previousStarted) return null;
         LastCrash crash = CrashDoctor.peek(gameDir, checkEngineFolder);
         if (crash == null) return null;
@@ -286,7 +293,12 @@ public final class LaunchIntercept {
         } catch (IOException e) {
             details = crash.file();
         }
-        // A pack that crashes while loading never reaches Crash Doctor: offer Strip Mine right here.
+        // The modpack maker switched the search off: say what happened, offer no search.
+        if (!com.guiltypotato.checkengine.core.scan.Modules.load(gameDir)
+                .on(com.guiltypotato.checkengine.core.scan.Modules.Part.MISFIRE)) {
+            return mayFail(crash, details).withFixes(crash);
+        }
+        // A pack that crashes while loading never reaches Mechanic: offer Misfire right here.
         Path mods = gameDir.resolve("mods");
         String title = crash.main().title();
         boolean startup = StripMine.isStartupCrash(crash.explained().description());
@@ -367,7 +379,7 @@ public final class LaunchIntercept {
      * the first time, so players can find the switch.
      */
     public static boolean enabled(Path checkEngineFolder) {
-        // During a Strip Mine round the pack is half switched off on purpose: its problems aren't the player's.
+        // During a Misfire round the pack is half switched off on purpose: its problems aren't the player's.
         if (StripMine.running(checkEngineFolder) != null) return false;
         Path file = checkEngineFolder.resolve(SETTINGS_FILE);
         Properties p = new Properties();
@@ -383,13 +395,30 @@ public final class LaunchIntercept {
                 Files.createDirectories(checkEngineFolder);
                 try (Writer out = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
                     p.store(out, "Check Engine settings. launch_popup: show a window before the loading screen when the"
-                            + " pack won't start (true/false)");
+                            + " modpack won't start (true/false)");
                 }
             } catch (IOException ignored) {
                 // still on
             }
         }
         return !"false".equalsIgnoreCase(p.getProperty("launch_popup", "true").strip());
+    }
+
+    /**
+     * Whether a window before the game may open here. Not on macOS until someone has tested it: AWT before the game's
+     * own window can hang there, and the loader's error screen and the log still say what's wrong.
+     */
+    static boolean windowAllowed() {
+        return !System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
+    }
+
+    /**
+     * Whether the early check shows this message: with ignition off only a finished search's answer, which nothing
+     * else would show (it's already been cleared).
+     */
+    public static boolean shows(Message message, Path gameDir) {
+        return message.level() == Level.FOUND || com.guiltypotato.checkengine.core.scan.Modules.load(gameDir)
+                .on(com.guiltypotato.checkengine.core.scan.Modules.Part.IGNITION);
     }
 
     /** Shows the window and waits for the player. Anything that goes wrong means CONTINUE: never block a launch. */
@@ -399,7 +428,7 @@ public final class LaunchIntercept {
 
     /**
      * Offers "Go back to when it worked" when anything changed since the pack last worked: new mods off, old versions
-     * and removed mods back, configs back, in one click. Not for Strip Mine's own result (it already names the mod).
+     * and removed mods back, configs back, in one click. Not for Misfire's own result (it already names the mod).
      */
     static Message withGoBack(Message m, Path gameDir) {
         if (gameDir == null || m.level() == Level.FOUND) return m;
@@ -428,7 +457,10 @@ public final class LaunchIntercept {
 
     /** As {@link #ask(Message)}, with the pack's name and help link from {@code gameDir} (see PackInfo). */
     public static Choice ask(Message message, Path gameDir) {
+        if (!windowAllowed()) return Choice.CONTINUE;
         try {
+            com.guiltypotato.checkengine.core.ui.ScreenHelp.misfire(com.guiltypotato.checkengine.core.scan.Modules.load(gameDir)
+                    .on(com.guiltypotato.checkengine.core.scan.Modules.Part.MISFIRE));
             message = withGoBack(message, gameDir);
             Choice c = Popup.show(message, logo(), com.guiltypotato.checkengine.core.scan.PackInfo.load(gameDir));
             if (c == Choice.STRIP_MINE && message.stripMine() != null) {
@@ -447,6 +479,7 @@ public final class LaunchIntercept {
 
     /** Shows a settings window (memory, Java). Anything that goes wrong means CONTINUE. */
     public static Choice askSetting(SetupCheck.Warning warning, Path checkEngineFolder) {
+        if (!windowAllowed()) return Choice.CONTINUE;
         try {
             return Popup.showSetting(warning, logo(), checkEngineFolder);
         } catch (Throwable t) {

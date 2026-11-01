@@ -151,7 +151,8 @@ public final class ConfigCheckpoint {
             }
         }
         for (String path : old.keySet()) {
-            if (!now.containsKey(path)) out.add(new Change(Kind.REMOVED, path, 0));
+            // a checkpoint from an older version can still list Check Engine's own settings: not a change
+            if (!now.containsKey(path) && notOurs(Path.of(path))) out.add(new Change(Kind.REMOVED, path, 0));
         }
         out.sort((a, b) -> Long.compare(b.modified(), a.modified()));
         return out;
@@ -225,13 +226,19 @@ public final class ConfigCheckpoint {
             Path dir = gameDir.resolve(root);
             if (!Files.isDirectory(dir)) continue;
             try (Stream<Path> s = Files.walk(dir)) {
-                s.filter(Files::isRegularFile).filter(ConfigCheckpoint::isText).forEach(p ->
+                s.filter(Files::isRegularFile).filter(ConfigCheckpoint::isText).filter(ConfigCheckpoint::notOurs).forEach(p ->
                         out.put(gameDir.relativize(p).toString().replace('\\', '/'), p));
             } catch (IOException | RuntimeException ignored) {
                 // skip what can't be read
             }
         }
         return out;
+    }
+
+    /** Check Engine's own settings: Go back must not undo a modpack maker's switches, a config search must not move them. */
+    private static boolean notOurs(Path p) {
+        String name = p.getFileName().toString();
+        return !name.equals(PackInfo.FILE) && !name.equals(PackInfo.EXAMPLE_FILE);
     }
 
     /** Whether two config files differ only in comment lines ("#..." or "//..."). */

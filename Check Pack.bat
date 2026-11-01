@@ -37,7 +37,7 @@ if not defined JAVA (
 set "PACK=%~1"
 if "%PACK%"=="" (
     echo Drag a modpack folder onto "Check Pack.bat", or paste its path here.
-    set /p "PACK=Pack folder: "
+    set /p "PACK=Modpack folder: "
 )
 set "PACK=%PACK:"=%"
 
@@ -61,7 +61,7 @@ if not exist "%PACK%\checkengine" mkdir "%PACK%\checkengine" 2>nul
 "%JAVA%" -jar "%JAR%" scan "%PACK%" --out "%PACK%\checkengine\check-report.txt"
 if errorlevel 2 (
     echo.
-    echo Couldn't check that folder. Is it a pack folder with a mods folder inside?
+    echo Couldn't check that folder. Is it a modpack folder with a mods folder inside?
 ) else if errorlevel 1 (
     echo.
     echo Fix the problems above before launching, or the game will probably crash while loading.
@@ -114,7 +114,7 @@ exit /b
 :crash
 echo.
 set "SHOW="
-set /p "SHOW=This pack has crashed before. Explain its last crash? (y/n): "
+set /p "SHOW=This modpack has crashed before. Explain its last crash? (y/n): "
 if /i not "%SHOW%"=="y" exit /b
 "%JAVA%" -jar "%JAR%" crash "%PACK%"
 echo.
@@ -126,13 +126,13 @@ if /i "%UNDO%"=="m" "%JAVA%" -jar "%JAR%" goback "%PACK%" go-mods & exit /b
 echo.
 :dig
 set "DIG="
-set /p "DIG=Not sure which mod causes it? Strip Mine can find it, one launch per round (y/n): "
-if /i "%DIG%"=="y" "%JAVA%" -jar "%JAR%" stripmine "%PACK%"
+set /p "DIG=Not sure which mod causes it? Misfire can find it, one launch per round (y/n): "
+if /i "%DIG%"=="y" "%JAVA%" -jar "%JAR%" misfire "%PACK%"
 exit /b
 
 :putback
 echo.
-echo Undo new mods switched some mods off in this pack.
+echo Undo new mods switched some mods off in this modpack.
 set "BACK="
 set /p "BACK=Switch them back on? (y/n): "
 if /i "%BACK%"=="y" "%JAVA%" -jar "%JAR%" newmods "%PACK%" putback
@@ -140,7 +140,7 @@ exit /b
 
 :goputback
 echo.
-echo Go back put this pack back to when it last worked.
+echo Go back put this modpack back to when it last worked.
 set "BACK="
 set /p "BACK=Put it back the way you had it before that? (y/n): "
 if /i "%BACK%"=="y" "%JAVA%" -jar "%JAR%" goback "%PACK%" putback
@@ -149,8 +149,8 @@ exit /b
 :stripcheck
 findstr /b /c:"status=RUNNING" /c:"status=PENDING" "%PACK%\checkengine\strip-mine.properties" >nul 2>&1 || exit /b
 echo.
-echo A Strip Mine search is running for this pack.
-"%JAVA%" -jar "%JAR%" stripmine "%PACK%"
+echo A Misfire search is running for this modpack.
+"%JAVA%" -jar "%JAR%" misfire "%PACK%"
 echo.
 pause
 exit

@@ -57,7 +57,7 @@ public final class LogSpam {
      * @param sources   the noisiest first
      * @param bigLogs   logs over 50 MB: "latest.log (350 MB)"
      * @param normal    noisy mods left out because they were this noisy while the pack worked
-     * @param when      where that comes from: "when the pack worked" or "in earlier launches"
+     * @param when      where that comes from: "when the modpack worked" or "in earlier launches"
      */
     public record Result(int launches, int lines, List<Source> sources, List<String> bigLogs, List<String> normal,
                          String when) {
@@ -96,7 +96,7 @@ public final class LogSpam {
             for (String b : bigLogs) sb.append("Big log: ").append(b).append(". Normal is under 20 MB.\n");
             List<Source> noisy = noisy();
             if (!normal.isEmpty()) {
-                sb.append("Noisy, but just as noisy " + when + " (normal for this pack, left out): ")
+                sb.append("Noisy, but just as noisy " + when + " (normal for this modpack, left out): ")
                         .append(String.join(", ", normal.subList(0, Math.min(8, normal.size()))))
                         .append(normal.size() > 8 ? " and " + (normal.size() - 8) + " more" : "").append('\n');
             }
@@ -104,7 +104,7 @@ public final class LogSpam {
                 sb.append(normal.isEmpty() ? "No mod floods the log.\n" : "No new log noise.\n");
                 return sb.toString();
             }
-            if (launches == 1) sb.append("Only one launch to read: can't tell yet what's normal for this pack.\n");
+            if (launches == 1) sb.append("Only one launch to read: can't tell yet what's normal for this modpack.\n");
             sb.append(normal.isEmpty() ? "Mods writing the most warnings and errors (per launch):\n"
                     : "New noise (per launch):\n");
             for (Source s : noisy) {

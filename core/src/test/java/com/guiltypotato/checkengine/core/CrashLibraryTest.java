@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The crash library: hundreds of real crash reports (public GitHub issues and our own test packs) in
  * CheckEngine/crash-library/, kept on the dev PC only (other people's logs, so never committed). Every build checks
- * that Crash Doctor still reads all of them and doesn't get worse at naming the mod. Skipped where the folder is
+ * that Mechanic still reads all of them and doesn't get worse at naming the mod. Skipped where the folder is
  * missing (CI).
  */
 class CrashLibraryTest {
@@ -46,7 +46,7 @@ class CrashLibraryTest {
         double share = (double) unclear / reports.size();
         System.out.printf("Crash library: %d reports, %d unclear (%.0f%%), %d unreadable%n", reports.size(), unclear,
                 share * 100, unreadable.size());
-        assertTrue(share <= MAX_UNCLEAR_SHARE, "Crash Doctor got worse: " + unclear + " of " + reports.size()
+        assertTrue(share <= MAX_UNCLEAR_SHARE, "Mechanic got worse: " + unclear + " of " + reports.size()
                 + " reports name no mod");
     }
 }

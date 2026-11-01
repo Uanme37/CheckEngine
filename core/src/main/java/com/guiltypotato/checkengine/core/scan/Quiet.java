@@ -35,12 +35,12 @@ public final class Quiet {
     public static List<Finding> toShow(Path folder, List<Finding> findings) {
         Set<String> seen = seen(folder);
         Set<String> now = new LinkedHashSet<>();
-        findings.forEach(f -> now.add(f.title()));
+        findings.forEach(f -> now.add(Wording.now(f.title())));
         if (seen.retainAll(now)) write(folder, seen);
         boolean onlyProblems = onlyWhenItBreaks(folder);
         List<Finding> out = new ArrayList<>();
         for (Finding f : findings) {
-            if (seen.contains(f.title())) continue;
+            if (seen.contains(Wording.now(f.title()))) continue;
             if (onlyProblems && f.severity() != Finding.Severity.ERROR) continue;
             out.add(f);
         }
@@ -50,7 +50,7 @@ public final class Quiet {
     /** "Got it": these stop showing until they're gone and come back. */
     public static void gotIt(Path folder, List<Finding> findings) {
         Set<String> seen = seen(folder);
-        findings.forEach(f -> seen.add(f.title()));
+        findings.forEach(f -> seen.add(Wording.now(f.title())));
         write(folder, seen);
     }
 
@@ -106,7 +106,7 @@ public final class Quiet {
         try {
             Set<String> out = new LinkedHashSet<>();
             for (String l : Files.readAllLines(folder.resolve(SEEN), StandardCharsets.UTF_8)) {
-                if (!l.isBlank()) out.add(l.strip());
+                if (!l.isBlank()) out.add(Wording.now(l.strip())); // older versions' words
             }
             return out;
         } catch (IOException e) {

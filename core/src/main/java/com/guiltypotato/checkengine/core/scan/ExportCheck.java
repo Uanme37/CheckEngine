@@ -40,8 +40,8 @@ public final class ExportCheck {
             new Personal("usercache.json", "names of players you've seen", "It lists players your game has met."),
             new Personal("usernamecache.json", "names of players you've seen", "It lists players your game has met."),
             new Personal("command_history.txt", "your command history", "Every command you typed in game."),
-            new Personal("saves/", "your worlds", "Your single-player worlds would download with the pack."),
-            new Personal("screenshots/", "your screenshots", "Your screenshots would download with the pack."),
+            new Personal("saves/", "your worlds", "Your single-player worlds would download with the modpack."),
+            new Personal("screenshots/", "your screenshots", "Your screenshots would download with the modpack."),
             new Personal("logs/", "your game logs", "Logs have your user name and PC paths in them."),
             new Personal("crash-reports/", "your crash reports", "Crash reports have your user name and PC details."),
             new Personal("journeymap/data/", "your JourneyMap map", "Your explored map and waypoints."),
@@ -49,7 +49,7 @@ public final class ExportCheck {
             new Personal("xaerowaypoints/", "your Xaero's waypoints", "Your waypoints."),
             new Personal("xaerominimap/", "your Xaero's minimap data", "Your minimap data."),
             new Personal("backups/", "your backups", "Old world or config backups."),
-            new Personal("checkengine/", "Check Engine's files about your game", "They're about your game, not the pack, "
+            new Personal("checkengine/", "Check Engine's files about your game", "They're about your game, not the modpack, "
                     + "and checkengine/lastgood holds a copy of every mod jar from your last launch that worked (in a "
                     + "zip that's the whole mods folder again). Leave the checkengine folder out. Ship "
                     + "config/checkengine-pack.properties instead (it's in config/)."),
@@ -67,7 +67,7 @@ public final class ExportCheck {
             if (!curseForge && !modrinth) {
                 out.add(new Finding(Severity.WARNING, CODE, "Not a CurseForge or Modrinth export",
                         "There's no manifest.json (CurseForge) or modrinth.index.json (Modrinth) in this zip.",
-                        "In CurseForge: three dots next to Play > Export Profile. In Modrinth: the pack's \"...\" > "
+                        "In CurseForge: three dots next to Play > Export Profile. In Modrinth: the modpack's \"...\" > "
                                 + "Export modpack.", List.of()));
                 return out;
             }

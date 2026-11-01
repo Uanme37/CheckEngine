@@ -174,7 +174,7 @@ public final class JoinFailure {
         }
         return new Finding(Severity.ERROR, CODE, "The join failed: Invalid player data",
                 what + " The log doesn't name a mod." + err,
-                "Run /checkengine export and send the file to the pack maker or whoever helps you; the log in it shows"
+                "Run /checkengine export and send the file to the modpack maker or whoever helps you; the log in it shows"
                         + " the full error.", List.of());
     }
 

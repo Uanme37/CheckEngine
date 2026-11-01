@@ -63,7 +63,7 @@ public record Report(Path modsFolder, ScanOptions options, List<ModJar> jars, Li
         if (options.minecraftVersion() != null) sb.append(", Minecraft ").append(options.minecraftVersion());
         if (options.neoforgeVersion() != null) sb.append(", ").append(options.loaderName()).append(" ").append(options.neoforgeVersion());
         sb.append('\n');
-        sb.append("Pack health: ").append(health()).append('\n');
+        sb.append("Modpack health: ").append(health()).append('\n');
         if (changes != null && !changes.isEmpty()) {
             sb.append("Changed since it last worked (").append(changes.when()).append("):\n  ")
                     .append(changes.summary().replace("\n", "\n  ")).append('\n');

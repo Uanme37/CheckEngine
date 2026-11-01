@@ -79,10 +79,10 @@ public final class JoinMismatch {
         long mods = out.stream().filter(f -> !f.code().equals(PLATFORM_MISMATCH) && !f.code().equals(OTHER)).count();
         if (mods >= PACK_VERSION_HINT) {
             out.add(0, new Finding(Severity.WARNING, PACK_VERSION,
-                    "Your pack is probably a different version than the server's",
+                    "Your modpack is probably a different version than the server's",
                     mods + " mods don't match the server. That usually means the server was updated to a new "
-                            + "pack version and your game wasn't (or the other way round).",
-                    "Update (or roll back) the pack in your launcher to the version the server runs, then try again.",
+                            + "modpack version and your game wasn't (or the other way round).",
+                    "Update (or roll back) the modpack in your launcher to the version the server runs, then try again.",
                     List.of()));
         }
         return out;
@@ -108,7 +108,7 @@ public final class JoinMismatch {
                     "The server runs " + (name.equals(id) ? "a mod called \"" + id + "\"" : name)
                             + (serverHas == null ? "" : " " + serverHas) + ", and it isn't in your game.",
                     "Install " + name + (serverHas == null ? " (the same version the server uses)" : " " + serverHas)
-                            + ", or get the pack version the server runs.",
+                            + ", or get the modpack version the server runs.",
                     List.of());
             case MISSING_ON_SERVER -> new Finding(Severity.ERROR, MISSING_ON_SERVER, "The server doesn't have: " + name,
                     "You have " + describe(name, mine) + ", but the server doesn't have it (or has a version that "

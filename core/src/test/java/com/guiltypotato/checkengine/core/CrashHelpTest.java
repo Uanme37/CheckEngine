@@ -26,7 +26,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Crash Doctor 0.19: key lines, the crash from before Check Engine, Crash Assistant, Copy for help. */
+/** Mechanic 0.19: key lines, the crash from before Check Engine, another crash helper mod, Copy for help. */
 class CrashHelpTest {
     @TempDir
     Path game;
@@ -156,11 +156,11 @@ class CrashHelpTest {
     @Test
     void spotsCrashAssistant() throws IOException {
         Path mods = Files.createDirectories(game.resolve("mods"));
-        assertFalse(CrashDoctor.crashAssistant(game));
+        assertFalse(com.guiltypotato.checkengine.core.scan.StepAside.quiet(com.guiltypotato.checkengine.core.scan.StepAside.Feature.CRASH_LINES, game, null));
         Files.writeString(mods.resolve("CrashAssistant-neoforge-1.20.6-1.21.4-1.11.12.jar.disabled"), "");
-        assertFalse(CrashDoctor.crashAssistant(game), "switched off doesn't count");
+        assertFalse(com.guiltypotato.checkengine.core.scan.StepAside.quiet(com.guiltypotato.checkengine.core.scan.StepAside.Feature.CRASH_LINES, game, null), "switched off doesn't count");
         Files.writeString(mods.resolve("CrashAssistant-neoforge-1.20.6-1.21.4-1.11.12.jar"), "");
-        assertTrue(CrashDoctor.crashAssistant(game));
+        assertTrue(com.guiltypotato.checkengine.core.scan.StepAside.quiet(com.guiltypotato.checkengine.core.scan.StepAside.Feature.CRASH_LINES, game, null));
     }
 
     @Test

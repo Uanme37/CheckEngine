@@ -71,7 +71,7 @@ public final class BootWarningScreen extends DashScreen {
                 }, false, "No more warnings. Crashes and problems that stop the game still show. "
                         + "Turn warnings back on: Mods > Check Engine > Config."),
                 new Btn("Open report", () -> Util.getPlatform().openFile(BootCheck.reportFile().toFile()), false,
-                        "Opens the full check of the pack in a text file."));
+                        "Opens the full check of the modpack in a text file."));
     }
 
     private static void leave(Screen next) {

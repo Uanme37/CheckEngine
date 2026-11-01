@@ -52,11 +52,13 @@ class PackInfoTest {
     }
 
     @Test
-    void writesAnEmptyTemplateForPackMakers() throws Exception {
+    void writesAnExampleNotTheRealFile() throws Exception {
         Files.createDirectories(game.resolve("config"));
         PackInfo p = PackInfo.load(game);
         assertNull(p.name());
-        assertTrue(Files.readString(game.resolve("config").resolve(PackInfo.FILE)).contains("support_link="));
+        org.junit.jupiter.api.Assertions.assertFalse(Files.exists(game.resolve("config").resolve(PackInfo.FILE)));
+        PackInfo.writeExample(game);
+        assertTrue(Files.readString(game.resolve("config").resolve(PackInfo.EXAMPLE_FILE)).contains("support_link="));
     }
 
     @Test

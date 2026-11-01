@@ -62,7 +62,7 @@ public final class HelpBundle {
             Path ce = gameDir.resolve("checkengine");
             for (String name : List.of("boot-report.txt", "early-report.txt", "last-crash.txt", "scan-report.txt",
                     "startup-report.txt", "join-report.txt", PackSnapshot.FILE, PackJournal.FILE,
-                    // Strip Mine: which round did what, so a report shows where a search went wrong.
+                    // Misfire: which round did what, so a report shows where a search went wrong.
                     "strip-mine.properties", "strip-mine.log", "strip-mine-result.txt")) {
                 copy(zip, ce.resolve(name), "checkengine/" + name, redact);
             }
@@ -104,14 +104,14 @@ public final class HelpBundle {
     private static String readme(Path gameDir, Report report) {
         StringBuilder sb = new StringBuilder("Check Engine help file\n");
         sb.append("Made: ").append(LocalDateTime.now().withNano(0).toString().replace('T', ' ')).append('\n');
-        sb.append("Pack folder: ").append(gameDir.toAbsolutePath()).append('\n');
+        sb.append("Modpack folder: ").append(gameDir.toAbsolutePath()).append('\n');
         sb.append("Java: ").append(System.getProperty("java.version")).append(", OS: ")
                 .append(System.getProperty("os.name")).append('\n');
         if (report != null) {
             ScanOptions o = report.options();
             if (o.minecraftVersion() != null) sb.append("Minecraft: ").append(o.minecraftVersion()).append('\n');
             if (o.neoforgeVersion() != null) sb.append(o.loaderName()).append(": ").append(o.neoforgeVersion()).append('\n');
-            sb.append("Pack health: ").append(report.health()).append('\n');
+            sb.append("Modpack health: ").append(report.health()).append('\n');
             if (!report.roots().isEmpty()) {
                 sb.append("\nFix these first:\n");
                 for (RootProblem p : report.roots()) sb.append("- ").append(p.title()).append('\n');

@@ -25,14 +25,14 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Strip Mine: finds the mod behind a crash nobody can explain, by digging through the pack one layer at a time.
+ * Misfire: finds the mod behind a crash nobody can explain, by digging through the pack one layer at a time.
  * Each round switches off half of the mods still under suspicion (renaming them to .disabled, never deleting), the
  * player launches, and the result halves the suspects: a crash means the bad mod is still switched on, a launch that
  * reaches the title screen means it's in the switched-off half. About log2(mods) rounds; 400 mods take about 9.
  *
  * <p>Mods a switched-on mod needs stay on, so a test launch doesn't fail for a different reason. Progress lives in
  * checkengine/strip-mine.properties, so the game (as it closes) and Check Pack.bat can both carry on the same search.
- * Only files Strip Mine renamed itself are ever renamed back.
+ * Only files Misfire renamed itself are ever renamed back.
  */
 public final class StripMine {
     public static final String STATE_FILE = "strip-mine.properties";
@@ -65,7 +65,7 @@ public final class StripMine {
      * @param round       the round being tested (1-based)
      * @param suspects    jar file names that may hold the bad mod
      * @param toDisable   jar file names this round switches off
-     * @param disabled    jar file names Strip Mine has renamed to .disabled right now
+     * @param disabled    jar file names Misfire has renamed to .disabled right now
      * @param roundStart  when the files for this round were put in place (ms), 0 if not yet
      * @param startCount  how many suspects there were at the start
      * @param notes       one line per finished round, for the final report
@@ -119,7 +119,7 @@ public final class StripMine {
 
     /**
      * Whether the CurseForge app has this pack locked (installed as it came, "Allow content management" off). The app
-     * then checks the mod files at every launch and downloads the ones Strip Mine switched off again, which wrecks the
+     * then checks the mod files at every launch and downloads the ones Misfire switched off again, which wrecks the
      * search (and leaves duplicate files). The app saves the switch to minecraftinstance.json right away.
      */
     public static boolean lockedByCurseForge(Path gameDir) {
@@ -142,7 +142,7 @@ public final class StripMine {
                               boolean applyNow)
             throws IOException {
         if (lockedByCurseForge(modsFolder.getParent())) {
-            throw new IOException("CurseForge has this pack locked, so it would undo Strip Mine. " + UNLOCK_STEPS);
+            throw new IOException("CurseForge has this modpack locked, so it would undo Misfire. " + UNLOCK_STEPS);
         }
         Map<String, ModJar> jars = readJars(modsFolder, List.of());
         List<String> suspects = new ArrayList<>();
@@ -151,7 +151,7 @@ public final class StripMine {
             suspects.add(jar.fileName());
         }
         suspects.sort(String.CASE_INSENSITIVE_ORDER);
-        if (suspects.size() < 2) throw new IOException("Strip Mine needs at least 2 mods to search.");
+        if (suspects.size() < 2) throw new IOException("Misfire needs at least 2 mods to search.");
         // The crashed launch's log: the newest rotated one while the game runs again, else latest.log.
         List<String> roots = new ArrayList<>(crashRoots(modsFolder.getParent()));
         if (!roots.isEmpty()) crash = String.join(", ", roots) + " failed to load"; // the real failure, not a knock-on
@@ -162,7 +162,7 @@ public final class StripMine {
         Set<String> likely = likelyJars(jars, PackSnapshot.load(checkEngineFolder), roots);
         List<String> smart = smartPlan(suspects, jars, likely);
         List<String> notes = smart.isEmpty() ? List.of() : List.of("Smart start: round 1 tests the "
-                + likely.size() + " mods most likely to blame (changed since the pack last worked, or named in the crash)");
+                + likely.size() + " mods most likely to blame (changed since the modpack last worked, or named in the crash)");
         s = s.with(Status.PENDING, 1, suspects, smart.isEmpty() ? plan(suspects, jars) : smart, List.of(), 0, notes);
         save(checkEngineFolder, s);
         return applyNow ? apply(modsFolder, checkEngineFolder, s) : s;
@@ -251,7 +251,7 @@ public final class StripMine {
         return still;
     }
 
-    /** Stops the search and switches everything Strip Mine turned off back on. */
+    /** Stops the search and switches everything Misfire turned off back on. */
     public static State stop(Path modsFolder, Path checkEngineFolder) throws IOException {
         State s = load(checkEngineFolder);
         if (s == null) return null;
@@ -315,7 +315,8 @@ public final class StripMine {
                 different = java.util.Collections.disjoint(now, s.roots());
                 if (different && title == null) title = now.isEmpty() ? "no mod failed to load" : String.join(", ", now) + " failed to load";
             } else {
-                different = title != null && !title.equals(s.crash());
+                different = title != null && !com.guiltypotato.checkengine.core.scan.Wording.now(title)
+                        .equals(com.guiltypotato.checkengine.core.scan.Wording.now(s.crash())); // a search can span an update
             }
             Set<String> learned = evidence == null ? Set.of() : neededJars(evidence, modsFolder, s.disabled());
             if (!s.roots().isEmpty() && outcome == Outcome.CRASHED && !different) {
@@ -326,7 +327,7 @@ public final class StripMine {
                     s = s.retry(keep, s.retries());
                 }
             } else if (different || !learned.isEmpty()) {
-                // A crash over a class or mod from a jar Strip Mine switched off can never be the original crash:
+                // A crash over a class or mod from a jar Misfire switched off can never be the original crash:
                 // that one happened with every mod on.
                 return retry(modsFolder, checkEngineFolder, s, learned, title);
             }
@@ -543,7 +544,7 @@ public final class StripMine {
         }
     }
 
-    /** Called by the mod when a Strip Mine round reaches the title screen or the server is ready. */
+    /** Called by the mod when a Misfire round reaches the title screen or the server is ready. */
     public static void markWorked(Path checkEngineFolder) {
         try {
             Files.createDirectories(checkEngineFolder);
@@ -665,7 +666,7 @@ public final class StripMine {
     // ---- files ----
 
     /**
-     * Renames this round's jars to .disabled and switches back on the ones Strip Mine had off but no longer needs.
+     * Renames this round's jars to .disabled and switches back on the ones Misfire had off but no longer needs.
      * A file Windows keeps locked (NeoForge 26.1 holds its mod jars open while the game runs) is left as it is: the
      * next launch has the loader skip it instead ({@link #lockedOn}).
      */
@@ -748,7 +749,7 @@ public final class StripMine {
         Files.move(from, to);
     }
 
-    /** The jars in the mods folder, plus the ones Strip Mine switched off (never the player's own .disabled files). */
+    /** The jars in the mods folder, plus the ones Misfire switched off (never the player's own .disabled files). */
     static Map<String, ModJar> readJars(Path modsFolder, List<String> ours) throws IOException {
         Map<String, ModJar> out = new HashMap<>();
         try (Stream<Path> files = Files.list(modsFolder)) {
@@ -823,7 +824,7 @@ public final class StripMine {
         Files.createDirectories(checkEngineFolder);
         Path tmp = checkEngineFolder.resolve(STATE_FILE + ".tmp");
         try (Writer out = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
-            p.store(out, "Check Engine Strip Mine: which mods are switched off right now. Don't edit; run "
+            p.store(out, "Check Engine Misfire: which mods are switched off right now. Don't edit; run "
                     + "'Check Pack.bat' or use the in-game button to stop and put everything back.");
         }
         Files.move(tmp, checkEngineFolder.resolve(STATE_FILE), java.nio.file.StandardCopyOption.REPLACE_EXISTING);

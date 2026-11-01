@@ -10,7 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Strip Mine over changed configs: finds the one bad edit, and the player's files are all back at the end. */
+/** Misfire over changed configs: finds the one bad edit, and the player's files are all back at the end. */
 class ConfigStripTest {
     @TempDir
     Path game;

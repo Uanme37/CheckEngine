@@ -61,7 +61,7 @@ public final class NativeCrash {
                             + "OpenCL and OpenGL Compatibility Pack from Windows' apps.", List.of()));
         } else if (lib.startsWith("lwjgl_stb")) {
             out.add(new Finding(Severity.ERROR, CODE, "Crash while loading an image",
-                    noReport + " " + frame + " reads images (textures, fonts, the pack icon), so one of them is "
+                    noReport + " " + frame + " reads images (textures, fonts, the modpack icon), so one of them is "
                             + "probably broken or far too big.",
                     "Try without your resource packs first. If it still happens, a mod's textures are the cause: "
                             + CrashTranslator.STRIP_MINE_HINT, List.of()));

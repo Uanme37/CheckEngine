@@ -13,14 +13,14 @@ import org.junit.jupiter.api.Test;
 class ScreenHelpTest {
     @Test
     void headlinesGetTheirShortName() {
-        assertEquals("Crash Doctor", ScreenHelp.place("YOUR LAST GAME CRASHED"));
-        assertEquals("Crash Doctor", ScreenHelp.place("CRASHED BEFORE INSTALL"));
+        assertEquals("Mechanic", ScreenHelp.place("YOUR LAST GAME CRASHED"));
+        assertEquals("Mechanic", ScreenHelp.place("CRASHED BEFORE INSTALL"));
         assertEquals("Go back", ScreenHelp.place("GO BACK TO WHEN IT WORKED?"));
         assertEquals("Go back", ScreenHelp.place("COULDN'T GO BACK"));
-        assertEquals("Strip Mine", ScreenHelp.place("STRIP MINE: FIND THE FAULTY MOD"));
+        assertEquals("Misfire", ScreenHelp.place("MISFIRE: FIND THE FAULTY MOD"));
         assertEquals("Put it back", ScreenHelp.place("PUT IT BACK?"));
         assertEquals("Before the game", ScreenHelp.place("Demo Pack won't start"));
-        assertEquals("Pack updated", ScreenHelp.place("Demo Pack was updated"));
+        assertEquals("Modpack updated", ScreenHelp.place("Demo Pack was updated"));
         assertNull(ScreenHelp.place("SOMETHING ELSE"));
         assertNull(ScreenHelp.place(null));
     }
@@ -36,7 +36,7 @@ class ScreenHelpTest {
     @Test
     void everyTabAndCodeHasWords() {
         for (String tab : List.of("Fix", "Crash lines", "Changed", "Get help")) {
-            assertFalse(ScreenHelp.explain("Crash Doctor", tab, null).get(0).startsWith("This is a Check Engine"), tab);
+            assertFalse(ScreenHelp.explain("Mechanic", tab, null).get(0).startsWith("This is a Check Engine"), tab);
         }
         for (String tab : List.of("Pit Stop", "Mods", "Go back", "Warnings", "Last crash")) {
             assertFalse(ScreenHelp.explain("Pit Stop", tab, null).get(0).startsWith("This is a Check Engine"), tab);

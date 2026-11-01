@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Strip Mine over config files: when no mod changed since the pack last worked but several configs did, each round
+ * Misfire over config files: when no mod changed since the pack last worked but several configs did, each round
  * puts half of the changed configs back as they were then. The player's own versions wait in
  * checkengine/config-strip/ and always come back.
  */
@@ -56,8 +56,8 @@ public final class ConfigStrip {
     /** Starts a search over these config files (see {@link #suspects}). */
     public static StripMine.State start(Path gameDir, Path checkEngineFolder, List<String> suspects, String crash,
                                         boolean startup, boolean applyNow) throws IOException {
-        if (suspects.size() < 2) throw new IOException("Strip Mine needs at least 2 changed config files to search.");
-        List<String> notes = List.of("Searching the " + suspects.size() + " config files changed since the pack "
+        if (suspects.size() < 2) throw new IOException("Misfire needs at least 2 changed config files to search.");
+        List<String> notes = List.of("Searching the " + suspects.size() + " config files changed since the modpack "
                 + "last worked (no mod changed)");
         StripMine.State s = new StripMine.State(crash, startup, StripMine.Status.PENDING, 1, suspects,
                 new ArrayList<>(suspects.subList(0, suspects.size() / 2)), List.of(), 0, suspects.size(), notes,

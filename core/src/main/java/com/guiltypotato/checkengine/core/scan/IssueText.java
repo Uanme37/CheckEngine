@@ -16,8 +16,8 @@ public final class IssueText {
 
     private IssueText() {}
 
-    /** On the loader's error screen during a Strip Mine round, instead of advice about mods switched off on purpose. */
-    public static final String STRIP_MINE_ROUND = "§6§lCheck Engine Strip Mine:§r this is a test round, with some mods "
+    /** On the loader's error screen during a Misfire round, instead of advice about mods switched off on purpose. */
+    public static final String STRIP_MINE_ROUND = "§6§lCheck Engine Misfire:§r this is a test round, with some mods "
             + "switched off on purpose, so this error is expected.\n§aWhat to do:§r close the game and press Play. "
             + "Check Engine sets up the next round by itself.";
 

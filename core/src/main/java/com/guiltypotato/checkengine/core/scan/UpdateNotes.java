@@ -98,7 +98,7 @@ public final class UpdateNotes {
         String journal = PackJournal.read(checkEngineFolder);
         if (journal == null) return null;
         int start = journal.indexOf("\n== ");
-        return "## Changes so far (from the pack journal)\n" + (start < 0 ? journal : journal.substring(start + 1));
+        return "## Changes so far (from the modpack journal)\n" + (start < 0 ? journal : journal.substring(start + 1));
     }
 
     /** From this many mod changes since the last launch it looks like a pack update (not one mod the player added). */
@@ -118,7 +118,7 @@ public final class UpdateNotes {
     /** "This version is out": the next notes start from the pack as it is now. */
     public static void markReleased(Path checkEngineFolder) throws IOException {
         PackSnapshot now = PackSnapshot.load(checkEngineFolder);
-        if (now == null) throw new IOException("The pack hasn't started with Check Engine installed yet.");
+        if (now == null) throw new IOException("The modpack hasn't started with Check Engine installed yet.");
         now.save(checkEngineFolder, BASELINE);
     }
 

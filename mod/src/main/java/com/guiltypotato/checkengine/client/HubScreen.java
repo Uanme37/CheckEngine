@@ -32,7 +32,7 @@ import net.neoforged.fml.loading.FMLPaths;
 /**
  * Pit Stop, opened from Check Engine's title screen button. Tabs: Pit Stop (start times, the last launches, the mod
  * list), Go back (0.21's Go back to when it worked, and Put it back), Warnings (still there or fixed) and Last crash
- * (opens Crash Doctor again).
+ * (opens Mechanic again).
  */
 final class HubScreen {
     /** Rows shown before the list asks for a search. */
@@ -54,7 +54,7 @@ final class HubScreen {
         tabs.add(new Tab("Warnings", "!", open > 0 ? DashScreen.AMBER : DashScreen.BLUE,
                 open > 0 ? Long.toString(open) : null, List.of(warningsSection(warnings)), List.of())
                 .withSubtitle("WARNINGS"));
-        tabs.add(lastCrash(game, ce, self).withSubtitle("LAST CRASH"));
+        if (BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.MECHANIC)) tabs.add(lastCrash(game, ce, self).withSubtitle("LAST CRASH"));
         DashScreen screen = new DashScreen(DashScreen.BLUE, "PIT STOP", null, null,
                 () -> Minecraft.getInstance().setScreen(back), tabs,
                 List.of(new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), false)))
@@ -156,7 +156,7 @@ final class HubScreen {
         GoBack.Plan plan = com.guiltypotato.checkengine.core.strip.GoBackPlans.now();
         if (plan == null && com.guiltypotato.checkengine.core.strip.GoBackPlans.working()) {
             sections.add(new Section("STILL CHECKING", DashScreen.GREY, "i", DashScreen.lines(
-                    "Still comparing the pack with the last launch that worked. Open Pit Stop again in a moment.")));
+                    "Still comparing the modpack with the last launch that worked. Open Pit Stop again in a moment.")));
         } else if (plan != null && !plan.isEmpty()) {
             List<Line> lines = new ArrayList<>();
             if (plan.lastWorked() != null) lines.add(Line.strong(plan.lastWorked()));
@@ -170,7 +170,7 @@ final class HubScreen {
                     plan.summary() + ". Nothing is deleted, and you can put it back."));
         } else {
             sections.add(new Section("NOTHING TO GO BACK TO", DashScreen.BLUE, "i", DashScreen.lines(
-                    "Nothing changed since the pack last worked.")));
+                    "Nothing changed since the modpack last worked.")));
         }
         String undo = GoBack.done(ce) ? GoBack.undoSummary(ce) : null;
         if (undo != null) {
@@ -214,7 +214,7 @@ final class HubScreen {
         return new Tab("Last crash", "?", DashScreen.GREY, null, List.of(new Section("LAST CRASH", DashScreen.GREY,
                 "i", List.of(Line.strong(crash.main().title()), Line.dim(com.guiltypotato.checkengine.core.ui.UiText.date(crash.when())),
                         Line.dim("It stays here until a newer crash replaces it.")))),
-                List.of(new Btn("Open Crash Doctor",
+                List.of(new Btn("Open Mechanic",
                         () -> Minecraft.getInstance().setScreen(new CrashDoctorScreen(self[0], crash)), true)));
     }
 

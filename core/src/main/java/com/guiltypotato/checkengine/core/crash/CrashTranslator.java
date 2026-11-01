@@ -350,7 +350,7 @@ public final class CrashTranslator {
                 && (m.group(2).equals("minecraft") || m.group(2).equals("neoforge"))) {
             String platform = m.group(2).equals("minecraft") ? "Minecraft" : "NeoForge";
             return new Finding(Severity.ERROR, Finding.WRONG_VERSION, "Wrong " + platform + " version for " + m.group(1),
-                    m.group(1) + " is made for " + platform + " " + versionText(m.group(3)) + ", but this pack has "
+                    m.group(1) + " is made for " + platform + " " + versionText(m.group(3)) + ", but this modpack has "
                             + m.group(4) + ".",
                     "Get the version of " + m.group(1) + " made for " + platform + " " + m.group(4)
                             + " (check its Files tab), or remove it.", files);
@@ -386,19 +386,19 @@ public final class CrashTranslator {
                         "Install " + needs + ", or remove " + m.group(1) + ".", files);
             }
             return new Finding(Severity.ERROR, "loading-issue", m.group(1) + " is missing code it needs",
-                    m.group(1) + " tried to use " + m.group(3) + ", which isn't in the pack. It probably needs another "
+                    m.group(1) + " tried to use " + m.group(3) + ", which isn't in the modpack. It probably needs another "
                             + "mod that isn't installed, or a different version of one.",
                     "Check " + m.group(1) + "'s CurseForge page for the mods it needs, or remove it.", files);
         }
         if ((m = FORGE_FILE.matcher(msg)).find()) {
             String f = fileName(m.group(1));
-            return new Finding(Severity.ERROR, Finding.WRONG_LOADER, "Forge mod in a NeoForge pack: " + f,
+            return new Finding(Severity.ERROR, Finding.WRONG_LOADER, "Forge mod in a NeoForge modpack: " + f,
                     f + " is made for Forge (or an old NeoForge), so this version of NeoForge can't load it.",
                     "Swap it for the NeoForge version for your Minecraft version, or remove it.", List.of(f));
         }
         if ((m = FABRIC_FILE.matcher(msg)).find()) {
             String f = fileName(m.group(1));
-            return new Finding(Severity.ERROR, Finding.WRONG_LOADER, "Fabric mod in a NeoForge pack: " + f,
+            return new Finding(Severity.ERROR, Finding.WRONG_LOADER, "Fabric mod in a NeoForge modpack: " + f,
                     f + " is a Fabric mod. NeoForge can't load it on its own.",
                     "Swap it for the NeoForge version, or remove it.", List.of(f));
         }
@@ -446,7 +446,7 @@ public final class CrashTranslator {
             int java = Integer.parseInt(m.group(3)) - 44; // class file 65 = Java 21
             return new Finding(Severity.ERROR, "wrong-java", m.group(1) + " needs Java " + java,
                     m.group(1) + " was built for Java " + java + ", but the game runs an older Java.",
-                    "In the launcher, pick Java " + java + " for this pack. Or get a version of " + m.group(1)
+                    "In the launcher, pick Java " + java + " for this modpack. Or get a version of " + m.group(1)
                             + " made for your Minecraft version.", files);
         }
         if (SERVER_DIST.matcher(msg).find()) {
@@ -456,7 +456,7 @@ public final class CrashTranslator {
                     mod != null ? "Client-only mod on the server: " + mod : "Client-only mod on the server",
                     (mod != null ? mod : "A mod") + " uses game code that only exists on the player's side (graphics, "
                             + "screens), so it can't run on a server.",
-                    "Remove " + (mod != null ? mod : "it") + " from the server. Players keep it in their own pack. "
+                    "Remove " + (mod != null ? mod : "it") + " from the server. Players keep it in their own modpack. "
                             + "Check Pack.bat's serverpack command builds a server copy without these mods.", files);
         }
         if ((m = EVENT_ERROR.matcher(msg)).find()) {
@@ -486,7 +486,7 @@ public final class CrashTranslator {
             String pkg = cls.contains("/") ? cls.substring(0, cls.lastIndexOf('/')).replace('/', '.') : cls;
             return new Finding(Severity.ERROR, needs != null ? Finding.MISSING_DEPENDENCY : "loading-issue",
                     needs != null ? "A mod needs " + needs + ", which isn't installed" : "A mod is missing code it needs",
-                    "While loading, a mod tried to use " + cls + " (from " + pkg + "), which isn't in the pack.",
+                    "While loading, a mod tried to use " + cls + " (from " + pkg + "), which isn't in the modpack.",
                     needs != null ? "Install " + needs + "." : "Install the mod that " + pkg + " belongs to, or update "
                             + "the mods that need it. " + STRIP_MINE_HINT, files);
         }
@@ -512,9 +512,20 @@ public final class CrashTranslator {
         return out.toString().replaceAll("(\\S) +(Description: )", "$1\n$2");
     }
 
-    /** The fix when Crash Doctor can't name the mod: Strip Mine finds it by switching mods off. */
-    public static final String STRIP_MINE_HINT = "Check Engine couldn't tell which mod did this, but Strip Mine can find "
-            + "it: press Strip Mine (or run Check Pack.bat). About 9 launches on a 400-mod pack, fewer if you changed "
+    /** For a message to a helper: the button is the player's, so it's no use to them. */
+    static String withoutSearchHint(String fix) {
+        return fix == null ? null : fix.replace(STRIP_MINE_HINT, "Check Engine couldn't tell which mod did this.");
+    }
+
+    /** The fix text when the modpack maker switched Misfire off: no button to point at, so send it to them. */
+    public static String withoutMisfire(String fix) {
+        return fix == null ? null : fix.replace(STRIP_MINE_HINT, "Check Engine couldn't tell which mod did this. Send "
+                + "Copy for help or the help file to the modpack's author.");
+    }
+
+    /** The fix when Mechanic can't name the mod: Misfire finds it by switching mods off. */
+    public static final String STRIP_MINE_HINT = "Check Engine couldn't tell which mod did this, but Misfire can find "
+            + "it: press Misfire (or run Check Pack.bat). About 9 launches on a 400-mod modpack, fewer if you changed "
             + "mods recently.";
 
     /** A crash while playing or starting up: work out which mod, and recognise the common cases. */
@@ -553,7 +564,7 @@ public final class CrashTranslator {
             return new Finding(Severity.ERROR, "out-of-memory", "Minecraft ran out of memory",
                     "The game used all the RAM it was given and crashed.",
                     "Give it more RAM in your launcher (CurseForge: Settings > Minecraft > Java Settings). "
-                            + "Big packs usually want 8 to 12 GB. Don't give it more than about half your PC's RAM.",
+                            + "Big modpacks usually want 8 to 12 GB. Don't give it more than about half your PC's RAM.",
                     List.of());
         }
         if (all.contains("UnsupportedClassVersionError")) {
@@ -570,7 +581,7 @@ public final class CrashTranslator {
                             + " isn't loaded. It's either missing, the wrong version, or it failed to load."
                             + suspectLine,
                     "Check that " + mod + " is installed and matches your Minecraft and NeoForge version. "
-                            + "Running Check Engine's scan on the pack will spot a missing or wrong-version " + mod + ".",
+                            + "Running Check Engine's scan on the modpack will spot a missing or wrong-version " + mod + ".",
                     List.of());
         }
         if (all.contains("Cannot get config value before config is loaded")
@@ -579,7 +590,7 @@ public final class CrashTranslator {
                     "This crash is a side effect. Loading already went wrong earlier, so " + (culprit != null
                             ? culprit : "this mod") + " tried to use a setting or keybind that never got set up. "
                             + "It's usually not that mod's fault.",
-                    "Run Check Engine's scan on the pack to find missing, duplicate or wrong-version mods and fix "
+                    "Run Check Engine's scan on the modpack to find missing, duplicate or wrong-version mods and fix "
                             + "those first. If it finds nothing: " + STRIP_MINE_HINT,
                     List.of());
         }
@@ -644,7 +655,7 @@ public final class CrashTranslator {
                             + (what != null ? ": " + what : "") + (at != null ? " at " + at : "") + "." + where,
                     "Update " + (culprit != null ? culprit : what != null && what.contains(":")
                             ? what.substring(0, what.indexOf(':')) : "the mod that adds it")
-                            + ". To get the world back: Rescue world in Crash Doctor backs it up and removes just "
+                            + ". To get the world back: Rescue world in Mechanic backs it up and removes just "
                             + "that one, or remove it yourself with a world editor (MCA Selector, NBTExplorer).",
                     List.of());
         }
@@ -652,7 +663,7 @@ public final class CrashTranslator {
                 "Minecraft crashed with: " + exception + where + suspectLine,
                 culprit != null
                         ? updateOrRemove(culprit, "its issue tracker")
-                        : STRIP_MINE_HINT + " Or send this crash report to the pack or mod authors.",
+                        : STRIP_MINE_HINT + " Or send this crash report to the modpack or mod authors.",
                 List.of());
     }
 
@@ -723,9 +734,9 @@ public final class CrashTranslator {
             return new Finding(Severity.ERROR, "duplicate-registration", title,
                     who + " tried to add " + id + " a second time. A mod adds each block, item or setting once, so "
                             + "either " + who + " is installed twice, or another mod made its setup run twice (a mod "
-                            + "that changes how mods load, or one added or updated since the pack last worked).",
+                            + "that changes how mods load, or one added or updated since the modpack last worked).",
                     "Look in the mods folder for two copies of " + who + " and remove one. If there's only one, "
-                            + "remove the mods added or updated since the pack last worked, one at a time, until it "
+                            + "remove the mods added or updated since the modpack last worked, one at a time, until it "
                             + "starts.", files);
         }
         return new Finding(Severity.ERROR, "duplicate-registration", title,

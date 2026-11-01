@@ -120,7 +120,7 @@ class StripMineTest {
 
     /**
      * Like Test Pack: "hidden" uses "sneaky"'s code without declaring it, so switching sneaky off alone makes
-     * hidden crash differently. Strip Mine must notice that isn't the original crash, keep sneaky on, and still find bad.
+     * hidden crash differently. Misfire must notice that isn't the original crash, keep sneaky on, and still find bad.
      */
     @Test
     void aDifferentCrashFromAnUndeclaredLibraryIsLearnedNotCounted() throws Exception {

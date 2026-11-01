@@ -19,7 +19,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.fml.loading.FMLPaths;
 
-/** Crash Doctor: shown once before the title screen when the previous game crashed. */
+/** Mechanic: shown once before the title screen when the previous game crashed. */
 public final class CrashDoctorScreen extends DashScreen {
     private static final String ISSUES = "https://github.com/Uanme37/CheckEngine/issues";
 
@@ -36,18 +36,22 @@ public final class CrashDoctorScreen extends DashScreen {
         copies(slim() ? null : () -> copyForHelp(this, crash));
     }
 
-    /** Crash Assistant already showed the logs when the game closed: then Crash Doctor keeps to what it can fix. */
+    /** Another crash helper mod already showed the logs when the game closed: then Mechanic keeps to what it can fix. */
     private static boolean slim() {
-        return CrashDoctor.crashAssistant(FMLPaths.GAMEDIR.get());
+        return com.guiltypotato.checkengine.core.scan.StepAside.quiet(
+                com.guiltypotato.checkengine.core.scan.StepAside.Feature.COPY_FOR_HELP, FMLPaths.GAMEDIR.get(), BootCheck.ready());
     }
 
     /**
      * The side-bar tabs: Fix (opens first), Crash lines, What changed, Get help. A tab with nothing to show is left out.
-     * With Crash Assistant installed there are no crash lines and no Copy for help: it already has both.
+     * With another crash helper mod installed there are no crash lines and no Copy for help: it already has both.
      */
     private static List<Tab> tabs(Screen next, LastCrash crash, Screen[] self) {
         Finding main = crash.main();
         boolean slim = slim();
+        boolean misfire = BootCheck.on(com.guiltypotato.checkengine.core.scan.Modules.Part.MISFIRE);
+        java.util.function.UnaryOperator<String> words = t -> misfire ? t
+                : com.guiltypotato.checkengine.core.crash.CrashTranslator.withoutMisfire(t);
         List<Tab> out = new ArrayList<>();
 
         // Fix: on top only when Check Engine knows the cause; a guess is said to be one.
@@ -57,8 +61,8 @@ public final class CrashDoctorScreen extends DashScreen {
         List<Section> fix = new ArrayList<>();
         if (crash.sure()) {
             List<Line> lines = new ArrayList<>(List.of(Line.strong(main.title())));
-            if (main.fix() != null) lines.add(Line.text(rescuable ? main.fix()
-                    : com.guiltypotato.checkengine.core.crash.WorldRescue.fixWithoutRescue(main.fix())));
+            if (main.fix() != null) lines.add(Line.text(words.apply(rescuable ? main.fix()
+                    : com.guiltypotato.checkengine.core.crash.WorldRescue.fixWithoutRescue(main.fix()))));
             if (main.detail() != null) {
                 List.of(main.detail().split("\n")).stream().limit(3).forEach(l -> lines.add(Line.dim(l)));
             }
@@ -68,15 +72,15 @@ public final class CrashDoctorScreen extends DashScreen {
             if (crash.culprit() != null) {
                 unsure.add(Line.text("It happened inside " + crash.culprit() + ", but that mod may not be the cause."));
             }
-            unsure.add(Line.dim(com.guiltypotato.checkengine.core.crash.CrashTranslator.STRIP_MINE_HINT));
+            unsure.add(Line.dim(words.apply(com.guiltypotato.checkengine.core.crash.CrashTranslator.STRIP_MINE_HINT)));
             fix.add(new Section("NOT SURE WHAT CAUSED THIS", GREY, "?", unsure));
         }
         if (crash.beforeInstall()) {
             fix.get(0).lines().add(0, Line.dim("From before Check Engine was installed, so there's nothing to undo."));
         }
         if (slim) {
-            fix.add(new Section("CRASH ASSISTANT", GREY, "i", List.of(Line.dim(
-                    "Crash Assistant showed the logs when the game closed. Check Engine adds the fix buttons."))));
+            fix.add(new Section("ANOTHER CRASH HELPER", GREY, "i", List.of(Line.dim(
+                    "Another crash helper mod showed the logs when the game closed. Check Engine adds the fix buttons."))));
         }
         List<Btn> undo = undoButtons(next, crash, self);
         List<Btn> fixButtons = new ArrayList<>();
@@ -85,8 +89,8 @@ public final class CrashDoctorScreen extends DashScreen {
                     world)), true, "Backs the world up, then removes the broken mob or machine the next time it loads."));
         }
         fixButtons.addAll(undo);
-        // An F3+C test crash has no mod behind it: nothing for Strip Mine to find.
-        if (!"debug-crash".equals(main.code())) {
+        // An F3+C test crash has no mod behind it: nothing for Misfire to find.
+        if (misfire && !"debug-crash".equals(main.code())) {
             fixButtons.add(new Btn(tr("checkengine.crash.strip_mine"),
                     () -> Minecraft.getInstance().setScreen(StripMineScreens.confirmStart(self[0], crash)), true,
                     "Finds the mod behind the crash by switching half the mods off each launch."));
@@ -118,12 +122,12 @@ public final class CrashDoctorScreen extends DashScreen {
         List<Btn> helpButtons = new ArrayList<>();
         if (!slim) {
             help.add(Line.text("Copy for help puts the cause, the crash lines, what changed and your versions on the "
-                    + "clipboard, ready to paste in your pack's Discord or a GitHub issue."));
+                    + "clipboard, ready to paste in your modpack's Discord or a GitHub issue."));
             helpButtons.add(new Btn("Copy for help", () -> copyForHelp(self[0], crash), true,
                     "Copies the cause, the key crash lines, what changed and your versions, ready to paste where you "
                             + "ask for help. Your name and IP are blanked out."));
         } else {
-            help.add(Line.text("Crash Assistant's window has the logs and its own way to share them."));
+            help.add(Line.text("The other crash helper's window has the logs and its own way to share them."));
         }
         help.add(Line.text("Make help file puts Check Engine's reports, the mod list and the logs in one zip."));
         help.add(Line.dim("Your name, user folder and IP are blanked out. Nothing is uploaded."));
@@ -132,7 +136,7 @@ public final class CrashDoctorScreen extends DashScreen {
         helpButtons.add(helpFileButton());
         helpButtons.add(new Btn("Report it", () -> Util.getPlatform().openUri(ISSUES), true,
                 "Opens Check Engine's GitHub issues in your browser."));
-        // With Crash Assistant there's no Crash lines tab: its log buttons go here.
+        // With another crash helper mod there's no Crash lines tab: its log buttons go here.
         if (lines.isEmpty()) helpButtons.addAll(logButtons(crash));
         out.add(new Tab("Get help", "?", BLUE, null, List.of(new Section("GET HELP", BLUE, "?", help)), helpButtons));
         return out;
@@ -150,7 +154,7 @@ public final class CrashDoctorScreen extends DashScreen {
     static Screen copied(Screen back, String text) {
         return new DashScreen(BLUE, "COPIED FOR HELP", null, null, List.of(
                 new Section("PASTE IT IN YOUR HELP CHANNEL", BLUE, "i", List.of(
-                        Line.text("Press Ctrl+V in your pack's Discord or in a GitHub issue."),
+                        Line.text("Press Ctrl+V in your modpack's Discord or in a GitHub issue."),
                         Line.dim("Your name, user folder and IP are blanked out. Nothing was uploaded."))),
                 new Section("WHAT WAS COPIED", GREY, "i", List.of(text.split("\n")).stream().map(Line::dim).toList())),
                 List.of(new Btn("Continue", () -> Minecraft.getInstance().setScreen(back), true)),
@@ -242,7 +246,7 @@ public final class CrashDoctorScreen extends DashScreen {
                 Line.text("Nothing is deleted. Put it back (next screen) undoes it."))));
         Path game = FMLPaths.GAMEDIR.get();
         if (com.guiltypotato.checkengine.core.strip.StripMine.lockedByCurseForge(game)) {
-            sections.add(0, new Section("FIRST: UNLOCK THE PACK", RED, "!", List.of(
+            sections.add(0, new Section("FIRST: UNLOCK THE MODPACK", RED, "!", List.of(
                     Line.text(com.guiltypotato.checkengine.core.strip.StripMine.UNLOCK_STEPS))));
         }
         // Both mods and configs changed: the player picks (a pack maker's own config edits may be among them)
@@ -253,7 +257,7 @@ public final class CrashDoctorScreen extends DashScreen {
             Btn all = goBackButton(plan, game, true, "Mods and configs", true,
                     "Configs go back to when it worked too.");
             Btn mods = goBackButton(plan, game, false, "Mods only", true,
-                    "Your configs stay as they are now (your own pack work is kept).");
+                    "Your configs stay as they are now (your own modpack work is kept).");
             buttons.add(configsFirst ? all : mods);
             buttons.add(configsFirst ? mods : all);
         } else {
@@ -281,7 +285,7 @@ public final class CrashDoctorScreen extends DashScreen {
                 if (!locked.isEmpty()) Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                     if (GoBack.done(ce)) com.guiltypotato.checkengine.core.strip.StripMine.switchOff(game.resolve("mods"), locked);
                 }));
-                text = "The pack is back to when it worked. Restart the game to load it."
+                text = "The modpack is back to when it worked. Restart the game to load it."
                         + (configs && !plan.configs().isEmpty() ? " Your configs go back as it starts." : "");
                 ok = true;
             } catch (IOException | RuntimeException e) {

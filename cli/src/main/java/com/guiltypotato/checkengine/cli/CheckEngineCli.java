@@ -28,18 +28,18 @@ public final class CheckEngineCli {
     private static final String USAGE = """
             Usage: java -jar checkengine-cli.jar scan <pack or mods folder> [options]
                    java -jar checkengine-cli.jar crash <crash report, or a pack folder for its newest crash>
-                   java -jar checkengine-cli.jar serverpack <pack folder> [--out <new folder>] [--zip] [--dry-run]
-                   java -jar checkengine-cli.jar compare <pack folder> <server folder or server pack .zip>
-                   java -jar checkengine-cli.jar export <pack folder>   (one zip with reports and logs, for asking for help)
-                   java -jar checkengine-cli.jar stripmine <pack folder> [stop]   (find the mod behind a crash, round by round)
-                   java -jar checkengine-cli.jar undo-configs <pack folder>   (put back the configs of the last launch that worked)
-                   java -jar checkengine-cli.jar newmods <pack folder> [list|off|putback]   (switch off the mods added since it last worked)
-                   java -jar checkengine-cli.jar goback <pack folder> [list|go|go-mods|putback]   (back to when it worked: new mods off, old versions and configs back; go-mods leaves the configs)
-                   java -jar checkengine-cli.jar logs <pack folder>   (log flooding, config typos, missing textures)
-                   java -jar checkengine-cli.jar journal <pack folder>   (what changed between launches that worked)
-                   java -jar checkengine-cli.jar materials <pack folder>   (same ingot or ore from several mods)
-                   java -jar checkengine-cli.jar notes <pack folder> [done]   (update notes since your last release; done = released)
-                   java -jar checkengine-cli.jar saferemove <pack folder> <mod id> [more ids]   (what each world loses without those mods)
+                   java -jar checkengine-cli.jar serverpack <modpack folder> [--out <new folder>] [--zip] [--dry-run]
+                   java -jar checkengine-cli.jar compare <modpack folder> <server folder or server pack .zip>
+                   java -jar checkengine-cli.jar export <modpack folder>   (one zip with reports and logs, for asking for help)
+                   java -jar checkengine-cli.jar misfire <modpack folder> [stop]   (find the mod behind a crash, round by round)
+                   java -jar checkengine-cli.jar undo-configs <modpack folder>   (put back the configs of the last launch that worked)
+                   java -jar checkengine-cli.jar newmods <modpack folder> [list|off|putback]   (switch off the mods added since it last worked)
+                   java -jar checkengine-cli.jar goback <modpack folder> [list|go|go-mods|putback]   (back to when it worked: new mods off, old versions and configs back; go-mods leaves the configs)
+                   java -jar checkengine-cli.jar logs <modpack folder>   (log flooding, config typos, missing textures)
+                   java -jar checkengine-cli.jar journal <modpack folder>   (what changed between launches that worked)
+                   java -jar checkengine-cli.jar materials <modpack folder>   (same ingot or ore from several mods)
+                   java -jar checkengine-cli.jar notes <modpack folder> [done]   (update notes since your last release; done = released)
+                   java -jar checkengine-cli.jar saferemove <modpack folder> <mod id> [more ids]   (what each world loses without those mods)
                    java -jar checkengine-cli.jar exportcheck <export .zip or .mrpack>   (before uploading a pack)
 
               --server          check it as a dedicated server (also flags client-only mods)
@@ -64,7 +64,7 @@ public final class CheckEngineCli {
         if (args[0].equals("serverpack")) return serverPack(args);
         if (args[0].equals("compare")) return compare(args);
         if (args[0].equals("export")) return export(args);
-        if (args[0].equals("stripmine")) return StripMineCli.run(args);
+        if (args[0].equals("misfire") || args[0].equals("stripmine")) return StripMineCli.run(args);
         if (args[0].equals("undo-configs")) return undoConfigs(args);
         if (args[0].equals("newmods")) return newMods(args);
         if (args[0].equals("goback")) return goBack(args);
@@ -212,16 +212,16 @@ public final class CheckEngineCli {
             }
             List<String> plan = UndoNewMods.plan(mods, folder);
             if (plan.isEmpty()) {
-                System.out.println("No mods added since the pack last worked (or it never worked with Check Engine "
+                System.out.println("No mods added since the modpack last worked (or it never worked with Check Engine "
                         + "installed).");
                 return 0;
             }
-            System.out.println("Added since the pack last worked (with the mods that need them):");
+            System.out.println("Added since the modpack last worked (with the mods that need them):");
             plan.forEach(f -> System.out.println("  " + f));
             if (what.equals("list")) return 1;
             List<String> locked = UndoNewMods.apply(mods, folder, plan);
             System.out.println(locked.isEmpty() ? "Switched off (renamed to .disabled). Put them back any time: newmods "
-                    + "<pack> putback." : "Close the game first, these are in use: " + String.join(", ", locked));
+                    + "<modpack> putback." : "Close the game first, these are in use: " + String.join(", ", locked));
             return locked.isEmpty() ? 0 : 2;
         } catch (IOException | RuntimeException e) {
             System.err.println("Couldn't switch the new mods: " + e.getMessage());
@@ -251,7 +251,7 @@ public final class CheckEngineCli {
             }
             var plan = com.guiltypotato.checkengine.core.strip.GoBack.plan(game, folder);
             if (plan.isEmpty()) {
-                System.out.println("Nothing changed since the pack last worked (or it never worked with Check Engine "
+                System.out.println("Nothing changed since the modpack last worked (or it never worked with Check Engine "
                         + "installed).");
                 return 0;
             }
@@ -263,7 +263,7 @@ public final class CheckEngineCli {
             boolean configs = !what.equals("go-mods");
             if (!configs && !plan.configs().isEmpty()) System.out.println("Mods only: the configs stay as they are.");
             List<String> locked = com.guiltypotato.checkengine.core.strip.GoBack.apply(game, folder, plan, configs, false);
-            System.out.println(locked.isEmpty() ? "Done. Nothing was deleted. Changed your mind: goback <pack> putback."
+            System.out.println(locked.isEmpty() ? "Done. Nothing was deleted. Changed your mind: goback <modpack> putback."
                     : "Close the game first, these are in use: " + String.join(", ", locked));
             return locked.isEmpty() ? 0 : 2;
         } catch (IOException | RuntimeException e) {
@@ -347,14 +347,14 @@ public final class CheckEngineCli {
             Path folder = game.resolve("checkengine");
             if (args.length == 3) {
                 com.guiltypotato.checkengine.core.scan.UpdateNotes.markReleased(folder);
-                System.out.println("Marked as released: the next notes start from the pack as it is now.");
+                System.out.println("Marked as released: the next notes start from the modpack as it is now.");
                 return 0;
             }
             String notes = com.guiltypotato.checkengine.core.scan.UpdateNotes.write(folder);
             boolean first = notes == null;
             if (first) notes = com.guiltypotato.checkengine.core.scan.UpdateNotes.fromJournal(folder);
             if (notes == null) {
-                System.out.println("Nothing to write yet: launch the pack once with Check Engine installed.");
+                System.out.println("Nothing to write yet: launch the modpack once with Check Engine installed.");
                 return 0;
             }
             Path file = com.guiltypotato.checkengine.core.scan.UpdateNotes.save(folder, notes);
@@ -362,8 +362,8 @@ public final class CheckEngineCli {
             System.out.println();
             System.out.println("Saved to " + file);
             System.out.println(first ? "First notes: this is the journal so far. Once this version is out, run "
-                    + "'notes <pack> done' and the next notes list only what changed after it."
-                    : "Published it? Run 'notes <pack> done' so the next notes start from here.");
+                    + "'notes <modpack> done' and the next notes list only what changed after it."
+                    : "Published it? Run 'notes <modpack> done' so the next notes start from here.");
             return 0;
         } catch (IOException | RuntimeException e) {
             System.err.println("Couldn't write the notes: " + e.getMessage());
@@ -543,10 +543,10 @@ public final class CheckEngineCli {
             // Check the result as a server, so problems carried over from the pack show up now, not on the host.
             Report check = PackScanner.scan(out.resolve("mods"), plan.options().withSide(Side.SERVER));
             if (check.findings().isEmpty()) {
-                System.out.println("\nChecked the server pack: no problems found.");
+                System.out.println("\nChecked the server modpack: no problems found.");
             } else {
-                System.out.println("\nChecked the server pack: " + Report.summary(check.findings())
-                        + " (these were already in the pack):\n");
+                System.out.println("\nChecked the server modpack: " + Report.summary(check.findings())
+                        + " (these were already in the modpack):\n");
                 StringBuilder sb = new StringBuilder();
                 Report.appendFindings(sb, check.findings());
                 System.out.print(sb.substring(sb.indexOf("\n\n") + 2));
@@ -554,7 +554,7 @@ public final class CheckEngineCli {
             System.out.println("\nDone: " + out);
             return 0;
         } catch (IOException e) {
-            System.err.println(CheckEngineCore.NAME + " couldn't build the server pack: " + e.getMessage());
+            System.err.println(CheckEngineCore.NAME + " couldn't build the server modpack: " + e.getMessage());
             return 2;
         }
     }
@@ -567,7 +567,7 @@ public final class CheckEngineCli {
         }
         try {
             List<Finding> findings = ServerCompare.compare(Path.of(args[1]), Path.of(args[2]));
-            StringBuilder sb = new StringBuilder("Check Engine: pack vs server\nPack:   " + Path.of(args[1]).toAbsolutePath()
+            StringBuilder sb = new StringBuilder("Check Engine: modpack vs server\nPack:   " + Path.of(args[1]).toAbsolutePath()
                     + "\nServer: " + Path.of(args[2]).toAbsolutePath() + "\n\n");
             Report.appendFindings(sb, findings);
             System.out.print(sb);

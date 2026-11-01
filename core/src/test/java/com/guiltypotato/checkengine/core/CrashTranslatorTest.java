@@ -76,13 +76,13 @@ class CrashTranslatorTest {
         org.junit.jupiter.api.Assertions.assertNotEquals("unknown-crash", first(squashed).code());
     }
 
-    /** A crash that names no mod points the player at Strip Mine. */
+    /** A crash that names no mod points the player at Misfire. */
     @Test
     void aCrashWithNoModNamedSuggestsStripMine() {
         String report = "Description: Rendering overlay\n\njava.lang.NullPointerException: boom\n"
                 + "\tat net.minecraft.client.Minecraft.run(Minecraft.java:1)\n";
         var f = com.guiltypotato.checkengine.core.crash.CrashTranslator.translate(report).findings().get(0);
-        org.junit.jupiter.api.Assertions.assertTrue(f.fix().contains("Strip Mine"), f.fix());
+        org.junit.jupiter.api.Assertions.assertTrue(f.fix().contains("Misfire"), f.fix());
     }
 
     @Test

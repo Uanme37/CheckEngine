@@ -42,14 +42,27 @@ public final class BootCheck {
         return outputFolder().resolve("boot-report.txt");
     }
 
-    /** The previous game's crash, explained, if it hasn't been shown yet (Crash Doctor). */
+    /** The previous game's crash, explained, if it hasn't been shown yet (Mechanic). */
     public static LastCrash lastCrash() {
         return lastCrash;
     }
 
+    /**
+     * The crash to show on screens: none when the modpack maker switched Mechanic off. {@link #lastCrash()} stays as it
+     * is for recording: a launch that follows a crash must never count as the last one that worked.
+     */
+    public static LastCrash crashToShow() {
+        return on(com.guiltypotato.checkengine.core.scan.Modules.Part.MECHANIC) ? lastCrash : null;
+    }
+
+    /** Whether this part of Check Engine is on (the modpack maker's switches). */
+    public static boolean on(com.guiltypotato.checkengine.core.scan.Modules.Part part) {
+        return com.guiltypotato.checkengine.core.scan.Modules.load(FMLPaths.GAMEDIR.get()).on(part);
+    }
+
     static void start() {
         // Never be the reason a pack doesn't start: anything unexpected is logged and loading goes on.
-        try {
+        try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.holding("mod start checks")) {
             startChecks();
         } catch (Throwable t) {
             CheckEngine.LOGGER.error("Check Engine: startup check failed, carrying on without it", t);
@@ -57,6 +70,8 @@ public final class BootCheck {
     }
 
     private static void startChecks() {
+        com.guiltypotato.checkengine.core.scan.PackInfo.writeExample(FMLPaths.GAMEDIR.get());
+        com.guiltypotato.checkengine.core.ui.ScreenHelp.misfire(on(com.guiltypotato.checkengine.core.scan.Modules.Part.MISFIRE));
         // Dev runs have no early plugin: settle whether the last session worked here (a no-op when it already ran).
         // configs an in-game Go back left for this start (normally done earlier, by the early plugin)
         com.guiltypotato.checkengine.core.strip.GoBack.applyPendingConfigs(FMLPaths.GAMEDIR.get(), outputFolder());
@@ -76,25 +91,28 @@ public final class BootCheck {
         CompletableFuture<Report> early = EarlyHandoff.scan();
         result = early != null ? early.thenApply(BootCheck::save) : CompletableFuture.supplyAsync(BootCheck::run);
         // A mod removed since the pack last worked: count what of it the worlds still have, while the game loads.
-        // Not during Strip Mine: mods are switched off on purpose then.
+        // Not during Misfire: mods are switched off on purpose then.
+        if (!on(com.guiltypotato.checkengine.core.scan.Modules.Part.SCRAPYARD)) return; // no warning coming: don't read the worlds
         worlds = result.thenApplyAsync(r -> {
             if (r == null || com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) {
                 return java.util.List.<com.guiltypotato.checkengine.core.world.SafeRemove.WorldHit>of();
             }
-            var removed = com.guiltypotato.checkengine.core.world.SafeRemove.removed(r.changes());
-            var hits = com.guiltypotato.checkengine.core.world.SafeRemove.check(FMLPaths.GAMEDIR.get(), removed);
-            if (!hits.isEmpty()) {
-                CheckEngine.LOGGER.warn("Check Engine: worlds still use removed mods:\n{}",
-                        com.guiltypotato.checkengine.core.world.SafeRemove.toText(hits));
+            try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.background("counting world blocks")) {
+                var removed = com.guiltypotato.checkengine.core.world.SafeRemove.removed(r.changes());
+                var hits = com.guiltypotato.checkengine.core.world.SafeRemove.check(FMLPaths.GAMEDIR.get(), removed);
+                if (!hits.isEmpty()) {
+                    CheckEngine.LOGGER.warn("Check Engine: worlds still use removed mods:\n{}",
+                            com.guiltypotato.checkengine.core.world.SafeRemove.toText(hits));
+                }
+                return hits;
             }
-            return hits;
         });
     }
 
     /** Worlds that still use a removed mod; empty if none, or the count isn't done after a few seconds. */
     public static java.util.List<com.guiltypotato.checkengine.core.world.SafeRemove.WorldHit> worldsUsingRemovedMods() {
         if (worlds == null) return java.util.List.of();
-        try {
+        try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.holding("waiting for the world count")) {
             return worlds.get(5, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
             return java.util.List.of();
@@ -104,7 +122,7 @@ public final class BootCheck {
     /** The finished report, or null if the scan failed or isn't done after a few seconds. */
     public static Report get() {
         if (result == null) return null;
-        try {
+        try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.holding("waiting for the scan")) {
             return result.get(10, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
             return null;
@@ -156,7 +174,7 @@ public final class BootCheck {
     }
 
     private static void recordGoodLaunch(Report report) {
-        // During a Strip Mine search half the pack is switched off on purpose: that's not "the pack that worked".
+        // During a Misfire search half the pack is switched off on purpose: that's not "the modpack that worked".
         if (com.guiltypotato.checkengine.core.strip.StripMine.running(outputFolder()) != null) return;
         try {
             // Startup worked, whatever happens later (the pre-launch check reads this)
@@ -165,22 +183,23 @@ public final class BootCheck {
             com.guiltypotato.checkengine.core.scan.PackJournal.record(outputFolder(), report.changes(),
                     lastCrash() == null);
         } catch (IOException | RuntimeException e) {
-            CheckEngine.LOGGER.warn("Check Engine: couldn't write the pack journal", e);
+            CheckEngine.LOGGER.warn("Check Engine: couldn't write the modpack journal", e);
         }
         // The mods, their jars (kept as links, so Go back can put old versions back) and the configs. Only counts as
         // the last good launch if this session doesn't crash (settled next start). Not on a launch that explains a
-        // crash: what changed may be why, and Crash Doctor offers to go back. Reading new jars takes a moment, so not
+        // crash: what changed may be why, and Mechanic offers to go back. Reading new jars takes a moment, so not
         // on the game's thread.
         if (lastCrash() == null) {
             PackSnapshot snapshot = PackSnapshot.of(report.jars(), report.options());
             Thread save = new Thread(() -> {
-                try {
+                try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.background("saving what worked")) {
                     String note = com.guiltypotato.checkengine.core.scan.GoodLaunch.save(outputFolder().getParent(),
                             outputFolder(), snapshot);
                     if (note != null) CheckEngine.LOGGER.info("Check Engine: {}", note);
                 } catch (IOException | RuntimeException e) {
                     CheckEngine.LOGGER.warn("Check Engine: couldn't save the last good launch", e);
                 }
+                com.guiltypotato.checkengine.core.scan.CostClock.save(outputFolder());
             }, "Check Engine good launch");
             save.setDaemon(true);
             save.start();
@@ -191,7 +210,7 @@ public final class BootCheck {
         // The log noise of a launch that worked is normal for this pack: the log checks only name what's new.
         // Reading the log takes a moment in big packs, so not on the game's thread.
         Thread t = new Thread(() -> {
-            try {
+            try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.background("reading the log")) {
                 com.guiltypotato.checkengine.core.scan.LogBaseline.save(outputFolder(), outputFolder().getParent());
             } catch (IOException | RuntimeException e) {
                 CheckEngine.LOGGER.warn("Check Engine: couldn't save the log baseline", e);
@@ -206,7 +225,19 @@ public final class BootCheck {
      * checker can recommend a real number next time. Called once, when the title screen or server is ready.
      */
     public static void recordMemory() {
-        try {
+        List<String> args = java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments();
+        if (!RamAdvisor.usesZgc(args)) {
+            measureMemory(args);
+            return;
+        }
+        // ZGC: the clean-up holds up only the thread that asks for it, for seconds: not the game's
+        Thread t = new Thread(() -> measureMemory(args), "Check Engine memory");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static void measureMemory(List<String> args) {
+        try (com.guiltypotato.checkengine.core.scan.CostClock cost = RamAdvisor.usesZgc(args) ? com.guiltypotato.checkengine.core.scan.CostClock.background("memory clean-up") : com.guiltypotato.checkengine.core.scan.CostClock.holding("memory clean-up")) {
             Runtime rt = Runtime.getRuntime();
             System.gc(); // count what's really kept, not garbage waiting to be cleaned
             long used = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
@@ -215,6 +246,7 @@ public final class BootCheck {
             p.setProperty("used_after_load_mb", Long.toString(used));
             p.setProperty("max_mb", Long.toString(max));
             p.setProperty("measured", java.time.LocalDateTime.now().withNano(0).toString());
+            if (!RamAdvisor.explicitGcWorks(args)) p.setProperty("explicit_gc", "false");
             Files.createDirectories(outputFolder());
             try (var out = Files.newBufferedWriter(outputFolder().resolve(RamAdvisor.MEASURED_FILE),
                     StandardCharsets.UTF_8)) {
@@ -245,7 +277,14 @@ public final class BootCheck {
         if (report == null) return null;
         try {
             Files.createDirectories(outputFolder());
-            Files.writeString(reportFile(), report.toText(), StandardCharsets.UTF_8);
+            var modules = com.guiltypotato.checkengine.core.scan.Modules.load(FMLPaths.GAMEDIR.get());
+            var aside = com.guiltypotato.checkengine.core.scan.StepAside.active(FMLPaths.GAMEDIR.get(), report);
+            Files.writeString(reportFile(), modules.reportBlock(aside) + report.toText(), StandardCharsets.UTF_8);
+            aside.forEach(a -> CheckEngine.LOGGER.info("Check Engine: stepping aside for {}", a));
+            if (!modules.unknownKeys().isEmpty()) {
+                CheckEngine.LOGGER.warn("Check Engine: not understood in config/{}, check the spelling: {}",
+                        com.guiltypotato.checkengine.core.scan.PackInfo.FILE, modules.unknownKeys());
+            }
             List<Finding> shown = worthShowing(report);
             if (shown.isEmpty()) {
                 CheckEngine.LOGGER.info("Check Engine: no problems found in {} jars", report.jars().size());

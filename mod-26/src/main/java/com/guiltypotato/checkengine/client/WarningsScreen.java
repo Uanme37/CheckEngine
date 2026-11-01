@@ -28,8 +28,8 @@ final class WarningsScreen {
         List<Section> sections = new ArrayList<>(List.of(new Section(quiet ? "ONLY WHEN IT BREAKS" : "ALL WARNINGS", quiet ? DashScreen.GREY : DashScreen.BLUE,
                                 quiet ? "-" : "i", DashScreen.lines(quiet
                                         ? "Check Engine only shows up when the game crashed or a problem stops it."
-                                        : "Check Engine shows warnings before the title screen, and what a pack update changed.",
-                                quiet ? "Warnings and pack update notes stay hidden."
+                                        : "Check Engine shows warnings before the title screen, and what a modpack update changed.",
+                                quiet ? "Warnings and modpack update notes stay hidden."
                                         : "Crashes and problems that stop the game always show.")),
                         new Section("GOT IT", DashScreen.GREY, "?", DashScreen.lines(
                                 "A warning you said \"Got it\" to stays hidden until it's fixed and comes back."))));
@@ -55,6 +55,14 @@ final class WarningsScreen {
             }
             Minecraft.getInstance().setScreen(of(parent));
         }, false, "The Check Engine button on the title screen, with the last start time."));
+        // The modpack maker keeps warnings quiet: say so, or "Turn warnings on" looks broken
+        var report = BootCheck.ready();
+        var pack = com.guiltypotato.checkengine.core.scan.PackInfo.load(FMLPaths.GAMEDIR.get());
+        long hidden = report == null ? 0 : BootCheck.worthShowing(report).stream().filter(pack::hides).count();
+        if (hidden > 0) {
+            sections.add(new Section("HIDDEN BY THIS MODPACK", DashScreen.GREY, "i", DashScreen.lines(
+                    hidden + (hidden == 1 ? " warning is" : " warnings are") + " hidden by this modpack. Details: checkengine/boot-report.txt.")));
+        }
         if (undo != null) {
             sections.add(new Section("WENT BACK TO WHEN IT WORKED", DashScreen.AMBER, "±", DashScreen.lines(
                     "Put it back to have your newer mods and configs again: " + undo + ".")));
@@ -70,7 +78,7 @@ final class WarningsScreen {
         Runnable back = () -> Minecraft.getInstance().setScreen(of(parent));
         return new DashScreen(DashScreen.AMBER, "PUT IT BACK?", null, null, List.of(
                 new Section("WHAT CHANGES", DashScreen.AMBER, "±", DashScreen.lines(undo + ".",
-                        "That's the pack as it was before Go back, including what made it crash.")),
+                        "That's the modpack as it was before Go back, including what made it crash.")),
                 new Section("SAFE", DashScreen.GREEN, "✓", DashScreen.lines(
                         "Nothing is deleted: the old versions are renamed to .disabled."))),
                 List.of(new Btn("Put it back", () -> {

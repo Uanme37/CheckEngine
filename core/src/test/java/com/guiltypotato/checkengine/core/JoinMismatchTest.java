@@ -71,7 +71,7 @@ class JoinMismatchTest {
                 "version-mismatch: Different version than the server: Create",
                 "missing-on-player: You don't have: Nature's Compass"), codes(f));
         assertEquals("You have Create 0.5.1.f, but the server has 0.5.1.j.", f.get(0).detail());
-        assertEquals("Install Nature's Compass 1.11.2, or get the pack version the server runs.", f.get(1).fix());
+        assertEquals("Install Nature's Compass 1.11.2, or get the modpack version the server runs.", f.get(1).fix());
     }
 
     @Test

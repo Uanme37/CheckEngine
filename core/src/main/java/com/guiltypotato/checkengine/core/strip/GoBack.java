@@ -334,7 +334,7 @@ public final class GoBack {
         if (parts.isEmpty()) return null;
         String s = String.join(", ", parts);
         return Character.toUpperCase(s.charAt(0)) + s.substring(1) + " (Go back ran "
-                + p.getProperty("time", "?").replace('T', ' ') + ")";
+                + com.guiltypotato.checkengine.core.ui.UiText.date(p.getProperty("time", "?")) + ")";
     }
 
     /**

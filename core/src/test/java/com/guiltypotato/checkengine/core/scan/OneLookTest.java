@@ -57,7 +57,7 @@ class OneLookTest {
 
     @Test
     void headingsDatesAndCloseLabels() {
-        assertEquals("Strip Mine found it", UiText.sentence("STRIP MINE FOUND IT"));
+        assertEquals("Misfire found it", UiText.sentence("MISFIRE FOUND IT"));
         assertEquals("Already fine", UiText.sentence("Already fine"));
         assertEquals("30 Oct 09:15", UiText.date("2026-10-30 09:15:02"));
         assertEquals("30 Oct 09:15", UiText.date("2026-10-30T09:15"));

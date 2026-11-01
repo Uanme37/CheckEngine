@@ -86,7 +86,7 @@ public final class CrashHelp {
         sb.append('\n');
         if (crash.sure()) {
             sb.append("**Cause:** ").append(crash.main().title()).append('\n');
-            if (crash.main().fix() != null) sb.append("**Fix:** ").append(shorten(crash.main().fix(), lineMax * 2)).append('\n');
+            if (crash.main().fix() != null) sb.append("**Fix:** ").append(shorten(CrashTranslator.withoutSearchHint(crash.main().fix()), lineMax * 2)).append('\n');
         } else {
             sb.append("**Cause:** not sure");
             if (crash.culprit() != null) sb.append(" (it happened inside ").append(crash.culprit()).append(')');

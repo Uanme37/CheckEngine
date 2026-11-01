@@ -26,13 +26,14 @@ public final class FixedProblems {
     /** What the last launch had and this one doesn't; then saves this launch's list for next time. */
     public static List<String> update(Path checkEngineFolder, List<Finding> worthShowing) {
         Set<String> now = new LinkedHashSet<>();
-        for (Finding f : worthShowing) if (!SELF_CLEARING.contains(f.code())) now.add(f.title());
+        for (Finding f : worthShowing) if (!SELF_CLEARING.contains(f.code())) now.add(Wording.now(f.title()));
         List<String> fixed = new ArrayList<>();
         Path file = checkEngineFolder.resolve(FILE);
         try {
             if (Files.isRegularFile(file)) {
                 for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-                    if (!line.isBlank() && !now.contains(line.strip())) fixed.add(line.strip());
+                    String old = Wording.now(line.strip()); // saved by an older version: its words, not today's
+                    if (!old.isBlank() && !now.contains(old)) fixed.add(old);
                 }
             }
             Files.createDirectories(checkEngineFolder);

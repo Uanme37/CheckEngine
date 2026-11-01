@@ -60,7 +60,7 @@ public class EarlyCheck implements IDependencyLocator {
             return List.of();
         }
         if (!errors.isEmpty()) {
-            throw new EarlyLoadingException("Check Engine: this pack can't start", null, errors);
+            throw new EarlyLoadingException("Check Engine: this modpack can't start", null, errors);
         }
         return List.of();
     }
@@ -68,13 +68,17 @@ public class EarlyCheck implements IDependencyLocator {
     private static List<EarlyLoadingException.ExceptionData> check(Iterable<IModFile> mods) throws IOException {
         // Did the last session that reached the title screen really work (no crash after)? Settle that before
         // anything compares against the last good launch.
-        com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(FMLPaths.GAMEDIR.get(),
-                FMLPaths.GAMEDIR.get().resolve("checkengine"));
-        startPackScan();
         Path folder = FMLPaths.GAMEDIR.get().resolve("checkengine");
         Path report = folder.resolve(REPORT_FILE);
-        LaunchIntercept.Message repeat = LaunchIntercept.repeatCrash(FMLPaths.GAMEDIR.get(), folder, snapshot(mods));
-        List<LoadBlockers.Blocker> rules = DependencyRules.check(mods, Map.of());
+        LaunchIntercept.Message repeat;
+        List<LoadBlockers.Blocker> rules;
+        try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.holding("early check")) {
+            com.guiltypotato.checkengine.core.scan.GoodLaunch.settle(FMLPaths.GAMEDIR.get(),
+                    FMLPaths.GAMEDIR.get().resolve("checkengine"));
+            startPackScan();
+            repeat = LaunchIntercept.repeatCrash(FMLPaths.GAMEDIR.get(), folder, snapshot(mods));
+            rules = DependencyRules.check(mods, Map.of());
+        }
         Report scan = null;
         if (!rules.isEmpty()) {
             // Forge may not have added the mods packed inside other jars yet: count them too before saying anything.
@@ -101,7 +105,7 @@ public class EarlyCheck implements IDependencyLocator {
                 scan == null ? List.of() : scan.jars(), FMLPaths.MODSDIR.get());
         if (scan != null && scan.changes() != null) problems = scan.changes().annotate(problems);
         List<Finding> roots = problems.stream().map(RootProblem::toFinding).toList();
-        LOGGER.error("Check Engine: {} root problem(s) will stop this pack from loading. Details: {}", roots.size(),
+        LOGGER.error("Check Engine: {} root problem(s) will stop this modpack from loading. Details: {}", roots.size(),
                 report);
         roots.forEach(f -> LOGGER.error("  {}", f.title()));
         save(report, roots);
@@ -111,9 +115,11 @@ public class EarlyCheck implements IDependencyLocator {
             return List.of();
         }
         if (StripMine.running(folder) != null) {
-            // A Strip Mine round: mods are off on purpose, so advice about them would only mislead.
+            // A Misfire round: mods are off on purpose, so advice about them would only mislead.
             return List.of(new EarlyLoadingException.ExceptionData("{3}", IssueText.STRIP_MINE_ROUND));
         }
+        // Ignition off: nothing from Check Engine. Forge's own check stops the game by itself.
+        if (!com.guiltypotato.checkengine.core.scan.Modules.load(FMLPaths.GAMEDIR.get()).on(com.guiltypotato.checkengine.core.scan.Modules.Part.IGNITION)) return List.of();
         intercept(LaunchIntercept.willFail(problems, scan == null ? null : scan.changes(), report), folder);
         List<EarlyLoadingException.ExceptionData> out = new ArrayList<>();
         // "{3}" isn't in Forge's language file, so the screen shows the argument as is ({0} to {2} are Forge's own
@@ -131,6 +137,7 @@ public class EarlyCheck implements IDependencyLocator {
      */
     private static void intercept(LaunchIntercept.Message message, Path folder) {
         if (message == null || FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
+        if (!LaunchIntercept.shows(message, FMLPaths.GAMEDIR.get())) return;
         LOGGER.warn("Check Engine: {}", message.toText().replace('\n', ' '));
         if (LaunchIntercept.ask(message, FMLPaths.GAMEDIR.get()) == LaunchIntercept.Choice.QUIT) {
             LOGGER.info("Check Engine: the player chose Quit before loading");
@@ -186,7 +193,7 @@ public class EarlyCheck implements IDependencyLocator {
 
     private static void save(Path report, List<Finding> blockers) throws IOException {
         List<String> lines = new ArrayList<>();
-        lines.add("Check Engine: why this pack didn't start (" + LocalDateTime.now().withNano(0) + ")");
+        lines.add("Check Engine: why this modpack didn't start (" + LocalDateTime.now().withNano(0) + ")");
         for (Finding f : blockers) {
             lines.add("");
             lines.add("PROBLEM: " + f.title());
@@ -201,14 +208,14 @@ public class EarlyCheck implements IDependencyLocator {
     private static void startPackScan() {
         if (EarlyHandoff.scan() != null) return;
         EarlyHandoff.offer(CompletableFuture.supplyAsync(() -> {
-            try {
+            try (com.guiltypotato.checkengine.core.scan.CostClock cost = com.guiltypotato.checkengine.core.scan.CostClock.background("mods folder scan")) {
                 Side side = FMLLoader.getDist() == Dist.CLIENT ? Side.CLIENT : Side.SERVER;
                 ScanOptions found = PackFolder.locate(FMLPaths.GAMEDIR.get(), side).options();
                 ScanOptions options = new ScanOptions(side, FMLLoader.versionInfo().mcVersion(),
                         FMLLoader.versionInfo().forgeVersion(), found.clientOnlyFiles(), ScanOptions.Loader.FORGE);
                 return PackScanner.scan(FMLPaths.MODSDIR.get(), options);
             } catch (IOException | RuntimeException e) {
-                LOGGER.error("Check Engine: pack scan failed", e);
+                LOGGER.error("Check Engine: modpack scan failed", e);
                 return null;
             }
         }));
@@ -236,6 +243,7 @@ public class EarlyCheck implements IDependencyLocator {
     /** Launcher settings that will hurt this pack (too little memory, a much newer Java): a blue window. */
     private static void settings(Path folder, int expectedJava) {
         if (FMLLoader.getDist() != Dist.CLIENT || !LaunchIntercept.enabled(folder)) return;
+        if (!com.guiltypotato.checkengine.core.scan.Modules.load(FMLPaths.GAMEDIR.get()).on(com.guiltypotato.checkengine.core.scan.Modules.Part.IGNITION)) return;
         SetupCheck.Warning w = SetupCheck.first(FMLPaths.GAMEDIR.get(), folder, expectedJava);
         if (w == null) return;
         // Quiet mode: the pack maker switched the memory and Java windows off
