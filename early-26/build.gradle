@@ -1,0 +1,43 @@
+// The jar players install for NeoForge 26.1: like early/ (1.21.1), but built against NeoForge 26.1's loader
+// (FancyModLoader 11) on Java 25, with the 26.1 mod (from :mod-26) packed inside.
+plugins {
+    id 'java-library'
+}
+
+base { archivesName = "${mod_id}-neoforge-${mc26_version}" }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+repositories {
+    maven { url = 'https://maven.neoforged.net/releases' }
+}
+
+dependencies {
+    implementation project(':core')
+    // NeoForge's loader (FancyModLoader) is already there at runtime.
+    compileOnly("net.neoforged.fancymodloader:loader:${fml26_version}") { transitive = false }
+    compileOnly 'org.apache.maven:maven-artifact:3.8.5'
+    compileOnly 'org.slf4j:slf4j-api:2.0.16'
+    compileOnly 'net.neoforged:mergetool:2.0.0:api'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+}
+
+def modProject = project(':mod-26')
+
+tasks.named('jar', Jar) {
+    dependsOn ':mod-26:jar', ':mod-26:generateModMetadata'
+    // core lives here, next to the plugin, and the mod uses this copy (one copy per game, so they can share data).
+    from(project(':core').sourceSets.main.output)
+    into('META-INF/jarjar') {
+        from(modProject.tasks.named('jar'))
+        rename { 'checkengine-mod.jar' }
+    }
+    // The mod's metadata and logo again on the outside, so CurseForge and launchers see what this jar is.
+    from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
+    from(modProject.file('src/main/resources/checkengine_logo.png'))
+    manifest {
+        attributes('FMLModType': 'LIBRARY',
+                'Automatic-Module-Name': 'checkengine_early',
+                'Implementation-Version': project.version)
+    }
+}

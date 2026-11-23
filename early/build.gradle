@@ -1,0 +1,41 @@
+// The jar players install for NeoForge 1.21.1. NeoForge loads it as a plugin that runs before its dependency
+// check (see EarlyCheck); core and the real mod (from :mod) are packed inside it.
+plugins {
+    id 'java-library'
+}
+
+base { archivesName = "${mod_id}-neoforge-1.21.1" }
+
+repositories {
+    maven { url = 'https://maven.neoforged.net/releases' }
+}
+
+dependencies {
+    implementation project(':core')
+    // NeoForge's loader (FancyModLoader) is already there at runtime.
+    compileOnly("net.neoforged.fancymodloader:loader:${fml_version}") { transitive = false }
+    compileOnly 'cpw.mods:securejarhandler:3.0.7'
+    compileOnly 'org.apache.maven:maven-artifact:3.8.5'
+    compileOnly 'org.slf4j:slf4j-api:1.8.0-beta4'
+    compileOnly 'net.neoforged:mergetool:2.0.0:api'
+}
+
+def modProject = project(':mod')
+
+tasks.named('jar', Jar) {
+    dependsOn ':mod:jar', ':mod:generateModMetadata'
+    // core lives here, next to the plugin, and the mod uses this copy (one copy per game, so they can share data).
+    from(project(':core').sourceSets.main.output)
+    into('META-INF/jarjar') {
+        from(modProject.tasks.named('jar'))
+        rename { 'checkengine-mod.jar' }
+    }
+    // The mod's metadata and logo again on the outside, so CurseForge and launchers see what this jar is.
+    from(modProject.layout.buildDirectory.dir('generated/sources/modMetadata'))
+    from(modProject.file('src/main/resources/checkengine_logo.png'))
+    manifest {
+        attributes('FMLModType': 'LIBRARY',
+                'Automatic-Module-Name': 'checkengine_early',
+                'Implementation-Version': project.version)
+    }
+}
