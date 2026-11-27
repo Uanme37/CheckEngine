@@ -84,8 +84,10 @@ public final class CrashHelp {
         sb.append("**Minecraft crashed** (").append(crash.when()).append(")");
         if (crash.beforeInstall()) sb.append(", before Check Engine was installed");
         sb.append('\n');
-        if (crash.sure()) {
-            sb.append("**Cause:** ").append(crash.main().title()).append('\n');
+        if (crash.sure() || crash.lead()) {
+            // A lead says how sure it is: "**Cause (likely):**", the same word the screen and the CLI use.
+            sb.append(crash.sure() ? "**Cause:** " : "**Cause (" + crash.confidence().word().toLowerCase(java.util.Locale.ROOT)
+                    + "):** ").append(crash.main().title()).append('\n');
             if (crash.main().fix() != null) sb.append("**Fix:** ").append(shorten(CrashTranslator.withoutSearchHint(crash.main().fix()), lineMax * 2)).append('\n');
         } else {
             sb.append("**Cause:** not sure");

@@ -66,14 +66,21 @@ public final class CrashDoctorScreen extends DashScreen {
             if (main.detail() != null) {
                 List.of(main.detail().split("\n")).stream().limit(3).forEach(l -> lines.add(Line.dim(l)));
             }
-            fix.add(new Section(null, GREEN, "", lines)); // the tab is called Fix: no heading
+            fix.add(new Section(crash.heading(), GREEN, "✓", lines)); // Sure gets its own green heading (2026-11-27)
+        } else if (crash.lead()) {
+            // Likely or Maybe (2026-11-27): the answer and its "Probably X" / "Might be X" fix, under a heading
+            // that says it's a lead. The CLI prints the same answer.
+            List<Line> lines = new ArrayList<>(List.of(Line.strong(main.title())));
+            if (main.fix() != null) lines.add(Line.text(words.apply(rescuable ? main.fix()
+                    : checkengine.core.crash.WorldRescue.fixWithoutRescue(main.fix()))));
+            fix.add(new Section(crash.heading(), GREY, "?", lines));
         } else {
             List<Line> unsure = new ArrayList<>();
             if (crash.culprit() != null) {
                 unsure.add(Line.text("It happened inside " + crash.culprit() + ", but that mod may not be the cause."));
             }
             unsure.add(Line.dim(words.apply(checkengine.core.crash.CrashTranslator.STRIP_MINE_HINT)));
-            fix.add(new Section("NOT SURE WHAT CAUSED THIS", GREY, "?", unsure));
+            fix.add(new Section(crash.heading(), GREY, "?", unsure));
         }
         if (crash.beforeInstall()) {
             fix.get(0).lines().add(0, Line.dim("From before Check Engine was installed, so there's nothing to undo."));

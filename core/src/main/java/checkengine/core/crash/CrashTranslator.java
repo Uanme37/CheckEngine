@@ -82,14 +82,82 @@ public final class CrashTranslator {
      * @param exception   the first line of the exception
      * @param findings    what went wrong and how to fix it, worst first
      */
-    public record Explanation(String description, String exception, List<Finding> findings) {
+    public record Explanation(String description, String exception, List<Finding> findings, Confidence confidence,
+                              List<Suspect> suspects) {
+        public Explanation {
+            if (confidence == null) confidence = Confidence.of(findings);
+            suspects = suspects == null ? List.of() : List.copyOf(suspects);
+        }
+
+        /** How sure follows from the main finding: a "Game crashed" with no mod named is Not sure. */
+        public Explanation(String description, String exception, List<Finding> findings) {
+            this(description, exception, findings, null, List.of());
+        }
+
+        /** The same answer with another confidence word and suspects. */
+        public Explanation with(Confidence confidence, List<Suspect> suspects) {
+            return new Explanation(description, exception, findings, confidence, suspects);
+        }
+
+        /** Whether the main finding can be shown as the cause, with its fix. */
+        public boolean sure() {
+            return confidence == Confidence.SURE;
+        }
+
         public String toText() {
             StringBuilder sb = new StringBuilder("Check Engine crash translation\n");
             if (description != null) sb.append("Minecraft said: ").append(description).append('\n');
             if (exception != null) sb.append("Error: ").append(exception).append('\n');
+            sb.append("How sure: ").append(confidence.word()).append('\n');
+            if (!suspects.isEmpty() && confidence != Confidence.SURE) {
+                sb.append(suspects.size() == 1 ? "Suspect:\n" : "Suspects, most likely first:\n");
+                for (int i = 0; i < suspects.size(); i++) {
+                    Suspect s = suspects.get(i);
+                    sb.append("  ").append(i + 1).append(". ").append(s.label()).append(": ").append(s.reason())
+                            .append('\n');
+                }
+            }
             sb.append('\n');
             Report.appendFindings(sb, findings);
             return sb.toString();
+        }
+    }
+
+    /**
+     * How sure Mechanic is. Sure: the report says it outright. Likely: one strong clue names the mod. Maybe: a weak
+     * clue, or two clues that disagree. Not sure: no mod to name. Only Sure answers are shown as the cause with a fix.
+     */
+    public enum Confidence {
+        SURE("Sure"), LIKELY("Likely"), MAYBE("Maybe"), NOT_SURE("Not sure");
+
+        private final String word;
+
+        Confidence(String word) {
+            this.word = word;
+        }
+
+        public String word() {
+            return word;
+        }
+
+        /** From the main finding alone, for answers no rule rated. */
+        static Confidence of(List<Finding> findings) {
+            if (findings == null || findings.isEmpty()) return NOT_SURE;
+            Finding f = findings.get(0);
+            if (f.code().equals("unknown-crash") || f.title().equals("Game crashed")
+                    || f.title().equals("Mod loading problem") || f.title().startsWith("The game crashed outside Java")) {
+                return NOT_SURE;
+            }
+            // "Crash in X": X's code is on top of the stack, which is a clue, not proof.
+            if (f.code().equals("crash")) return LIKELY;
+            return SURE;
+        }
+    }
+
+    /** A mod that may have caused the crash, and why Mechanic thinks so. */
+    public record Suspect(String id, String name, String reason) {
+        public String label() {
+            return name == null || name.equals(id) ? id : name + " (" + id + ")";
         }
     }
 
@@ -121,7 +189,7 @@ public final class CrashTranslator {
         // Only when the report shows a side effect: a mixin conflict or a mod's own crash is already the real story.
         Finding main = crash.findings().isEmpty() ? null : crash.findings().get(0);
         boolean knockOn = main == null || main.code().equals("knock-on-crash") || main.code().equals("crash")
-                || main.title().startsWith("Mod didn't load: ");
+                || main.title().startsWith("Mod didn't load: ") || main.title().contains(CrashRules.INSTALLED_NOT_READY);
         // Many mods failing with the same error share one cause (often a broken mixin), not each its own.
         Map<String, Long> sameError = new java.util.HashMap<>();
         failed.values().stream().filter(java.util.Objects::nonNull).forEach(e -> sameError.merge(e, 1L, Long::sum));
@@ -281,9 +349,10 @@ public final class CrashTranslator {
         if (findings.isEmpty()) {
             findings.add(new Finding(Severity.WARNING, "unknown-crash", "Couldn't read this crash report",
                     "It doesn't look like a Minecraft crash report (no \"Description:\" line).",
-                    "Pass a file from the crash-reports folder.", List.of()));
+                    "Use a crash-...txt file from the game's crash-reports folder, or an hs_err_pid...log file from "
+                            + "the game folder.", List.of()));
         }
-        return new Explanation(description, exception, findings);
+        return CrashRules.rate(new Explanation(description, exception, findings), lines, exceptionLine);
     }
 
     /** One finding per missing mod, listing every mod that needs it, instead of one per (mod, dependency) pair. */
@@ -533,18 +602,50 @@ public final class CrashTranslator {
      * whole report squashed onto one line by a web form. Put the lines back so the rules can read them.
      */
     static String tidy(String report) {
-        String text = report.replace("\r", "").replace(' ', ' ');
-        String[] lines = text.split("\n");
-        if (lines.length < 5 && text.length() > 200 && text.contains("Description:")) {
-            // Squashed: the line breaks became double spaces. Stack frames are "at ..." after a space.
-            text = text.replaceAll(" {2,}", "\n").replaceAll(" (at [\\w$.]+[.(])", "\n\t$1")
-                    .replaceAll(" (Caused by: )", "\n$1").replaceAll(" (-- .+? --)", "\n$1");
-            lines = text.split("\n");
+        // Markdown escapes from issue forms ("reeses\_sodium\_options") come off too.
+        String text = unHtml(report.replace("\r", "").replace('\u00a0', ' ')).replace("\\_", "_");
+        // The loading screen's info dump pasted above the real crash: read the real one.
+        int dump = text.indexOf("Description: Loading screen debug info");
+        int real = dump < 0 ? -1 : text.indexOf("Description: ", dump + 20);
+        if (real > 0) {
+            int head = text.lastIndexOf("---- Minecraft Crash Report", real);
+            text = text.substring(head > dump ? head : real);
         }
+        StringBuilder flat = new StringBuilder(text.length());
+        for (String l : text.split("\n", -1)) flat.append(squashed(l) ? unsquash(l) : l).append('\n');
         StringBuilder out = new StringBuilder(text.length());
-        for (String l : lines) out.append(l.replaceFirst("^ *(?:[|>] ?)? *", "")).append('\n');
+        for (String l : flat.toString().split("\n")) out.append(l.replaceFirst("^ *(?:[|>] ?)? *", "")).append('\n');
         // Half-squashed: "Time: ... Description: ..." on one line.
         return out.toString().replaceAll("(\\S) +(Description: )", "$1\n$2");
+    }
+
+    /**
+     * One long line that holds a whole crash report: a web form turned its line breaks into double spaces. Seen as the
+     * only line of a paste and as one line among an issue template's headings.
+     */
+    private static boolean squashed(String line) {
+        if (line.length() < 300) return false;
+        if (!line.contains("Description:") && !line.contains("---- Minecraft Crash Report")) return false;
+        int doubles = 0;
+        for (int i = line.indexOf("  "); i >= 0 && doubles < 3; i = line.indexOf("  ", i + 2)) doubles++;
+        return doubles >= 3 || line.contains("\tat ") || line.contains(" at net.") || line.contains(" at java.");
+    }
+
+    private static String unsquash(String line) {
+        return line.replaceAll(" +\t", "\n\t").replaceAll(" {2,}", "\n").replaceAll(" (at [\\w$.]+[.(])", "\n\t$1")
+                .replaceAll(" (Caused by: )", "\n$1").replaceAll(" (-- .+? --)", "\n$1")
+                .replaceAll(" (Description: |Time: |Stacktrace:|Details:|Suspected Mods?:)", "\n$1");
+    }
+
+    /** HTML tags a chat site or a web page wrapped around the paste ("<p class=...>"); never Java's "<init>". */
+    private static final Pattern HTML_TAG = Pattern.compile(
+            "</?(?:p|br|div|span|pre|code|details|summary|b|i|em|strong|a|li|ul|ol|h[1-6]|blockquote|tt)(?:\\s[^>\n]*)?/?>",
+            Pattern.CASE_INSENSITIVE);
+
+    static String unHtml(String text) {
+        if (!HTML_TAG.matcher(text).find()) return text;
+        return HTML_TAG.matcher(text).replaceAll("").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
+                .replace("&#39;", "'").replace("&#x27;", "'").replace("&nbsp;", " ").replace("&amp;", "&");
     }
 
     /** For a message to a helper: the button is the player's, so it's no use to them. */
@@ -625,7 +726,8 @@ public final class CrashTranslator {
         if (all.contains("OutOfMemoryError")) {
             return new Finding(Severity.ERROR, "out-of-memory", "Minecraft ran out of memory",
                     "The game used all the RAM it was given and crashed.",
-                    "Give it more RAM in your launcher (CurseForge: Settings > Minecraft > Java Settings). "
+                    "Give it more RAM in your launcher's memory or Java settings (in the CurseForge app: Settings > "
+                            + "Minecraft > Java Settings). "
                             + "Big modpacks usually want 8 to 12 GB. Don't give it more than about half your PC's RAM.",
                     List.of());
         }

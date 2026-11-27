@@ -175,7 +175,9 @@ class CrashTranslatorTest {
                 A detailed walkthrough of the error, its code path and all known details is as follows:
                 	Suspected Mods: Minecraft (minecraft), Omega Config Architectury (omegaconfig), Architectury (architectury)
                 """);
-        assertEquals("Mod didn't load: architectury", f.get(0).title());
+        // 0.25: architectury's own code is in the crash, so it is installed: not "missing", just not ready yet.
+        assertEquals("architectury is installed, but wasn't ready when a mod asked for it (likely omegaconfig)",
+                f.get(0).title());
         assertTrue(f.get(0).detail().contains("Omega Config Architectury"));
     }
 
@@ -191,7 +193,7 @@ class CrashTranslatorTest {
                 A detailed walkthrough of the error, its code path and all known details is as follows:
                 	Suspected Mods: Missions (missions), Minecraft (minecraft)
                 """);
-        assertEquals("Crash in Missions (missions)", f.get(0).title());
+        assertEquals("Missions (missions) couldn't find a file: mission_data.nbt", f.get(0).title());
     }
 
     @Test
@@ -476,8 +478,8 @@ class CrashTranslatorTest {
         Finding stack = first(serverClientClassCrash(
                 "\tat TRANSFORMER/demomachines@1.0/com.demo.machines.CrusherScreen.open(CrusherScreen.java:12) ~[demomachines-1.0.jar%23200!/:?] {}\n"));
         assertEquals(Finding.CLIENT_ONLY_ON_SERVER, stack.code());
-        assertEquals("Client-only mod on the server: demomachines", stack.title());
-        assertTrue(stack.fix().startsWith("Remove demomachines from the server."), stack.fix());
+        assertEquals("Client-only mod on the server, likely: demomachines", stack.title());
+        assertTrue(stack.fix().startsWith("Probably demomachines belongs on players' games only"), stack.fix());
 
         Finding loading = first(loadingIssue("Demo Machines (demomachines) encountered an error during the "
                 + "common_setup event phase java.lang.RuntimeException: Attempted to load class "

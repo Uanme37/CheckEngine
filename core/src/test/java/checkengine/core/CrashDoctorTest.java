@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import checkengine.core.crash.CrashDoctor;
 import checkengine.core.crash.CrashDoctor.LastCrash;
+import checkengine.core.crash.CrashHelp;
+import checkengine.core.crash.CrashTranslator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -157,7 +159,8 @@ class CrashDoctorTest {
         assertTrue(c.main().detail().contains("IllegalStateException: CE test"), c.main().detail());
         assertTrue(c.main().detail().contains("failed first"), c.main().detail());
         assertEquals(java.util.List.of("cecrash-1.0.0.jar"), c.main().files());
-        assertEquals("Mod didn't load: architectury", c.explained().findings().get(1).title());
+        assertEquals("architectury is installed, but wasn't ready when a mod asked for it",
+                c.explained().findings().get(1).title());
     }
 
     /** One broken mixin makes many mods fail with the same error: that's not each mod's fault, leave the report be. */
@@ -175,5 +178,73 @@ class CrashDoctorTest {
         }
         var e = checkengine.core.crash.CrashTranslator.withLog(report, log.toString());
         assertEquals(1, e.findings().size(), e.findings().toString());
+    }
+
+    /** A made-up crash in Demo Gadgets: frames, and the report's own "Suspected Mods" line when given. */
+    private static String demoCrash(String frameMod, String suspected) {
+        return """
+                ---- Minecraft Crash Report ----
+                Description: Unexpected error
+
+                java.lang.NullPointerException: Cannot invoke "Object.toString()" because "x" is null
+                """ + (frameMod == null ? "" : "\tat TRANSFORMER/" + frameMod + "@1.0/com.demo." + frameMod
+                + ".Magnet.pull(Magnet.java:7) ~[" + frameMod + "-1.0.jar%23211!/:?] {}\n")
+                + "\tat TRANSFORMER/minecraft@1.21.1/net.minecraft.world.entity.Entity.tick(Entity.java:850) ~[client-1.21.1.jar%23236!/:?] {}\n"
+                + """
+
+
+                A detailed walkthrough of the error, its code path and all known details is as follows:
+                ---------------------------------------------------------------------------------------
+                """ + (suspected == null ? "" : "\tSuspected Mods: " + suspected + "\n");
+    }
+
+    /**
+     * The screen and Copy for help must say what the CLI says (2026-11-27: "Crash in Quark" was Sure in the CLI
+     * and "not sure" in game). Fails as soon as the two disagree on any of the four words.
+     */
+    @Test
+    void theScreenAndTheCliAlwaysAgreeOnHowSure() throws IOException {
+        String[][] cases = {
+                {"demogadgets", "Demo Gadgets (demogadgets)", "Sure"},
+                {"demogadgets", null, "Likely"},
+                {"demogadgets", "Steve Tools (stevetools)", "Maybe"},
+                {null, null, "Not sure"},
+        };
+        int n = 0;
+        for (String[] c : cases) {
+            String text = demoCrash(c[0], c[1]);
+            Path g = game.resolve("g" + n++), ce = g.resolve("checkengine");
+            assertNull(CrashDoctor.checkAndStartSession(g, ce));
+            Path dir = Files.createDirectories(g.resolve("crash-reports"));
+            Path f = Files.writeString(dir.resolve("crash-2026-11-27_12.00.0" + n + "-client.txt"), text);
+            Files.setLastModifiedTime(f, FileTime.fromMillis(System.currentTimeMillis() + 2000));
+            LastCrash shown = CrashDoctor.checkAndStartSession(g, ce);
+            assertNotNull(shown, c[2]);
+            CrashTranslator.Confidence cli = CrashTranslator.translate(text).confidence();
+            assertEquals(c[2], cli.word(), "the made-up crash should be " + c[2]);
+            assertEquals(cli, shown.confidence(), c[2]);
+            assertEquals(cli == CrashTranslator.Confidence.SURE, shown.sure(), c[2]);
+            String help = CrashHelp.message(shown, null, null);
+            switch (c[2]) {
+                case "Sure" -> {
+                    assertEquals("THIS IS IT", shown.heading());
+                    assertTrue(help.contains("**Cause:** Crash in "), help);
+                }
+                case "Likely" -> {
+                    assertEquals("PROBABLY THIS", shown.heading());
+                    assertTrue(help.contains("**Cause (likely):** "), help);
+                    assertTrue(shown.main().fix().startsWith("Probably demogadgets"), shown.main().fix());
+                }
+                case "Maybe" -> {
+                    assertEquals("MIGHT BE THIS", shown.heading());
+                    assertTrue(help.contains("**Cause (maybe):** "), help);
+                    assertTrue(shown.main().fix().startsWith("Might be demogadgets"), shown.main().fix());
+                }
+                default -> {
+                    assertEquals("NOT SURE WHAT CAUSED THIS", shown.heading());
+                    assertTrue(help.contains("**Cause:** not sure"), help);
+                }
+            }
+        }
     }
 }

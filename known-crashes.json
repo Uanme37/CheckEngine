@@ -1,6 +1,6 @@
 {
-  "_readme": "The Check Engine crash library. Each entry is a crash someone already solved. 'all': every text must be in the crash report or log; 'any': at least one must be; 'none': none may be. First match wins, so put narrow entries above broad ones. Raise 'version' with every change. Each Check Engine jar ships its own copy of this file and never downloads it: new entries reach players with the next Check Engine version. To add one, open a pull request or an issue with the crash report and the fix that worked.",
-  "version": 1,
+  "_readme": "The Check Engine known-crash list. Each entry is a crash that was already solved or seen again and again, with its fix. 'all': every text must be in the crash report; 'any': at least one must be; 'none': none may be. First match wins, so put narrow entries above broad ones. Raise 'version' with every change. Each Check Engine jar ships its own copy and never downloads it: new entries reach players with the next Check Engine version.",
+  "version": 2,
   "crashes": [
     {
       "id": "rtss-overlay",
@@ -40,6 +40,34 @@
       "any": [
         "Could not reserve enough space for",
         "Invalid maximum heap size"
+      ]
+    },
+    {
+      "id": "sable-create-collider",
+      "title": "Create contraption collision crash with Sable",
+      "detail": "A Create contraption crashed while working out a collision, with Sable (and Aeronautics, if installed) also changing how contraptions collide. This crash shows up again and again in reports with these mods together.",
+      "fix": "Update Sable, Aeronautics and Create to their newest versions together. If it still happens, send this crash report to Sable's issue tracker and stay away from the contraption that crashed until then.",
+      "all": [
+        "ContinuousOBBCollider",
+        "\"mf.axis\" is null",
+        "sable"
+      ]
+    },
+    {
+      "id": "sable-rapier-natives",
+      "title": "Sable's physics library couldn't load",
+      "detail": "Sable uses a native physics library (Rapier) that has to load on your computer. Here it failed to load. Reports show this mostly on Macs with Apple chips.",
+      "fix": "Update Sable to its newest version. If it still fails, send this crash report to Sable's issue tracker; until it's fixed, this modpack can't run with Sable on this computer.",
+      "all": [
+        "Rapier",
+        "sable"
+      ],
+      "any": [
+        "UnsatisfiedLinkError",
+        "NoSuchFileException"
+      ],
+      "none": [
+        "GLIBC_"
       ]
     }
   ]

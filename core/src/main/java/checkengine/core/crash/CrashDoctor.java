@@ -34,7 +34,6 @@ public final class CrashDoctor {
     /** How far back the first launch with Check Engine looks for a crash from before it was installed. */
     static final long BEFORE_INSTALL_WINDOW = 24L * 60 * 60 * 1000;
     /** The crashes where Check Engine only knows where it happened, not why. */
-    private static final java.util.Set<String> UNSURE = java.util.Set.of("crash", "unknown-crash");
     /** Crashes where the mod in the stack trace is a bystander: something else failed first. */
     private static final java.util.Set<String> NOT_AT_FAULT = java.util.Set.of("knock-on-crash",
             Finding.MISSING_DEPENDENCY);
@@ -72,11 +71,31 @@ public final class CrashDoctor {
         }
 
         /**
-         * Whether Check Engine knows what caused it, not just where it happened. When it doesn't, the screen says
-         * "Not sure what caused this" instead of showing a guess as the fix.
+         * Whether Check Engine knows what caused it, not just where it happened. Always the same as the CLI's "How
+         * sure: Sure" (2026-11-27: the screen said not sure for a Sure "Crash in Quark").
          */
         public boolean sure() {
-            return !UNSURE.contains(main().code());
+            return explained.sure();
+        }
+
+        /** Sure, Likely, Maybe or Not sure: the same word the CLI prints. */
+        public CrashTranslator.Confidence confidence() {
+            return explained.confidence();
+        }
+
+        /** A Likely or Maybe answer: a lead the screens show with its own heading, not as the cause. */
+        public boolean lead() {
+            return confidence() == CrashTranslator.Confidence.LIKELY || confidence() == CrashTranslator.Confidence.MAYBE;
+        }
+
+        /** The heading of the Fix box: "THIS IS IT" (green), "PROBABLY THIS", "MIGHT BE THIS" or "NOT SURE WHAT CAUSED THIS". */
+        public String heading() {
+            return switch (confidence()) {
+                case SURE -> "THIS IS IT";
+                case LIKELY -> "PROBABLY THIS";
+                case MAYBE -> "MIGHT BE THIS";
+                default -> "NOT SURE WHAT CAUSED THIS";
+            };
         }
 
         /** For a crash from before Check Engine: is the mod it blamed gone, a different version, or the same? */
@@ -221,7 +240,8 @@ public final class CrashDoctor {
         if (explained.findings().isEmpty()) return null;
         String when = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(newest)), ZoneId.systemDefault())
                 .withSecond(0).withNano(0).toString().replace('T', ' ');
-        String culprit = CrashLines.culprit(text);
+        // The first suspect when a rule named one (it skips libraries and reads every frame style), else the stack.
+        String culprit = explained.suspects().isEmpty() ? CrashLines.culprit(text) : explained.suspects().get(0).id();
         List<CrashLines.KeyLine> keys = CrashLines.pick(text);
         // A knock-on crash or a missing mod: the mod in the stack trace isn't the one at fault, so don't point at it.
         if (NOT_AT_FAULT.contains(explained.findings().get(0).code())) {

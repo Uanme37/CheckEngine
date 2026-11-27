@@ -40,14 +40,15 @@ public final class NativeCrash {
         String where = frame == null ? "" : " (it crashed in " + frame + ")";
         String noReport = "The game closed without a normal crash report, because it died outside Java" + where + ".";
         List<Finding> out = new ArrayList<>();
+        boolean notSure = false;
 
         if (lower.contains("insufficient memory for the java runtime") || lower.contains("native memory allocation")
                 || lower.contains("out of memory error")) {
             out.add(new Finding(Severity.ERROR, CODE, "The PC ran out of memory",
-                    "Windows couldn't give the game the memory it asked for, so it closed. The game's memory setting "
+                    "The computer couldn't give the game the memory it asked for, so it closed. The game's memory setting "
                             + "is higher than this PC can spare right now.",
-                    "Lower the game's memory a little (leave at least 3-4 GB for Windows), close other programs, and "
-                            + "make sure Windows' page file is on (Automatic).", List.of()));
+                    "Lower the game's memory a little (leave at least 3-4 GB for the system) and close other programs. On "
+                            + "Windows, also make sure the page file is on (Automatic).", List.of()));
         } else if (gpu(lib) != null) {
             String vendor = gpu(lib);
             out.add(new Finding(Severity.ERROR, CODE, "Graphics driver crash (" + vendor + ")",
@@ -65,7 +66,26 @@ public final class NativeCrash {
                             + "probably broken or far too big.",
                     "Try without your resource packs first. If it still happens, a mod's textures are the cause: "
                             + CrashTranslator.STRIP_MINE_HINT, List.of()));
-        } else if (lib.startsWith("lwjgl") || lib.startsWith("liblwjgl") || lib.contains("glfw") || lib.startsWith("libx11") || lib.contains("libegl")
+        } else if (lib.contains("glfw") || lib.startsWith("libx11") || lib.startsWith("libxcb")) {
+            // The window and keyboard layer: the driver is one cause of many (input methods, overlays, Wayland, old
+            // Java), so no driver-first advice and no "sure".
+            notSure = true;
+            out.add(new Finding(Severity.ERROR, CODE, "Crash in the game's window layer (" + frame + ")",
+                    noReport + " " + frame + " opens the game's window and reads the keyboard and mouse. From this "
+                            + "file alone Check Engine can't tell what upset it.",
+                    "Things that cause this: an input method or chat mod (typing in other languages), an overlay "
+                            + "program (Discord, MSI Afterburner, OBS), Wayland on Linux (try an X11 session), an old "
+                            + "Java, or the graphics driver. " + CrashTranslator.STRIP_MINE_HINT, List.of()));
+        } else if (gameLibrary(lib)) {
+            // Comes with Minecraft itself (LWJGL's memory allocator, the old Twitch SDK): not a mod's native code.
+            notSure = true;
+            out.add(new Finding(Severity.ERROR, CODE, "Crash in a library that comes with Minecraft (" + frame + ")",
+                    noReport + " " + frame + " ships with Minecraft itself, not with a mod. Something handed it bad "
+                            + "data, often a rendering or performance mod, sometimes the Java version."
+                            + (modCode == null ? "" : " The last Java code running was " + modCode + "."),
+                    "Try the Java the launcher picks. If it keeps happening: " + CrashTranslator.STRIP_MINE_HINT,
+                    List.of()));
+        } else if (lib.startsWith("lwjgl") || lib.startsWith("liblwjgl") || lib.contains("libegl")
                 || lib.contains("libgldispatch")) {
             out.add(new Finding(Severity.ERROR, CODE, "Crash in the game's window and graphics layer",
                     noReport + " " + frame + " is the part of the game that talks to the graphics driver, so the "
@@ -110,10 +130,12 @@ public final class NativeCrash {
         } else {
             out.add(new Finding(Severity.ERROR, CODE, "The game crashed outside Java (" + signal + ")",
                     noReport + (modCode == null ? "" : " The last Java code running was " + modCode + "."),
-                    "Update your graphics driver first: it's the most common cause. " + CrashTranslator.STRIP_MINE_HINT,
+                    "From this file alone Check Engine can't tell what did it: the graphics driver, an overlay program "
+                            + "and a mod's native code are the usual causes. " + CrashTranslator.STRIP_MINE_HINT,
                     List.of()));
         }
-        return new CrashTranslator.Explanation("The game closed: " + signal, frame, out);
+        CrashTranslator.Explanation e = new CrashTranslator.Explanation("The game closed: " + signal, frame, out);
+        return notSure ? e.with(CrashTranslator.Confidence.NOT_SURE, List.of()) : e;
     }
 
     /** The file named in "# Problematic frame:", e.g. "atio6axx.dll", or null. */
@@ -164,6 +186,12 @@ public final class NativeCrash {
         }
         if (lib.matches(".*(gl4es|mobileglues|mali|adreno|libgles).*")) return "phone or tablet";
         return null;
+    }
+
+    /** Native files Minecraft itself ships: LWJGL's memory allocator, the old Twitch and video libraries. */
+    static boolean gameLibrary(String lib) {
+        return lib.matches("(lib)?jemalloc.*|twitchsdk.*|avutil.*|avformat.*|avcodec.*|swresample.*|libmp3lame.*"
+                + "|lwjgl_tinyfd.*");
     }
 
     private static String overlay(String lib) {
