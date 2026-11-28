@@ -346,7 +346,8 @@ public final class CrashDoctorScreen extends DashScreen {
                     Thread t = new Thread(() -> {
                         Path log;
                         try {
-                            log = CrashDoctor.saveLog(FMLPaths.GAMEDIR.get(), crash, BootCheck.outputFolder());
+                            log = CrashDoctor.saveLog(FMLPaths.GAMEDIR.get(), crash, BootCheck.outputFolder(),
+                                    Minecraft.getInstance().getUser().getName());
                         } catch (IOException | RuntimeException e) {
                             CheckEngine.LOGGER.warn("Check Engine: couldn't save the crash's game log", e);
                             log = null;

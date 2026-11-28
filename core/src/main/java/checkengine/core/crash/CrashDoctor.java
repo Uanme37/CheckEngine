@@ -257,8 +257,20 @@ public final class CrashDoctor {
      * launch's log by the time Mechanic shows). Null when no log mentions the crash.
      */
     public static Path saveLog(Path gameDir, LastCrash crash, Path checkEngineFolder) throws IOException {
+        return saveLog(gameDir, crash, checkEngineFolder, null);
+    }
+
+    /**
+     * This copy is the file players paste to others, so it gets the same blanking as the help file: user folder,
+     * player names, login tokens, server addresses and IP addresses. The game's own log is left as it is.
+     *
+     * @param player the player's name when the game knows it, or null; names the log writes are blanked as well
+     */
+    public static Path saveLog(Path gameDir, LastCrash crash, Path checkEngineFolder, String player)
+            throws IOException {
         String log = GameLog.forCrash(gameDir, crash.file());
         if (log == null) return null;
+        log = new checkengine.core.scan.HelpBundle.Redactor(System.getProperty("user.home"), player).apply(log);
         Files.createDirectories(checkEngineFolder);
         return Files.writeString(checkEngineFolder.resolve(LOG_FILE), log, StandardCharsets.UTF_8);
     }

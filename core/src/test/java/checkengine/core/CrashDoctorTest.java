@@ -61,6 +61,51 @@ class CrashDoctorTest {
         assertNull(CrashDoctor.checkAndStartSession(game, ce()), "already shown");
     }
 
+    /** The Game log button's copy is the file players paste to others. Made-up names and addresses. */
+    @Test
+    void savedGameLogHasPersonalBitsBlanked() throws IOException {
+        assertNull(CrashDoctor.checkAndStartSession(game, ce())); // first launch with Check Engine
+        String name = "crash-2026-10-08_12.30.00-client.txt";
+        crash(name, 0);
+        String token = "eyJhbGciOiJIUzI1NiJ9.FAKEFAKEFAKEFAKEFAKE.FAKEFAKEFAKE";
+        String original = String.join("\n",
+                "[12:00:01] [main/INFO]: Setting user: Steve99",
+                "[12:00:02] [main/INFO]: Launcher --username Steve99 --accessToken " + token,
+                "[12:00:03] [main/INFO]: Mod file C:\\Users\\Alex\\curseforge\\Instances\\Demo Machines\\mods\\create-6.0.4.jar",
+                "[12:10:00] [Render thread/INFO]: Connecting to play.demo-server.example, 25565",
+                "[12:10:00] [Netty Client IO #1/INFO]: mc.demo-realm.example/203.0.113.8:25565",
+                "[12:10:00] [Render thread/ERROR]: Couldn't connect, server address: join.demo-hub.example:25570",
+                "\t   |-- demo_lib 0.1.5.1",
+                "[12:10:01] [Server thread/INFO]: Bob_42[/203.0.113.7:51234] logged in with entity id 12",
+                "[12:10:02] [Render thread/INFO]: [CHAT] <Bob_42> hi, Dana_7 here too",
+                "[12:29:59] [Render thread/ERROR]: java.lang.IllegalStateException: Create 6.0.4 belt went wrong",
+                "[12:30:00] [Render thread/FATAL]: #@!@# Game crashed! Crash report saved to: #@!@# "
+                        + "C:\\Users\\Alex\\curseforge\\Instances\\Demo Machines\\crash-reports\\" + name, "");
+        Path logs = Files.createDirectories(game.resolve("logs"));
+        Files.writeString(logs.resolve("latest.log"), original);
+        LastCrash c = CrashDoctor.peek(game, ce());
+        assertNotNull(c);
+
+        Path saved = CrashDoctor.saveLog(game, c, ce(), "Dana_7");
+
+        assertEquals(ce().resolve(CrashDoctor.LOG_FILE), saved);
+        String text = Files.readString(saved);
+        for (String leak : new String[] {"Steve99", "Alex", token, "203.0.113.7", "203.0.113.8", "demo-server",
+                "demo-realm", "demo-hub", "Bob_42", "Dana_7"}) {
+            assertTrue(!text.contains(leak), leak + " left in:\n" + text);
+        }
+        assertTrue(text.contains("Connecting to <server>, 25565"), text);
+        assertTrue(text.contains("|-- demo_lib 0.1.5.1"), text);
+        // what a helper needs is still there
+        assertTrue(text.contains("IllegalStateException: Create 6.0.4 belt went wrong"), text);
+        assertTrue(text.contains("create-6.0.4.jar"), text);
+        assertTrue(text.contains(name), text);
+        assertEquals(original, Files.readString(logs.resolve("latest.log")), "the game's own log is not touched");
+        // without a name from the game, the names the log writes are still blanked
+        String again = Files.readString(CrashDoctor.saveLog(game, c, ce()));
+        assertTrue(!again.contains("Steve99") && !again.contains("Bob_42") && !again.contains("Alex"), again);
+    }
+
     /** From a real test run: a mod that throws while loading, with Check Engine's own clues in the same report. */
     @Test
     void modThatCrashedWhileLoadingIsNamedAndOurOwnNotesAreSkipped() {

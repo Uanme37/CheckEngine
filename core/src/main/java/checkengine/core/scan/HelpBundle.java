@@ -37,8 +37,9 @@ public final class HelpBundle {
             + "(?<!\\|\\s{0,3})(?<![\\[(,])(?<!\\[[A-Za-z][\\w.-]{0,63} )"
             // Check Engine's own history ("mod.jei=15.20.0.134") and loader / Java versions ("NeoForge: 26.1.2.121")
             + "(?<!^(?:mod\\.[\\w.-]{1,64}|loader)=)(?<!\\b(?:NeoForge|Forge|Minecraft|Java):? )"
-            // the loader's mod tree: "\t- insanelib 1.23.4.6", "\t\t|-- architectury 9.2.14"
-            + "(?<!^\\t{1,4}(?:- |\\|-- |\\\\-- )[a-z][a-z0-9_.-]{0,63} )"
+            // the loader's mod tree: "\t- insanelib 1.23.4.6", "\t\t|-- architectury 9.2.14", and a mod's own
+            // libraries under it, which some loaders indent with spaces and bars: "\t   |-- demo_lib 0.1.5.1"
+            + "(?<!^\\t{1,4}[ |]{0,24}(?:- |\\|-- |\\\\-- )[a-z][a-z0-9_.-]{0,63} )"
             + "(?!127\\.0\\.0\\.1\\b)(?!0\\.0\\.0\\.0\\b)"
             + "(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}"
             // not part of a longer version ("1.2.3.4.5", "-forge"); a full stop at the end of a sentence still counts
@@ -58,7 +59,12 @@ public final class HelpBundle {
     /** Any user folder, also from another PC or another system: C:\Users\x, /Users/x, /home/x. Not "assets/home/x". */
     private static final Pattern USER_FOLDER = Pattern.compile("(?<![\\w.-])([\\\\/]+(?:Users|home)[\\\\/]+)[^\\\\/\\s,;:\"'<>]+",
             Pattern.CASE_INSENSITIVE);
-    private static final Pattern SERVER_UUID = Pattern.compile("(UUID of player )\\S+( is )\\S+");
+    /** The time zone in the date a map mod logs: "Online mod data expired! Date: Thu Nov 26 22:14:01 CET 2026". */
+    private static final Pattern MAP_MOD_ZONE = Pattern.compile(
+            "(Online mod data expired! Date: [A-Za-z]{3} [A-Za-z]{3} \\d{1,2} \\d{2}:\\d{2}:\\d{2} )[A-Za-z0-9:+-]{1,12}( \\d{4})");
+    /** The sound device the game names when it starts: "OpenAL initialized on device OpenAL Soft on Speakers (Demo)". */
+    private static final Pattern AUDIO_DEVICE = Pattern.compile("(OpenAL initialized on device ).+");
+    private static final Pattern SERVER_UUID =Pattern.compile("(UUID of player )\\S+( is )\\S+");
     /** An IPv6 address, full or with "::" (and "%eth0" after it). Not times like 12:34:56 or "Foo::add" in code. */
     private static final Pattern IPV6 = Pattern.compile("(?i)(?<![\\w:.%])(?!::1(?![\\w:]))(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}"
             + "|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})"
@@ -263,6 +269,8 @@ public final class HelpBundle {
                 t = Pattern.compile("([\\\\/]Users[\\\\/])" + Pattern.quote(user) + "(?=[\\\\/])", Pattern.CASE_INSENSITIVE)
                         .matcher(t).replaceAll("$1<user>");
             }
+            t = MAP_MOD_ZONE.matcher(t).replaceAll("$1<hidden>$2");
+            t = AUDIO_DEVICE.matcher(t).replaceAll("$1<hidden>");
             t = LOGIN_ARG.matcher(t).replaceAll("$1<hidden>");
             t = TOKEN.matcher(t).replaceAll("<hidden>");
             t = ENV.matcher(t).replaceAll("$1<hidden>");

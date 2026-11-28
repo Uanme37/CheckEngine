@@ -127,6 +127,55 @@ class HelpBundleTest {
         assertEquals(line, new HelpBundle.Redactor(null).apply(line));
     }
 
+    /** A mod's own libraries in the loader's mod tree, indented with spaces and bars. Made-up mods and address. */
+    @Test
+    void modTreeVersionsStayAndAnAddressInTheSameTextGoes() {
+        String tree = String.join("\n",
+                "\t- demo_ui 0.12.15.4",
+                "\t   |-- demo_lib 0.1.5.1",
+                "\t   |-- demo_lib_gson 0.1.3.1",
+                "\t   |    \\-- demo_deep 2.0.0.7",
+                "\t   \\-- demo_lib_netty 10.20.30.40");
+        String text = new HelpBundle.Redactor(null).apply(String.join("\n", tree,
+                "[12:01:23] [Render thread/INFO]: Connecting to 203.0.113.9, 25565",
+                "   |-- 203.0.113.10 is not a mod tree line without the tab",
+                "\t   |-- joined 203.0.113.11 198.51.100.4"));
+        assertTrue(text.startsWith(tree + "\n"), text);
+        assertTrue(text.contains("Connecting to <ip>, 25565"), text);
+        // only the one number right after a mod id on a tree line is kept
+        for (String leak : new String[] {"203.0.113.9", "203.0.113.10", "198.51.100.4"}) {
+            assertFalse(text.contains(leak), leak + " left in:\n" + text);
+        }
+    }
+
+    /** Only the zone goes, and only on the map mod's own date line. Made-up lines. */
+    @Test
+    void timeZoneInTheMapModDateLineIsBlanked() {
+        String before = "[12:00:01] [Render thread/INFO]: Loading Demo Minimap - Stage 2/2";
+        String after = "[12:00:03] [Render thread/INFO]: Build date: Thu Nov 26 22:14:01 CET 2026";
+        String text = new HelpBundle.Redactor(null).apply(String.join("\r\n", before,
+                "[12:00:02] [Worker-3/WARN]: io exception while checking patreon: Online mod data expired! Date: Thu Nov 26 22:14:01 CET 2026",
+                "[12:00:02] [Render thread/ERROR]: io exception while checking versions: Online mod data expired! Date: Sat Dec 5 09:03:56 GMT+05:30 2026",
+                after));
+        assertEquals(String.join("\r\n", before,
+                "[12:00:02] [Worker-3/WARN]: io exception while checking patreon: Online mod data expired! Date: Thu Nov 26 22:14:01 <hidden> 2026",
+                "[12:00:02] [Render thread/ERROR]: io exception while checking versions: Online mod data expired! Date: Sat Dec 5 09:03:56 <hidden> 2026",
+                after), text);
+    }
+
+    /** Only the device name goes, and only on the line where the game names it. Made-up device. */
+    @Test
+    void audioDeviceNameIsBlanked() {
+        String before = "[12:00:01] [Render thread/WARN]: Missing sound for event: demo:forge_crackle";
+        String after = "[12:00:03] [Render thread/INFO]: Sound engine started on device Demo Speakers";
+        String text = new HelpBundle.Redactor(null).apply(String.join("\r\n", before,
+                "[12:00:02] [Render thread/INFO]: OpenAL initialized on device OpenAL Soft on Headset (2- Demo Wireless 7)",
+                after));
+        assertEquals(String.join("\r\n", before,
+                "[12:00:02] [Render thread/INFO]: OpenAL initialized on device <hidden>",
+                after), text);
+    }
+
     /** Four-part mod versions aren't IPs, real addresses still are. */
     @Test
     void modVersionsStayAddressesGo() {
